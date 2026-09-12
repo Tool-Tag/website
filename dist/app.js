@@ -28,6 +28,7 @@ Object.assign(translations, {
  dropText:'Trae tu equipo y recógelo cuando esté listo. Coordinamos ubicación y horario.', mobileText:'Vamos a tu ubicación. Confirmamos disponibilidad y traslado por solicitud.',
  days:'Viernes, sábado y domingo · Wasatch Front y alrededores', compatibility:'Confirmamos compatibilidad del material y la superficie antes de marcar.', readyTitle:'¿Listo para hacerlo tuyo?', readyText:'Comienza con tus herramientas y tu idea.'
 });
+Object.assign(translations, {workEyebrow:'NUESTRO TRABAJO', workTitle:'Así dejamos tu marca.'});
 const original = new Map();
 document.querySelectorAll('[data-i]').forEach(el => original.set(el, el.innerHTML));
 let language = 'en';
@@ -43,6 +44,7 @@ function setLanguage(next) {
   document.querySelector('meta[name="description"]').content = next === 'es' ? 'Marcaje personalizado de herramientas en Wasatch Front y alrededores. Entrega y servicio móvil, de viernes a domingo.' : 'Personalized tool marking across the Wasatch Front and surrounding areas. Drop-off and mobile service, Friday through Sunday.';
   document.querySelector('#review').hidden = true;
   try { localStorage.setItem('tooltag-language', next); } catch {}
+  document.dispatchEvent(new CustomEvent('tooltag:language', {detail: next}));
 }
 document.querySelectorAll('.languages button').forEach(button => {
   button.dataset.language = button.textContent.toLowerCase();
