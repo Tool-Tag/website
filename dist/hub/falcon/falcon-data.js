@@ -4,6 +4,8 @@ const options={operation:['No registrado','Grabado','Marcado','Corte','Otra'],un
 function validate(row){
  if(!row||typeof row!=='object')throw Error('Registro inválido');
  const out={};
+ if(row.contentType!==undefined&&row.contentType!==''){if(!['Imagen','Letras'].includes(row.contentType))throw Error('Tipo de contenido inválido');out.contentType=row.contentType;}
+ if(row.title!==undefined){if(typeof row.title!=='string'||!row.title.trim()||row.title.length>120)throw Error('Título inválido');out.title=row.title.trim();}
  for(const [key,max] of Object.entries({id:100,material:120,machine:120,focus:120,notes:2000,date:10})){
   if(typeof row[key]!=='string'||row[key].length>max)throw Error('Campo inválido: '+key);
   out[key]=row[key].trim();

@@ -60,3 +60,14 @@ header{height:64px}
  .falcon-page .form-actions .button{min-height:48px}
  .falcon-page header>a:last-child{display:flex;align-items:center;min-height:44px}
 }
+
+.record-list{list-style:none;padding:0;margin:0;border-top:1px solid var(--line)}
+.record-list li{border-bottom:1px solid var(--line)}
+.record-title{display:block;width:100%;min-height:56px;padding:16px 12px;text-align:left;border:0;background:transparent;color:var(--text);font-size:16px;line-height:1.5;overflow-wrap:anywhere}
+.record-title:hover{background:var(--panel);color:#78baff}
+.detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 24px;margin:24px 0}
+.detail-grid>div{min-width:0}.detail-grid dt{font-size:12px;color:var(--muted)}
+.detail-grid dd{margin:4px 0 0;overflow-wrap:anywhere;white-space:pre-wrap;font-size:16px}
+.detail-grid>div:last-child{grid-column:1/-1}
+#details-title{overflow-wrap:anywhere;line-height:1.35}
+@media(max-width:420px){.detail-grid{grid-template-columns:minmax(0,1fr);gap:14px}.record-title{padding-inline:4px}}

@@ -11,11 +11,12 @@ const backup = JSON.parse(fs.readFileSync(path.join(root, 'ToolTag-Falcon-Parame
 const key = 'tooltag-falcon-v1';
 
 function app(saved = null, blocked = false) {
-  const fields = [...Object.keys(backup.rows[0]).filter(k => k !== 'id'),'letterHeight','frameWidth','frameHeight','dimensionsApprox'];
+  const fields = [...Object.keys(backup.rows[0]).filter(k => k !== 'id'),'letterHeight','frameWidth','frameHeight','dimensionsApprox','title','contentType'];
   class Element {
     constructor() { this.value = ''; this.textContent = ''; this.children = []; this.listeners = {}; this.hidden = false; }
     addEventListener(name, fn) { this.listeners[name] = fn; }
     setAttribute() {}
+    focus() {}
     append(child) { this.children.push(child); }
     replaceChildren() { this.children = []; }
     click() { return this.listeners.click?.({target:this}); }
@@ -37,7 +38,7 @@ function app(saved = null, blocked = false) {
   const context = vm.createContext({
     document:{querySelector:$, createElement:() => new Element()},
     localStorage:{getItem:() => { if(blocked) throw Error('blocked'); return stored; },setItem:(k,v) => { if(blocked) throw Error('blocked'); stored=v; writes++; }},
-    FormData:class { constructor() { return fields.map(k => [k,form.elements[k].value]); } },
+    FormData:class { constructor() { return fields.filter(k=>!form.elements[k].disabled&&(k!=='title'||form.elements[k].value!=='')).map(k => [k,form.elements[k].value]); } },
     Blob, URL:{createObjectURL:b => {blob=b;return 'blob:test';},revokeObjectURL(){}},
     setTimeout:fn => fn(), confirm:() => true,
   });
@@ -81,10 +82,10 @@ test('add, edit, reload and delete; new dates remain blank', () => {
   a.fill({...backup.rows[0],material:'QA disposable',date:''}); a.event('#form','submit');
   assert.equal(a.rows().length,8); assert.equal(a.$('#editor').open,false);
   let tr=a.$('#rows').children.find(tr=>tr.children[0].textContent==='QA disposable');
-  tr.children.at(-1).children[0].click(); a.fill({notes:'Edited result'}); a.event('#form','submit');
+  tr.children[0].click(); a.$('#details-edit').click(); a.fill({notes:'Edited result'}); a.event('#form','submit');
   const b=app(a.stored()); assert.equal(b.rows().at(-1).notes,'Edited result');
   tr=b.$('#rows').children.find(tr=>tr.children[0].textContent==='QA disposable');
-  tr.children.at(-1).children[1].click(); assert.equal(b.rows().length,7);
+  tr.children[0].click(); b.$('#details-delete').click(); assert.equal(b.rows().length,7);
 });
 test('export preserves all rows; import merges, deduplicates and rejects invalid files atomically', async () => {
   const a=app(); a.$('#export').click(); assert.deepEqual(JSON.parse(await a.blob().text()),backup);
@@ -103,17 +104,60 @@ test('schema rejects invalid dates, units, speeds and fractional passes', () => 
 
 
 test('optional dimensions survive editing, reload and JSON export/import; old records remain valid', async () => {
-  const a=app(); a.$('#rows').children[0].children.at(-1).children[0].click();
-  a.fill({letterHeight:'3.5',frameWidth:'40',frameHeight:'12',dimensionsApprox:'Aproximado'});
-  a.event('#form','submit');
+  const a=app(); a.$('#rows').children[0].children[0].click(); a.$('#details-edit').click();
+  a.fill({contentType:'Letras',letterHeight:'3.5',frameWidth:'40',frameHeight:'12',dimensionsApprox:'Aproximado'});
+  a.event('#content-type','change'); a.event('#form','submit');
   const saved=a.rows()[0]; assert.equal(saved.letterHeight,3.5); assert.equal(saved.frameWidth,40); assert.equal(saved.frameHeight,12);
   const b=app(a.stored()); assert.equal(b.rows()[0].dimensionsApprox,'Aproximado');
-  assert.ok(b.$('#rows').children[0].children.some(c=>String(c.textContent).includes('Frame: 40 × 12 mm')));
+  b.$('#rows').children[0].children[0].click(); assert.ok(b.$('#details-fields').children.some(c=>String(c.children[1].textContent).includes('40 × 12 mm')));
   b.$('#export').click();
   const c=app(JSON.stringify({...backup,rows:[]})); await c.import(await b.blob().text());
   assert.deepEqual(c.rows(),b.rows());
-  c.$('#rows').children[0].children.at(-1).children[0].click();
+  c.$('#rows').children[0].children[0].click(); c.$('#details-edit').click();
   c.fill({letterHeight:'',frameWidth:'',frameHeight:'',dimensionsApprox:''}); c.event('#form','submit');
   assert.equal(c.rows()[0].letterHeight,undefined); assert.equal(c.rows()[0].frameWidth,undefined);
   for(const value of [-1,0,'bad',true,' ']) assert.throws(()=>a.context.FalconData.validate({...backup.rows[0],letterHeight:value}));
+});
+
+
+test('title opens details, Edit switches dialogs and cancel restores details without changing data', () => {
+ const a=app(),before=a.stored();
+ assert.equal(a.$('#rows').children[0].children.length,1);
+ assert.equal(a.$('#rows').children[0].children[0].textContent,backup.rows[0].material);
+ a.$('#rows').children[0].children[0].click();
+ assert.equal(a.$('#details').open,true); assert.equal(a.$('#details-title').textContent,backup.rows[0].material);
+ a.$('#details-edit').click(); assert.equal(a.$('#details').open,false); assert.equal(a.$('#editor').open,true);
+ a.fill({material:'Unsaved title'}); a.$('#cancel').click();
+ assert.equal(a.$('#editor').open,false); assert.equal(a.$('#details').open,true); assert.equal(a.stored(),before);
+ a.$('#details-close').click(); assert.equal(a.$('#details').open,false);
+});
+
+
+test('separate title appears in list, details, search and JSON while preserving material', async () => {
+ const a=app();a.$('#add').click();
+ a.fill({...backup.rows[0],title:'Batería DeWalt 9Ah FlexVolt',material:'Plástico negro'});a.event('#form','submit');
+ const row=a.rows().at(-1);assert.equal(row.title,'Batería DeWalt 9Ah FlexVolt');assert.equal(row.material,'Plástico negro');
+ a.$('#search').value='FlexVolt';a.event('#search','input');assert.equal(a.$('#rows').children.length,1);
+ a.$('#rows').children[0].children[0].click();assert.equal(a.$('#details-title').textContent,row.title);
+ a.$('#details-edit').click();assert.equal(a.$('#form').elements.title.value,row.title);
+ a.fill({title:'Título actualizado'});a.event('#form','submit');
+ a.$('#export').click();const b=app(JSON.stringify({...backup,rows:[]}));await b.import(await a.blob().text());
+ assert.equal(b.rows().at(-1).title,'Título actualizado');assert.equal(b.rows().at(-1).material,'Plástico negro');
+ for(const title of ['', ' ', 123, 'a'.repeat(121)])assert.throws(()=>a.context.FalconData.validate({...backup.rows[0],title}));
+});
+
+
+test('letter controls follow content type, preserve existing measures and export selection', async () => {
+ const a=app();a.$('#add').click();assert.equal(a.$('#letter-fields').hidden,true);
+ a.fill({...backup.rows[0],title:'Texto de prueba',contentType:'Letras',letterHeight:'4'});a.event('#content-type','change');
+ assert.equal(a.$('#letter-fields').hidden,false);assert.equal(a.$('#form').elements.letterHeight.disabled,false);
+ a.event('#form','submit');
+ const last=()=>a.$('#rows').children.at(-1).children[0];last().click();a.$('#details-edit').click();
+ a.fill({contentType:'Imagen'});a.event('#content-type','change');assert.equal(a.$('#letter-fields').hidden,true);
+ a.event('#form','submit');assert.equal(a.rows().at(-1).contentType,'Imagen');assert.equal(a.rows().at(-1).letterHeight,4);
+ assert.equal(a.$('#details-fields').children.some(c=>c.children[0].textContent==='Altura de letras'),false);
+ a.$('#details-edit').click();a.fill({contentType:'Letras'});a.event('#content-type','change');assert.equal(a.$('#form').elements.letterHeight.value,4);
+ a.event('#form','submit');a.$('#export').click();const b=app(JSON.stringify({...backup,rows:[]}));await b.import(await a.blob().text());
+ assert.equal(b.rows().at(-1).contentType,'Letras');assert.equal(b.rows().at(-1).letterHeight,4);
+ assert.throws(()=>a.context.FalconData.validate({...backup.rows[0],contentType:'Invalid'}));
 });
