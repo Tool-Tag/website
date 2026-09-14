@@ -21,6 +21,16 @@ function validate(row){
  out.scan=row.scan||'No registrado';
  if(!['No registrado','Unidireccional','Bidireccional'].includes(out.scan))throw Error('Escaneo inválido');
  for(const [key,values] of Object.entries(options)){if(!values.includes(row[key]))throw Error('Opción inválida: '+key);out[key]=row[key];}
+ for(const key of ['letterHeight','frameWidth','frameHeight']){
+  const value=row[key];
+  if(value===undefined||value==='')continue;
+  if(!['string','number'].includes(typeof value)||String(value).trim()===''||!Number.isFinite(Number(value))||Number(value)<=0)throw Error('Medida inválida: '+key);
+  out[key]=Number(value);
+ }
+ if(row.dimensionsApprox!==undefined&&row.dimensionsApprox!==''){
+  if(row.dimensionsApprox!=='Aproximado')throw Error('Precisión de medidas inválida');
+  out.dimensionsApprox=row.dimensionsApprox;
+ }
  return out;
 }
 function parse(text){const data=JSON.parse(text);if(data.app!=='tooltag-falcon'||data.version!==1||!Array.isArray(data.rows)||data.rows.length>5000)throw Error('No es un respaldo válido de ToolTag Falcon');const rows=data.rows.map(validate);if(new Set(rows.map(r=>r.id)).size!==rows.length)throw Error('IDs duplicados');return rows;}

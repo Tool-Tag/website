@@ -11,7 +11,7 @@ const backup = JSON.parse(fs.readFileSync(path.join(root, 'ToolTag-Falcon-Parame
 const key = 'tooltag-falcon-v1';
 
 function app(saved = null, blocked = false) {
-  const fields = Object.keys(backup.rows[0]).filter(k => k !== 'id');
+  const fields = [...Object.keys(backup.rows[0]).filter(k => k !== 'id'),'letterHeight','frameWidth','frameHeight','dimensionsApprox'];
   class Element {
     constructor() { this.value = ''; this.textContent = ''; this.children = []; this.listeners = {}; this.hidden = false; }
     addEventListener(name, fn) { this.listeners[name] = fn; }
@@ -99,4 +99,21 @@ test('schema rejects invalid dates, units, speeds and fractional passes', () => 
   const {context}=app();
   for(const changes of [{date:'2026-02-30'},{unit:'unknown'},{speed:0},{passes:1.5},{interval:-1},{scan:'unknown'}])
     assert.throws(()=>context.FalconData.validate({...backup.rows[0],...changes}));
+});
+
+
+test('optional dimensions survive editing, reload and JSON export/import; old records remain valid', async () => {
+  const a=app(); a.$('#rows').children[0].children.at(-1).children[0].click();
+  a.fill({letterHeight:'3.5',frameWidth:'40',frameHeight:'12',dimensionsApprox:'Aproximado'});
+  a.event('#form','submit');
+  const saved=a.rows()[0]; assert.equal(saved.letterHeight,3.5); assert.equal(saved.frameWidth,40); assert.equal(saved.frameHeight,12);
+  const b=app(a.stored()); assert.equal(b.rows()[0].dimensionsApprox,'Aproximado');
+  assert.ok(b.$('#rows').children[0].children.some(c=>String(c.textContent).includes('Frame: 40 × 12 mm')));
+  b.$('#export').click();
+  const c=app(JSON.stringify({...backup,rows:[]})); await c.import(await b.blob().text());
+  assert.deepEqual(c.rows(),b.rows());
+  c.$('#rows').children[0].children.at(-1).children[0].click();
+  c.fill({letterHeight:'',frameWidth:'',frameHeight:'',dimensionsApprox:''}); c.event('#form','submit');
+  assert.equal(c.rows()[0].letterHeight,undefined); assert.equal(c.rows()[0].frameWidth,undefined);
+  for(const value of [-1,0,'bad',true,' ']) assert.throws(()=>a.context.FalconData.validate({...backup.rows[0],letterHeight:value}));
 });

@@ -23,3 +23,40 @@ header{height:64px}
 .hub-home footer{text-align:center}
 @media(max-width:600px){header{gap:10px}.brand-logo{width:112px}.logo-horizontal{transform:scale(.41)}.header-label{letter-spacing:.1em;font-size:10px}.hub-main{padding-block:32px}.hub-modules{margin-top:24px}.hub-home footer{font-size:11px}}
 @media(prefers-reduced-motion:reduce){.hub-module{transition:none}}
+
+/* Phone layout uses the same records and controls as the desktop table. */
+.falcon-page input,.falcon-page select,.falcon-page textarea{font-size:16px}
+.falcon-page dialog{overflow-y:auto;overscroll-behavior:contain}
+.falcon-page td button{min-height:44px;min-width:64px}
+@media(max-width:700px){
+ .falcon-page main{padding-block:24px 32px}
+ .falcon-page .title-row>div{min-width:0}
+ .falcon-page h1{font-size:30px}
+ .falcon-page #add{width:100%;min-height:48px}
+ .falcon-page .toolbar{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin-top:20px}
+ .falcon-page .toolbar input,.falcon-page .toolbar select{width:100%;min-width:0}
+ .falcon-page .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .falcon-page .actions .button{padding:10px 8px;font-size:13px;white-space:normal}
+ .falcon-page .notice:empty{display:none}
+ .falcon-page .table-wrap{overflow:visible;border:0}
+ .falcon-page table{display:block;min-width:0;width:100%}
+ .falcon-page thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+ .falcon-page tbody{display:grid;gap:16px}
+ .falcon-page tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border:1px solid var(--line);border-top:2px solid var(--blue);padding:14px;gap:12px 14px;background:var(--bg)}
+ .falcon-page td{display:block;min-width:0;max-width:none;border:0;padding:0;font-size:14px;white-space:normal;overflow-wrap:anywhere}
+ .falcon-page td::before{content:attr(data-label);display:block;color:var(--muted);font-size:11px;line-height:1.4;margin-bottom:4px}
+ .falcon-page td:first-child{grid-column:1/-1;font-size:17px;font-weight:600;padding-bottom:10px;border-bottom:1px solid var(--line)}
+ .falcon-page td:first-child::before,.falcon-page td:last-child::before{display:none}
+ .falcon-page td:nth-child(6),.falcon-page td:nth-child(11),.falcon-page td:last-child{grid-column:1/-1}
+ .falcon-page td.unrecorded{display:none}
+ .falcon-page td:last-child{display:flex;gap:12px;padding-top:10px;border-top:1px solid var(--line)}
+ .falcon-page td button{flex:1;border:1px solid #46505c;border-radius:3px;padding:8px}
+ .falcon-page td button:last-child{color:#ffb9b9}
+ .falcon-page .form-grid{grid-template-columns:minmax(0,1fr)}
+ .falcon-page dialog{width:calc(100% - 16px);max-width:600px;max-height:calc(100dvh - 16px);padding:16px;padding-bottom:max(16px,env(safe-area-inset-bottom))}
+ .falcon-page .dialog-head{position:sticky;top:-16px;background:var(--bg);z-index:1;padding-block:12px;margin-top:-12px}
+ .falcon-page .dialog-head h2{font-size:22px}
+ .falcon-page .form-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .falcon-page .form-actions .button{min-height:48px}
+ .falcon-page header>a:last-child{display:flex;align-items:center;min-height:44px}
+}
