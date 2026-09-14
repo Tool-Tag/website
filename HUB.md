@@ -24,7 +24,7 @@ Copiar exclusivamente la carpeta `hub/` entregada dentro de `dist/` del reposito
 
 ## Referencia y límites
 
-Se pudo consultar el árbol público de https://github.com/Boftbuild/Boftbuild (hub y módulos separados en carpetas). No fue posible obtener el código interno de hub ni cargar https://tooltag.martinlab.studio/hub desde esta sesión; esta entrega no afirma ser una réplica de ese interior. Se conserva la separación de módulos y se aplica el estilo local vigente de ToolTag.
+Se revisó directamente https://github.com/Boftbuild/Boftbuild/blob/main/hub/index.html (blob 6adf05985be67e6b941d1ed8c8de1bded4ea1a24). Se adapta su barra superior compacta, encabezado centrado y selector de módulos con icono, descripción y etiqueta. Se usa el logo real y la paleta/tipografía de ToolTag. Solo Falcon está activo; no se incorporan login Google, roles, notificaciones ni otros módulos de BOFT.
 
 ## Validación de esta integración
 
@@ -48,3 +48,9 @@ Se pudo consultar el árbol público de https://github.com/Boftbuild/Boftbuild (
 Documentación de Vercel: https://vercel.com/docs/builds/configure-a-build
 
 Después del despliegue, las rutas previstas son https://tooltag.martinlab.studio/hub/ y https://tooltag.martinlab.studio/hub/falcon/. Esta entrega no afirma que estén publicadas.
+
+## Corrección de rutas y adaptación BOFT
+
+El despliegue responde tanto a `/hub` como a `/hub/`. Con `/hub`, el navegador resolvía `hub.css` como `/hub.css` y `falcon/` como `/falcon/`, causando estilos ausentes y 404. Todos los recursos y enlaces del Hub y Falcon ahora parten de la raíz del sitio. Esto también cubre `/hub/falcon` sin barra final. No hace falta modificar la configuración global de Vercel ni la Home.
+
+La portada del Hub usa una barra compacta con el logo real, título centrado y un único acceso Falcon con icono y etiqueta. El módulo conserva su tabla, formulario y almacenamiento. Se comprueban las rutas con y sin barra final mediante `node --test tests/hub-routes.test.cjs`; la validación visual en navegador sigue pendiente por el bloqueo administrado descrito arriba.
