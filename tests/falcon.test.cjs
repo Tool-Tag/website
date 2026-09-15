@@ -34,20 +34,28 @@ function app(saved = null, blocked = false) {
     form.elements.unit.value = 'mm/min'; form.elements.status.value = 'Por probar';
   };
   form.reportValidity = () => true;
+  function setupForm(selector, names) {
+    const target=$(selector);target.elements=Object.fromEntries(names.map(k=>[k,new Element()]));
+    target.elements.namedItem=k=>target.elements[k];target.reportValidity=()=>true;
+    target.reset=()=>{for(const k of names)target.elements[k].value='';for(const k of ['operation','air','scan'])if(target.elements[k])target.elements[k].value='No registrado';if(target.elements.unit)target.elements.unit.value='mm/min';if(target.elements.status)target.elements.status.value='Por probar';};
+  }
+  setupForm('#piece-form',['title','material','thickness','machine','status','date','notes']);
+  setupForm('#element-form',['name','operation','power','speed','unit','passes','interval','scan','air','focus','letterHeight','frameWidth','frameHeight','dimensionsApprox','notes']);
   let stored = saved, writes = 0, blob;
   const context = vm.createContext({
     document:{querySelector:$, createElement:() => new Element()},
     localStorage:{getItem:() => { if(blocked) throw Error('blocked'); return stored; },setItem:(k,v) => { if(blocked) throw Error('blocked'); stored=v; writes++; }},
-    FormData:class { constructor() { return fields.filter(k=>!form.elements[k].disabled&&(k!=='title'||form.elements[k].value!=='')).map(k => [k,form.elements[k].value]); } },
+    FormData:class { constructor(target) { return Object.keys(target.elements).filter(k=>k!=='namedItem'&&!target.elements[k].disabled&&(k!=='title'||target.elements[k].value!=='')).map(k => [k,target.elements[k].value]); } },
     Blob, URL:{createObjectURL:b => {blob=b;return 'blob:test';},revokeObjectURL(){}},
     setTimeout:fn => fn(), confirm:() => true,
   });
   context.window=context;
-  for (const name of ['falcon-data.js','falcon-presets.js','falcon.js']) vm.runInContext(source(name),context);
+  for (const name of ['falcon-data.js','falcon-presets.js','falcon-wizard.js','falcon.js']) vm.runInContext(source(name),context);
   const event = (id,name) => $(id).listeners[name]({target:$(id),preventDefault(){}});
   return {$,context,event, stored:()=>stored, writes:()=>writes, blob:()=>blob,
     rows:()=>JSON.parse(stored).rows,
     async import(text) {$('#file').files=[{size:Buffer.byteLength(text),text:async()=>text}]; await event('#file','change');},
+    fillForm(selector,row){for(const [k,v] of Object.entries(row))if($(selector).elements[k])$(selector).elements[k].value=v;},
     fill(row) {for(const [k,v] of Object.entries(row)) if(form.elements[k]) form.elements[k].value=v;},
   };
 }
@@ -77,16 +85,7 @@ test('search and status filter combine and expose empty results', () => {
   a.$('#search').value='no match'; a.event('#search','input');
   assert.equal(a.$('#table-wrap').hidden,true); assert.equal(a.$('#empty').hidden,false);
 });
-test('add, edit, reload and delete; new dates remain blank', () => {
-  const a=app(); a.$('#add').click(); assert.equal(a.$('#form').elements.date.value,'');
-  a.fill({...backup.rows[0],material:'QA disposable',date:''}); a.event('#form','submit');
-  assert.equal(a.rows().length,8); assert.equal(a.$('#editor').open,false);
-  let tr=a.$('#rows').children.find(tr=>tr.children[0].textContent==='QA disposable');
-  tr.children[0].click(); a.$('#details-edit').click(); a.fill({notes:'Edited result'}); a.event('#form','submit');
-  const b=app(a.stored()); assert.equal(b.rows().at(-1).notes,'Edited result');
-  tr=b.$('#rows').children.find(tr=>tr.children[0].textContent==='QA disposable');
-  tr.children[0].click(); b.$('#details-delete').click(); assert.equal(b.rows().length,7);
-});
+
 test('export preserves all rows; import merges, deduplicates and rejects invalid files atomically', async () => {
   const a=app(); a.$('#export').click(); assert.deepEqual(JSON.parse(await a.blob().text()),backup);
   await a.import(JSON.stringify(backup)); assert.equal(a.rows().length,7);
@@ -133,31 +132,39 @@ test('title opens details, Edit switches dialogs and cancel restores details wit
 });
 
 
-test('separate title appears in list, details, search and JSON while preserving material', async () => {
- const a=app();a.$('#add').click();
- a.fill({...backup.rows[0],title:'Batería DeWalt 9Ah FlexVolt',material:'Plástico negro'});a.event('#form','submit');
- const row=a.rows().at(-1);assert.equal(row.title,'Batería DeWalt 9Ah FlexVolt');assert.equal(row.material,'Plástico negro');
- a.$('#search').value='FlexVolt';a.event('#search','input');assert.equal(a.$('#rows').children.length,1);
- a.$('#rows').children[0].children[0].click();assert.equal(a.$('#details-title').textContent,row.title);
- a.$('#details-edit').click();assert.equal(a.$('#form').elements.title.value,row.title);
- a.fill({title:'Título actualizado'});a.event('#form','submit');
- a.$('#export').click();const b=app(JSON.stringify({...backup,rows:[]}));await b.import(await a.blob().text());
- assert.equal(b.rows().at(-1).title,'Título actualizado');assert.equal(b.rows().at(-1).material,'Plástico negro');
- for(const title of ['', ' ', 123, 'a'.repeat(121)])assert.throws(()=>a.context.FalconData.validate({...backup.rows[0],title}));
+
+
+function startPiece(a){a.$('#add').click();assert.equal(a.$('#wizard').open,true);assert.equal(a.$('#piece-form').elements.date.value,'');a.fillForm('#piece-form',{title:'Batería DeWalt 9Ah FlexVolt',material:'Plástico negro'});a.event('#piece-form','submit');}
+function addElement(a,type,values={}){a.$('#wizard-add').click();a.$(type==='Imagen'?'#wizard-image':'#wizard-text').click();a.fillForm('#element-form',{power:'15',speed:'3000',passes:'1',...values});a.event('#element-form','submit');}
+
+test('wizard stores independent logo and text only when finished, and detail/edit/reload/export retain them',async()=>{
+ const a=app(),before=a.stored();startPiece(a);assert.equal(a.$('#wizard-finish').disabled,true);
+ addElement(a,'Imagen',{name:'Logo',power:'25',frameWidth:'30',frameHeight:'20'});
+ assert.equal(a.$('#wizard-letter-fields').hidden,true);assert.equal(a.$('#wizard-items').children.length,1);
+ addElement(a,'Letras',{name:'Nombre',letterHeight:'4',power:'12',speed:'2400'});
+ assert.equal(a.$('#wizard-letter-fields').hidden,false);assert.equal(a.$('#wizard-items').children.length,2);assert.equal(a.stored(),before);
+ a.$('#wizard-finish').click();assert.equal(a.rows().length,8);assert.equal(a.$('#wizard').open,false);
+ const row=a.rows().at(-1);assert.equal(row.elements[0].power,25);assert.equal(row.elements[1].power,12);assert.equal(row.elements[1].letterHeight,4);assert.equal(row.power,undefined);
+ assert.equal(a.$('#details-title').textContent,row.title);a.$('#details-edit').click();a.event('#piece-form','submit');
+ a.$('#wizard-items').children[1].children[2].children[0].click();a.fillForm('#element-form',{power:'10'});a.event('#element-form','submit');a.$('#wizard-finish').click();
+ assert.equal(a.rows().at(-1).elements[1].power,10);assert.equal(a.rows().at(-1).elements[0].power,25);
+ const b=app(a.stored());b.$('#search').value='Nombre';b.event('#search','input');assert.equal(b.$('#rows').children.length,1);
+ b.$('#export').click();const c=app(JSON.stringify({...backup,rows:[]}));await c.import(await b.blob().text());assert.deepEqual(c.rows(),b.rows());
+ c.$('#rows').children.at(-1).children[0].click();c.$('#details-delete').click();assert.equal(c.rows().length,7);
 });
-
-
-test('letter controls follow content type, preserve existing measures and export selection', async () => {
- const a=app();a.$('#add').click();assert.equal(a.$('#letter-fields').hidden,true);
- a.fill({...backup.rows[0],title:'Texto de prueba',contentType:'Letras',letterHeight:'4'});a.event('#content-type','change');
- assert.equal(a.$('#letter-fields').hidden,false);assert.equal(a.$('#form').elements.letterHeight.disabled,false);
- a.event('#form','submit');
- const last=()=>a.$('#rows').children.at(-1).children[0];last().click();a.$('#details-edit').click();
- a.fill({contentType:'Imagen'});a.event('#content-type','change');assert.equal(a.$('#letter-fields').hidden,true);
- a.event('#form','submit');assert.equal(a.rows().at(-1).contentType,'Imagen');assert.equal(a.rows().at(-1).letterHeight,4);
- assert.equal(a.$('#details-fields').children.some(c=>c.children[0].textContent==='Altura de letras'),false);
- a.$('#details-edit').click();a.fill({contentType:'Letras'});a.event('#content-type','change');assert.equal(a.$('#form').elements.letterHeight.value,4);
- a.event('#form','submit');a.$('#export').click();const b=app(JSON.stringify({...backup,rows:[]}));await b.import(await a.blob().text());
- assert.equal(b.rows().at(-1).contentType,'Letras');assert.equal(b.rows().at(-1).letterHeight,4);
- assert.throws(()=>a.context.FalconData.validate({...backup.rows[0],contentType:'Invalid'}));
+test('wizard back, canceled element, removal and canceled edit never partially save',()=>{
+ const a=app(),before=a.stored();startPiece(a);addElement(a,'Letras',{letterHeight:'3'});
+ a.$('#wizard-back').click();assert.equal(a.$('#piece-form').elements.title.value,'Batería DeWalt 9Ah FlexVolt');a.event('#piece-form','submit');
+ a.$('#wizard-add').click();a.$('#wizard-image').click();a.$('#wizard-element-cancel').click();assert.equal(a.$('#wizard-items').children.length,1);
+ a.$('#wizard-items').children[0].children[2].children[1].click();assert.equal(a.$('#wizard-items').children.length,0);assert.equal(a.$('#wizard-finish').disabled,true);
+ a.$('#wizard-close').click();assert.equal(a.stored(),before);
+ startPiece(a);addElement(a,'Imagen');a.$('#wizard-finish').click();const saved=a.stored();
+ a.$('#details-edit').click();a.fillForm('#piece-form',{title:'Unsaved'});a.event('#piece-form','submit');a.$('#wizard-close').click();assert.equal(a.stored(),saved);
+});
+test('wizard validation rejects invalid elements and bad imports atomically',async()=>{
+ const a=app();startPiece(a);addElement(a,'Imagen',{power:'101'});assert.equal(a.$('#wizard-items').children.length,0);assert.equal(a.rows().length,7);
+ a.fillForm('#element-form',{power:'15'});a.event('#element-form','submit');a.$('#wizard-finish').click();const saved=a.stored(),row=a.rows().at(-1);
+ for(const elements of [[],[{...row.elements[0],power:101}],[{...row.elements[0],contentType:'Other'}],Array(101).fill(row.elements[0])]){
+  await a.import(JSON.stringify({...backup,rows:[{...row,id:'bad',elements}]}));assert.equal(a.stored(),saved);
+ }
 });

@@ -54,3 +54,15 @@ Después del despliegue, las rutas previstas son https://tooltag.martinlab.studi
 El despliegue responde tanto a `/hub` como a `/hub/`. Con `/hub`, el navegador resolvía `hub.css` como `/hub.css` y `falcon/` como `/falcon/`, causando estilos ausentes y 404. Todos los recursos y enlaces del Hub y Falcon ahora parten de la raíz del sitio. Esto también cubre `/hub/falcon` sin barra final. No hace falta modificar la configuración global de Vercel ni la Home.
 
 La portada del Hub usa una barra compacta con el logo real, título centrado y un único acceso Falcon con icono y etiqueta. El módulo conserva su tabla, formulario y almacenamiento. Se comprueban las rutas con y sin barra final mediante `node --test tests/hub-routes.test.cjs`; la validación visual en navegador sigue pendiente por el bloqueo administrado descrito arriba.
+
+## Agregar prueba por pasos
+
+Nueva prueba abre un diálogo con pantallas: datos generales de la pieza → lista de elementos → elegir Imagen/Logo o Letras → parámetros del elemento → volver a la lista → Terminar. Cada elemento tiene sus propios ajustes, dimensiones y notas. Los campos de letras aparecen solo para Letras. La fecha se deja vacía. No se cargan archivos de imagen; Imagen/Logo describe el tipo de elemento grabado.
+
+Los elementos se pueden editar o quitar antes de terminar. Volver conserva el borrador; cancelar la prueba no escribe datos. Solo Terminar guarda. Si falla el guardado, el borrador sigue abierto. Se admiten de 1 a 100 elementos por prueba.
+
+La lista principal, búsqueda, filtros y acceso al detalle se conservan. Los registros anteriores siguen con su formulario de edición. Las nuevas pruebas muestran cada elemento en el detalle y se editan con el flujo por pasos para conservar todos sus ajustes.
+
+El respaldo mantiene el formato ToolTag Falcon versión 1 y añade `elements` únicamente a las nuevas pruebas. Los datos generales quedan en la prueba y los parámetros de grabado en cada elemento; no se asignan parámetros ficticios a la pieza. La versión actual importa tanto registros antiguos como nuevos. Usar esta versión del sitio al restaurar respaldos con elementos.
+
+Pruebas de lógica: combinación logo + letras, ajustes independientes, edición, eliminación, volver, cancelación sin guardado parcial, búsqueda, recarga, exportación/importación y rechazo atómico de elementos inválidos. La verificación visual en navegador/dispositivo sigue pendiente; no se afirma haber probado el nuevo flujo en hardware móvil.

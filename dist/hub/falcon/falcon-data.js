@@ -1,7 +1,7 @@
 (function(root){
 'use strict';
 const options={operation:['No registrado','Grabado','Marcado','Corte','Otra'],unit:['mm/min','mm/s'],air:['No registrado','Activada','Desactivada'],status:['Por probar','Probado','Validado','Referencia']};
-function validate(row){
+function validateLegacy(row){
  if(!row||typeof row!=='object')throw Error('Registro inválido');
  const out={};
  if(row.contentType!==undefined&&row.contentType!==''){if(!['Imagen','Letras'].includes(row.contentType))throw Error('Tipo de contenido inválido');out.contentType=row.contentType;}
@@ -35,7 +35,26 @@ function validate(row){
  }
  return out;
 }
+const generalKeys=['id','title','material','thickness','machine','status','date','notes'];
+const elementKeys=['contentType','operation','power','speed','unit','passes','interval','scan','air','focus','letterHeight','frameWidth','frameHeight','dimensionsApprox','notes'];
+function validateElement(element){
+ if(!element||!['Imagen','Letras'].includes(element.contentType))throw Error('Elige Imagen/Logo o Letras');
+ if(typeof element.name!=='string'||element.name.length>120)throw Error('Nombre de elemento inválido');
+ const checked=validateLegacy({...element,id:'element',material:'element',machine:'',thickness:'',status:'Por probar',date:''});
+ const out={name:element.name.trim()};
+ for(const key of elementKeys)if(checked[key]!==undefined&&(key!=='letterHeight'||element.contentType==='Letras'))out[key]=checked[key];
+ return out;
+}
+function validate(row){
+ if(!row||row.elements===undefined)return validateLegacy(row);
+ if(!Array.isArray(row.elements)||row.elements.length<1||row.elements.length>100)throw Error('Agrega entre 1 y 100 elementos');
+ // Validate shared fields using the established rules; no placeholder parameters are stored.
+ const checked=validateLegacy({...row,power:1,speed:1,passes:1,unit:'mm/min',operation:'No registrado',air:'No registrado',scan:'No registrado',interval:'',focus:''});
+ if(!checked.title)throw Error('Agrega un título');
+ const out={};for(const key of generalKeys)if(checked[key]!==undefined)out[key]=checked[key];
+ out.elements=row.elements.map(validateElement);return out;
+}
 function parse(text){const data=JSON.parse(text);if(data.app!=='tooltag-falcon'||data.version!==1||!Array.isArray(data.rows)||data.rows.length>5000)throw Error('No es un respaldo válido de ToolTag Falcon');const rows=data.rows.map(validate);if(new Set(rows.map(r=>r.id)).size!==rows.length)throw Error('IDs duplicados');return rows;}
-const api={validate,parse,encode:rows=>JSON.stringify({app:'tooltag-falcon',version:1,rows},null,2)};
+const api={validate,validateElement,parse,encode:rows=>JSON.stringify({app:'tooltag-falcon',version:1,rows},null,2)};
 if(typeof module!=='undefined')module.exports=api;else root.FalconData=api;
 })(typeof window!=='undefined'?window:globalThis);

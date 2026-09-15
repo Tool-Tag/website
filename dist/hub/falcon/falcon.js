@@ -8,10 +8,14 @@ const dialog=$('#editor'),form=$('#form');
 function updateLetterFields(){const show=form.elements.contentType.value==='Letras';$('#letter-fields').hidden=!show;form.elements.letterHeight.disabled=!show;}
 $('#content-type').addEventListener('change',updateLetterFields);
 function save(next){try{localStorage.setItem(key,data.encode(next));records=next;render();return true;}catch{notice('No se pudo guardar. Libera espacio o permite almacenamiento; tus cambios no fueron guardados.');return false;}}
+const wizard=window.createFalconWizard({
+ onSave(record){const next=records.some(r=>r.id===record.id)?records.map(r=>r.id===record.id?record:r):[...records,record];if(next.length>5000)throw Error('Máximo 5000 pruebas por respaldo.');if(!save(next))throw Error('No se pudo guardar en el navegador. Tu borrador sigue abierto.');notice('Prueba guardada en este navegador.');},
+ onClose(id){const row=records.find(r=>r.id===id);if(row)showDetails(row);else $('#add').focus();}
+});
 const details=$('#details');let selected=null;const triggers=new Map();
 function showDetails(row){
  selected=row.id;$('#details-title').textContent=row.title||row.material;$('#details-fields').replaceChildren();
- const fields=[['Material',row.material],['Tipo de contenido',row.contentType||'Sin registrar'],['Espesor',row.thickness!==''?row.thickness+' mm':'—'],['Equipo / módulo',row.machine||'—'],['Operación',row.operation],['Potencia',row.power+' %'],['Velocidad',row.speed+' '+row.unit+(row.unit==='mm/min'?' ('+Number((row.speed/60).toFixed(3))+' mm/s)':'')],...((row.contentType==='Letras'||(!row.contentType&&row.letterHeight))?[['Altura de letras',row.letterHeight?row.letterHeight+' mm':'—']]:[]),['Frame: ancho × alto',row.frameWidth||row.frameHeight?(row.frameWidth||'—')+' × '+(row.frameHeight||'—')+' mm':'—'],['Medidas aproximadas',row.dimensionsApprox?'Sí (±)':'Sin indicación'],['Intervalo',row.interval?row.interval+' mm':'—'],['Pasadas',row.passes],['Escaneo',row.scan],['Aire',row.air],['Enfoque',row.focus||'—'],['Estado',row.status],['Fecha',row.date||'—'],['Resultado / notas',row.notes||'—']];
+ let fields;if(row.elements){fields=[['Material',row.material],['Espesor',row.thickness!==''?row.thickness+' mm':'—'],['Equipo / módulo',row.machine||'—'],['Estado',row.status],['Fecha',row.date||'—'],['Notas de la pieza',row.notes||'—']];for(const [i,element] of row.elements.entries())fields.push([`${i+1}. ${element.name||element.contentType}`,window.falconElementSummary(element)]);}else fields=[['Material',row.material],['Tipo de contenido',row.contentType||'Sin registrar'],['Espesor',row.thickness!==''?row.thickness+' mm':'—'],['Equipo / módulo',row.machine||'—'],['Operación',row.operation],['Potencia',row.power+' %'],['Velocidad',row.speed+' '+row.unit+(row.unit==='mm/min'?' ('+Number((row.speed/60).toFixed(3))+' mm/s)':'')],...((row.contentType==='Letras'||(!row.contentType&&row.letterHeight))?[['Altura de letras',row.letterHeight?row.letterHeight+' mm':'—']]:[]),['Frame: ancho × alto',row.frameWidth||row.frameHeight?(row.frameWidth||'—')+' × '+(row.frameHeight||'—')+' mm':'—'],['Medidas aproximadas',row.dimensionsApprox?'Sí (±)':'Sin indicación'],['Intervalo',row.interval?row.interval+' mm':'—'],['Pasadas',row.passes],['Escaneo',row.scan],['Aire',row.air],['Enfoque',row.focus||'—'],['Estado',row.status],['Fecha',row.date||'—'],['Resultado / notas',row.notes||'—']];
  for(const [label,value] of fields){const group=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value;group.append(dt);group.append(dd);$('#details-fields').append(group);}
  $('#details-edit').disabled=!storageReady;$('#details-delete').disabled=!storageReady;
  details.showModal();
@@ -24,7 +28,7 @@ $('#details-delete').addEventListener('click',()=>{const row=records.find(r=>r.i
 function finishEditor(){dialog.close();const row=records.find(r=>r.id===editing);if(row)showDetails(row);else $('#add').focus();}
 function render(){
  const q=$('#search').value.trim().toLocaleLowerCase(),state=$('#filter').value;
- const shown=records.filter(r=>(!state||r.status===state)&&[r.title,r.material,r.machine,r.notes,r.operation].join(' ').toLocaleLowerCase().includes(q)).sort((a,b)=>b.date.localeCompare(a.date));
+ const shown=records.filter(r=>(!state||r.status===state)&&[r.title,r.material,r.machine,r.notes,r.operation,...(r.elements||[]).flatMap(e=>[e.name,e.contentType,e.notes])].join(' ').toLocaleLowerCase().includes(q)).sort((a,b)=>b.date.localeCompare(a.date));
  $('#rows').replaceChildren();
  triggers.clear();
  for(const row of shown){const item=document.createElement('li'),button=document.createElement('button');button.type='button';button.className='record-title';button.textContent=row.title||row.material;button.setAttribute('aria-haspopup','dialog');button.addEventListener('click',()=>showDetails(row));item.append(button);$('#rows').append(item);triggers.set(row.id,button);}
@@ -34,7 +38,7 @@ function render(){
  $('#empty p').textContent=records.length?'Prueba otra búsqueda o filtro.':'Agrega una prueba o importa tu respaldo de parámetros.';
  $('#add').disabled=!storageReady;$('#import').disabled=!storageReady;
 }
-function open(row){editing=row?.id||null;form.reset();$('#form-notice').textContent='';if(row){for(const [k,v] of Object.entries(row)){if(form.elements.namedItem(k))form.elements.namedItem(k).value=v;}}
+function open(row){if(!row||row.elements){wizard.open(row);return;}editing=row?.id||null;form.reset();$('#form-notice').textContent='';if(row){for(const [k,v] of Object.entries(row)){if(form.elements.namedItem(k))form.elements.namedItem(k).value=v;}}
  if(row)form.elements.title.value=row.title||row.material;
  updateLetterFields();
  $('#editor-title').textContent=row?'Editar prueba':'Nueva prueba';dialog.showModal();}
