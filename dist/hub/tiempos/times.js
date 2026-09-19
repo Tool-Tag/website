@@ -2,6 +2,7 @@
 'use strict';
 const $=s=>document.querySelector(s),data=window.TimesData,key='tooltag-times-v1';
 let rows=[],ready=true,editing=null,selected=null;const triggers=new Map();
+window.getTimeRecords=()=>ready?rows:null;
 const form=$('#form'),editor=$('#editor'),details=$('#details');
 function updateType(){const letters=form.elements.contentType.value==='Letras',image=form.elements.contentType.value==='Imagen';form.elements.mode.disabled=!letters;form.elements.mode.required=letters;for(const key of ['letters','letterHeight']){form.elements[key].disabled=image;form.elements[key].required=!image;}}
 $('#content-type').addEventListener('change',updateType);
@@ -10,6 +11,7 @@ const format=seconds=>`${Math.floor(seconds/60)} min ${seconds%60} s`;
 try{const saved=localStorage.getItem(key);if(saved!==null)rows=data.parse(saved);}catch{ready=false;notice('No se pudo leer el almacenamiento. Tus datos no se sobrescribirán.');}
 function save(next){if(!ready)return false;try{if(next.length>5000)throw Error('Máximo 5000 registros');localStorage.setItem(key,data.encode(next));rows=next;render();return true;}catch(error){notice('No se guardó: '+error.message);return false;}}
 function render(){
+ window.refreshTimeEstimate?.();
  const q=$('#search').value.trim().toLocaleLowerCase();const shown=rows.filter(r=>[r.title,r.notes].join(' ').toLocaleLowerCase().includes(q));
  $('#rows').replaceChildren();triggers.clear();
  for(const row of shown){const li=document.createElement('li'),button=document.createElement('button');button.type='button';button.className='record-title';button.setAttribute('aria-haspopup','dialog');button.textContent=row.title;button.addEventListener('click',()=>show(row));li.append(button);$('#rows').append(li);triggers.set(row.id,button);}
