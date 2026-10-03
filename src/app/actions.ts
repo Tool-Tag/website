@@ -1,5 +1,7 @@
 "use server";
 import { dispatchQuoteMail, dispatchWorkerMail } from "@/lib/integrations/mail-dispatch";
+import { after } from "next/server";
+import { processAcceptedDocument, processAcceptedWorker } from "@/lib/documents/accepted-delivery";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { context } from "@/lib/domain/context";
@@ -65,6 +67,17 @@ export async function mutate(
     let name = "",
       args: Record<string, unknown> = { p };
     switch (operation) {
+      case "accepted-document": {
+        const id = z.uuid().parse(p.id);
+        const part = String(p.part || "process");
+        if (part !== "process") {
+          const {error} = await db.rpc("retry_accepted_document", {p_id:id,p_part:part,p_reconciled:form.get("reconciled")==="on"});
+          if (error) return {error:error.message};
+        }
+        const mailStatus = await processAcceptedDocument(db,id);
+        revalidatePath("/app","layout");
+        return {ok:true,mailStatus};
+      }
       case "customer":
         z.object({
           name: z.string().min(1),
@@ -213,7 +226,7 @@ export async function customerAction(
       p_phone: String(form.get("phone") ?? "").trim(),
     });
     if (error) return { error: error.message };
-    await dispatchWorkerMail();
+    after(async () => { await processAcceptedWorker(); });
     revalidatePath(`/review/${token}`);
     revalidatePath(`/accept/${token}`);
     revalidatePath("/app", "layout");

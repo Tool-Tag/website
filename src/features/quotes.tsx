@@ -1,3 +1,4 @@
+import { AcceptedDocuments } from "@/components/accepted-documents";
 import Link from "next/link";
 import { rows } from "@/lib/domain/context";
 import { Heading, Panel, Table, Empty, Badge } from "@/components/ui";
@@ -108,6 +109,7 @@ export async function Quotes({
             <SendQuote id={id} email={contact?.email} companyEmail={contact?.company_email} />
           </Panel>
         )}
+        <AcceptedDocuments quoteId={id} />
         {q.status === "Accepted" && (
           <p>
             <Link href={`/app/quotes/${id}/email`}>

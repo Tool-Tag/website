@@ -1,3 +1,4 @@
+import { AcceptedDocuments } from "@/components/accepted-documents";
 import Link from "next/link";
 import { rows } from "@/lib/domain/context";
 import { Heading, Panel, Table, Empty, Badge } from "@/components/ui";
@@ -59,6 +60,7 @@ export async function Jobs({ id }: { id?: string }) {
           Cotización aprobada
         </Link>
       </Heading>
+      <AcceptedDocuments jobId={id} />
       <Panel title="Trabajo aprobado">
         <QuoteScope items={scope} />
       </Panel>

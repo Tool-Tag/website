@@ -1,3 +1,4 @@
+export const maxDuration = 300;
 import { supabase } from "@/lib/supabase/server";
 import { Panel } from "@/components/ui";
 import { QuoteScope } from "@/components/quote-scope";

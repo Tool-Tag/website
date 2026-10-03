@@ -19,13 +19,31 @@ const mailbox = (value: string) => {
   if (!/^[^\s<>@,;]+@[^\s<>@,;]+\.[^\s<>@,;]+$/.test(value)) throw new MailFailure("MAIL_ADDRESS_INVALID");
   return value;
 };
-const encoded = (value: string) => `=?UTF-8?B?${Buffer.from(safe(value)).toString("base64")}?=`;
+const encoded = (value: string) => {
+  const chunks: string[] = [];
+  let part = "";
+  for (const char of safe(value)) {
+    if (Buffer.byteLength(part + char) > 42) { chunks.push(part); part = ""; }
+    part += char;
+  }
+  if (part) chunks.push(part);
+  return chunks.map(chunk => `=?UTF-8?B?${Buffer.from(chunk).toString("base64")}?=`).join("\r\n ");
+};
 const body = (value: string) => Buffer.from(value).toString("base64").match(/.{1,76}/g)?.join("\r\n") || "";
 export function gmailMime(message: MailMessage, key: string) {
   const match = safe(message.from).match(/^(.+) <([^<>]+)>$/);
   if (!match) throw new MailFailure("MAIL_SENDER_INVALID");
   const boundary = `tooltag-${randomUUID()}`;
-  return [`From: ${encoded(match[1])} <${mailbox(match[2])}>`, `To: ${mailbox(message.to)}`, `Reply-To: ${mailbox(message.replyTo || match[2])}`, `Subject: ${encoded(message.subject)}`, `Date: ${new Date().toUTCString()}`, `Message-ID: <${createHash("sha256").update(key).digest("hex")}@tooltag.martinlab.studio>`, "MIME-Version: 1.0", `Content-Type: multipart/alternative; boundary="${boundary}"`, "", `--${boundary}`, 'Content-Type: text/plain; charset="UTF-8"', "Content-Transfer-Encoding: base64", "", body(message.text), `--${boundary}`, 'Content-Type: text/html; charset="UTF-8"', "Content-Transfer-Encoding: base64", "", body(message.html), `--${boundary}--`, ""].join("\r\n");
+  const headers = [`From: ${encoded(match[1])} <${mailbox(match[2])}>`, `To: ${mailbox(message.to)}`, `Reply-To: ${mailbox(message.replyTo || match[2])}`, `Subject: ${encoded(message.subject)}`, `Date: ${new Date().toUTCString()}`, `Message-ID: <${createHash("sha256").update(key).digest("hex")}@tooltag.martinlab.studio>`, "MIME-Version: 1.0"];
+  const alternative = [`Content-Type: multipart/alternative; boundary="${boundary}"`, "", `--${boundary}`, 'Content-Type: text/plain; charset="UTF-8"', "Content-Transfer-Encoding: base64", "", body(message.text), `--${boundary}`, 'Content-Type: text/html; charset="UTF-8"', "Content-Transfer-Encoding: base64", "", body(message.html), `--${boundary}--`, ""];
+  if (!message.attachments?.length) return [...headers, ...alternative].join("\r\n");
+  const mixed = `tooltag-mixed-${randomUUID()}`;
+  const parts = [...headers, `Content-Type: multipart/mixed; boundary="${mixed}"`, "", `--${mixed}`, ...alternative];
+  for (const attachment of message.attachments) {
+    if (!/^[A-Za-z0-9_.-]+\.pdf$/.test(attachment.filename) || attachment.content.length > 4000000) throw new MailFailure("MAIL_ATTACHMENT_INVALID");
+    parts.push(`--${mixed}`, `Content-Type: application/pdf; name="${attachment.filename}"`, `Content-Disposition: attachment; filename="${attachment.filename}"`, "Content-Transfer-Encoding: base64", "", Buffer.from(attachment.content).toString("base64").match(/.{1,76}/g)?.join("\r\n") || "");
+  }
+  return [...parts, `--${mixed}--`, ""].join("\r\n");
 }
 export class GmailTransport implements QuoteMailTransport {
   constructor(private env: Env = process.env, private request: typeof fetch = fetch) {}

@@ -1,3 +1,4 @@
+export const maxDuration = 300;
 import { notFound } from "next/navigation";
 import { isConfigured } from "@/lib/supabase/server";
 import { Heading, Panel } from "@/components/ui";

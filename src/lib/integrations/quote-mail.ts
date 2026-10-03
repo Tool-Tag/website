@@ -21,6 +21,7 @@ export type MailMessage = {
   subject: string;
   html: string;
   text: string;
+  attachments?: { filename: string; content: Uint8Array }[];
 };
 export interface QuoteMailTransport {
   deliver(
