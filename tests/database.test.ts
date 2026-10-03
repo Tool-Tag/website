@@ -491,8 +491,87 @@ test("Scheduled worker is restricted and monthly close is idempotent", async () 
 });
 
 test("Financial request retries are idempotent and cannot reuse a key with changed amount", async () => {
- const request_id="80000000-0000-0000-0000-000000000001";
- const first=await move("OWNER_INJECTION","3.00",{request_id});
- assert.equal(await move("OWNER_INJECTION","3.00",{request_id}),first);
- await assert.rejects(()=>move("OWNER_INJECTION","4.00",{request_id}),/different information/);
+  const request_id = "80000000-0000-0000-0000-000000000001";
+  const first = await move("OWNER_INJECTION", "3.00", { request_id });
+  assert.equal(await move("OWNER_INJECTION", "3.00", { request_id }), first);
+  await assert.rejects(
+    () => move("OWNER_INJECTION", "4.00", { request_id }),
+    /different information/,
+  );
+});
+
+test("Quote marks persist and adaptation is calculated once per design by the database", async () => {
+  const customer = await rpc("save_customer", {
+    unit_id: unit,
+    name: "Logo test",
+    email: "logo@example.test",
+    phone: "5559876543",
+    address: "Test",
+  });
+  const item = {
+    article: "Battery",
+    quantity: 5,
+    engraving_type: "Image / Logo",
+    engraving_text: "Logo",
+    unit_price: "10.00",
+    marks: [
+      { type: "Image / Logo", text: "", url: "https://example.com/a.png" },
+    ],
+  };
+  const q = await rpc("create_quote", {
+    unit_id: unit,
+    customer_id: customer,
+    items: [
+      item,
+      {
+        ...item,
+        quantity: 1,
+        marks: [
+          ...item.marks,
+          { type: "Image / Logo", text: "", url: "https://example.com/b.png" },
+        ],
+      },
+    ],
+  });
+  assert.equal(
+    Number(
+      await scalar(
+        "select sum(quantity*unit_price) from public.quote_items where quote_id=$1",
+        [q],
+      ),
+    ),
+    66,
+  );
+  assert.equal(
+    Number(
+      await scalar(
+        "select quantity from public.quote_items where quote_id=$1 and adaptation_fee",
+        [q],
+      ),
+    ),
+    2,
+  );
+  assert.equal(
+    Number(
+      await scalar(
+        "select sum(jsonb_array_length(marks)) from public.quote_items where quote_id=$1",
+        [q],
+      ),
+    ),
+    3,
+  );
+  const revised = await rpc("create_quote", {
+    unit_id: unit,
+    revises_id: q,
+    items: [item],
+  });
+  assert.equal(
+    Number(
+      await scalar(
+        "select sum(quantity*unit_price) from public.quote_items where quote_id=$1",
+        [revised],
+      ),
+    ),
+    53,
+  );
 });

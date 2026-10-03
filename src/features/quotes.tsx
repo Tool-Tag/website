@@ -35,6 +35,8 @@ export async function Quotes({
               customer={originalFlow?.customer_id ?? customer}
               revises={revise}
               initial={items?.map((i) => ({
+                marks: i.marks,
+                adaptation_fee: i.adaptation_fee,
                 article: i.article,
                 quantity: i.quantity,
                 engraving_type: i.engraving_type,

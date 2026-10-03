@@ -21,12 +21,19 @@ export async function login(
     const failure = loginFailure(error);
     const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
     let projectHost = "invalid-url";
-    try { projectHost = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").host; } catch { /* Log only the configuration category. */ }
+    try {
+      projectHost = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").host;
+    } catch {
+      /* Log only the configuration category. */
+    }
     console.error("[auth.login.failed]", {
       reference: failure.reference,
       status: error.status,
       projectHost,
-      keyFingerprint: createHash("sha256").update(key).digest("hex").slice(0, 12),
+      keyFingerprint: createHash("sha256")
+        .update(key)
+        .digest("hex")
+        .slice(0, 12),
     });
     return { error: failure.message };
   }
@@ -67,7 +74,40 @@ export async function mutate(
         name = "save_customer";
         break;
       case "quote":
-        p.items = JSON.parse(String(p.items));
+        p.items = z
+          .array(
+            z.object({
+              article: z.string().trim().min(1),
+              quantity: z.number().int().positive(),
+              unit_price: z.string().regex(/^\d+(\.\d{1,2})?$/),
+              engraving_type: z.enum(["Text", "Image / Logo", "Fee"]),
+              engraving_text: z.string(),
+              width_mm: z.string(),
+              height_mm: z.string(),
+              paint_fill: z.boolean(),
+              colors: z.number().int().min(0),
+              notes: z.string(),
+              marks: z
+                .array(
+                  z.discriminatedUnion("type", [
+                    z.object({
+                      type: z.literal("Text"),
+                      text: z.string().trim().min(1),
+                      url: z.string(),
+                    }),
+                    z.object({
+                      type: z.literal("Image / Logo"),
+                      text: z.string(),
+                      url: z.url().refine((v) => /^https?:\/\//.test(v)),
+                    }),
+                  ]),
+                )
+                .default([]),
+            }),
+          )
+          .min(1)
+          .parse(JSON.parse(String(p.items)))
+          .map((item, index) => ({ ...item, sort_order: index }));
         name = "create_quote";
         break;
       case "movement":

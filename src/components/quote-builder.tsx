@@ -1,31 +1,14 @@
 "use client";
-import { useState, useActionState } from "react";
+import { useState, useActionState, useRef } from "react";
 import { mutate } from "@/app/actions";
 import { quoteTotal, money } from "@/lib/domain/money";
-type Item = {
-  article: string;
-  quantity: number;
-  engraving_type: string;
-  engraving_text: string;
-  width_mm: string;
-  height_mm: string;
-  paint_fill: boolean;
-  colors: number;
-  unit_price: string;
-  notes: string;
-};
-const blank = (): Item => ({
-  article: "",
-  quantity: 1,
-  engraving_type: "Text",
-  engraving_text: "",
-  width_mm: "",
-  height_mm: "",
-  paint_fill: false,
-  colors: 0,
-  unit_price: "0.00",
-  notes: "",
-});
+import {
+  blankItem,
+  imageLinks,
+  withAdaptation,
+  type QuoteItem,
+  type Mark,
+} from "@/lib/domain/quote-items";
 export function QuoteBuilder({
   customers,
   customer,
@@ -35,62 +18,197 @@ export function QuoteBuilder({
   customers: { id: string; name: string }[];
   customer?: string;
   revises?: string;
-  initial?: Item[];
+  initial?: QuoteItem[];
 }) {
-  const [items, setItems] = useState<Item[]>(
-    initial?.length ? initial : [blank()],
+  const [items, setItems] = useState<QuoteItem[]>(
+    (initial ?? []).filter((i) => !i.adaptation_fee),
   );
+  const [draft, setDraft] = useState<QuoteItem>(blankItem);
+  const [editing, setEditing] = useState<number | null>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
   const [state, action, pending] = useActionState(
     mutate.bind(null, "quote", "/app/quotes"),
     {},
   );
-  const update = (
-    i: number,
-    key: keyof Item,
-    value: string | boolean | number,
-  ) =>
-    setItems((old) =>
-      old.map((v, n) => (n === i ? { ...v, [key]: value } : v)),
-    );
+  function open(index: number | null) {
+    setEditing(index);
+    const item = index === null ? blankItem() : items[index];
+    setDraft({
+      ...item,
+      marks: item.marks?.length
+        ? item.marks
+        : [
+            {
+              type:
+                item.engraving_type === "Image / Logo"
+                  ? "Image / Logo"
+                  : "Text",
+              text: item.engraving_text,
+              url: "",
+            },
+          ],
+    });
+    dialog.current?.showModal();
+  }
+  function update(key: keyof QuoteItem, value: string | number | boolean) {
+    setDraft((d) => ({ ...d, [key]: value }));
+  }
+  function mark(index: number, patch: Partial<Mark>) {
+    setDraft((d) => ({
+      ...d,
+      marks: d.marks?.map((m, i) => (i === index ? { ...m, ...patch } : m)),
+    }));
+  }
   let total = "0.00";
   try {
-    total = quoteTotal(items);
+    total = quoteTotal(withAdaptation(items));
   } catch {
-    /* validation shown on submit */
+    /* The item form validates prices before adding. */
   }
+  const designs = imageLinks(items);
   return (
-    <form action={action}>
-      <input type="hidden" name="items" value={JSON.stringify(items)} />
-      {revises && <input type="hidden" name="revises_id" value={revises} />}
-      <label>
-        Cliente
-        <select
-          name="customer_id"
-          required
-          defaultValue={customer}
-          disabled={!!revises}
+    <>
+      <form action={action}>
+        <input type="hidden" name="items" value={JSON.stringify(items)} />
+        {revises && <input type="hidden" name="revises_id" value={revises} />}
+        <label>
+          Cliente
+          <select
+            name="customer_id"
+            required
+            defaultValue={customer}
+            disabled={!!revises}
+          >
+            <option value="">Seleccionar cliente…</option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="muted">
+          Precio manual por artículo. Adaptación para Falcon: $3 por imagen/logo
+          diferente, una sola vez por cotización.
+        </p>
+        <div className="actions">
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => open(null)}
+          >
+            Agregar artículo
+          </button>
+        </div>
+        {items.map((item, i) => (
+          <section className="item" key={i}>
+            <h3>{item.article}</h3>
+            <p>
+              {item.quantity} × {money(item.unit_price)}
+            </p>
+            <p className="quote-mark-summary">
+              {item.marks
+                ?.map((m) => (m.type === "Text" ? m.text : m.url))
+                .join(" · ") || item.engraving_text}
+            </p>
+            <div className="actions">
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => open(i)}
+              >
+                Editar artículo
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setItems((old) => old.filter((_, n) => n !== i))}
+              >
+                Quitar artículo
+              </button>
+            </div>
+          </section>
+        ))}
+
+        {designs.length > 0 && (
+          <p>
+            Adaptación para Falcon: {designs.length} diseño(s) × $3 ={" "}
+            {money(String(designs.length * 3))}
+          </p>
+        )}
+        <h3>Total: {money(total)}</h3>
+        <label style={{ margin: "20px 0" }}>
+          Notas generales
+          <textarea name="notes" />
+        </label>
+        {state.error && (
+          <p role="alert" className="notice error">
+            {state.error}
+          </p>
+        )}
+        <button disabled={pending || !items.length}>
+          {pending
+            ? "Guardando…"
+            : revises
+              ? "Crear revisión"
+              : "Guardar cotización"}
+        </button>
+      </form>
+      <dialog
+        ref={dialog}
+        className="quote-dialog"
+        aria-labelledby="article-title"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const marks = (
+              draft.engraving_type === "Fee" ? [] : (draft.marks ?? [])
+            ).map((m) => ({ ...m, text: m.text.trim(), url: m.url.trim() }));
+            const saved = {
+              ...draft,
+              marks,
+              engraving_type:
+                draft.engraving_type === "Fee"
+                  ? "Fee"
+                  : marks.some((m) => m.type === "Image / Logo")
+                    ? "Image / Logo"
+                    : "Text",
+              engraving_text: marks
+                .map((m) =>
+                  m.type === "Text" ? m.text : `Imagen / Logo: ${m.url}`,
+                )
+                .join("\n"),
+            };
+            setItems((old) =>
+              editing === null
+                ? [...old, saved]
+                : old.map((v, i) => (i === editing ? saved : v)),
+            );
+            dialog.current?.close();
+          }}
         >
-          <option value="">Seleccionar cliente…</option>
-          {customers.map((c) => (
-            <option value={c.id} key={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <p className="muted">
-        Precio manual por artículo. No se calcula precio automático.
-      </p>
-      {items.map((item, i) => (
-        <section className="item" key={i}>
-          <h3>Artículo {i + 1}</h3>
+          <div className="actions">
+            <h2 id="article-title">
+              {editing === null ? "Agregar artículo" : "Editar artículo"}
+            </h2>
+            <button
+              type="button"
+              className="secondary"
+              aria-label="Cerrar"
+              onClick={() => dialog.current?.close()}
+            >
+              Cerrar
+            </button>
+          </div>
           <div className="formgrid">
             <label>
               Artículo / modelo
               <input
+                autoFocus
                 required
-                value={item.article}
-                onChange={(e) => update(i, "article", e.target.value)}
+                value={draft.article}
+                onChange={(e) => update("article", e.target.value)}
               />
             </label>
             <label>
@@ -100,20 +218,9 @@ export function QuoteBuilder({
                 min="1"
                 step="1"
                 required
-                value={item.quantity}
-                onChange={(e) => update(i, "quantity", Number(e.target.value))}
+                value={draft.quantity}
+                onChange={(e) => update("quantity", Number(e.target.value))}
               />
-            </label>
-            <label>
-              Tipo
-              <select
-                value={item.engraving_type}
-                onChange={(e) => update(i, "engraving_type", e.target.value)}
-              >
-                <option>Text</option>
-                <option>Image / Logo</option>
-                <option>Fee</option>
-              </select>
             </label>
             <label>
               Precio unitario (USD)
@@ -122,22 +229,26 @@ export function QuoteBuilder({
                 min="0"
                 step="0.01"
                 required
-                value={item.unit_price}
-                onChange={(e) => update(i, "unit_price", e.target.value)}
+                value={draft.unit_price}
+                onChange={(e) => update("unit_price", e.target.value)}
               />
             </label>
-            {item.engraving_type === "Text" && (
-              <label className="wide">
-                Texto a grabar · {Array.from(item.engraving_text).length}{" "}
-                caracteres
-                <input
-                  required
-                  value={item.engraving_text}
-                  onChange={(e) => update(i, "engraving_text", e.target.value)}
-                />
-              </label>
-            )}
-            {item.engraving_type !== "Fee" && (
+            <label>
+              Concepto
+              <select
+                value={draft.engraving_type === "Fee" ? "Fee" : "Engraving"}
+                onChange={(e) =>
+                  update(
+                    "engraving_type",
+                    e.target.value === "Fee" ? "Fee" : "Text",
+                  )
+                }
+              >
+                <option value="Engraving">Grabado</option>
+                <option value="Fee">Cargo adicional</option>
+              </select>
+            </label>
+            {draft.engraving_type !== "Fee" && (
               <>
                 <label>
                   Ancho (mm)
@@ -145,8 +256,8 @@ export function QuoteBuilder({
                     type="number"
                     min="0.01"
                     step="0.01"
-                    value={item.width_mm}
-                    onChange={(e) => update(i, "width_mm", e.target.value)}
+                    value={draft.width_mm}
+                    onChange={(e) => update("width_mm", e.target.value)}
                   />
                 </label>
                 <label>
@@ -155,79 +266,149 @@ export function QuoteBuilder({
                     type="number"
                     min="0.01"
                     step="0.01"
-                    value={item.height_mm}
-                    onChange={(e) => update(i, "height_mm", e.target.value)}
+                    value={draft.height_mm}
+                    onChange={(e) => update("height_mm", e.target.value)}
                   />
                 </label>
                 <label className="checkbox">
                   <input
                     type="checkbox"
-                    checked={item.paint_fill}
-                    onChange={(e) => update(i, "paint_fill", e.target.checked)}
+                    checked={draft.paint_fill}
+                    onChange={(e) => update("paint_fill", e.target.checked)}
                   />
                   Relleno de pintura
                 </label>
-                {item.paint_fill && (
+                {draft.paint_fill && (
                   <label>
                     Colores
                     <input
                       type="number"
                       min="1"
-                      value={item.colors}
-                      onChange={(e) =>
-                        update(i, "colors", Number(e.target.value))
-                      }
+                      step="1"
+                      required
+                      value={draft.colors}
+                      onChange={(e) => update("colors", Number(e.target.value))}
                     />
                   </label>
                 )}
               </>
             )}
-            <label className="wide">
-              Notas
-              <input
-                value={item.notes}
-                onChange={(e) => update(i, "notes", e.target.value)}
-              />
-            </label>
           </div>
-          {items.length > 1 && (
+          {draft.engraving_type !== "Fee" && (
+            <>
+              {draft.marks?.map((m, i) => (
+                <fieldset className="item" key={i}>
+                  <legend>Marca / grabado {i + 1}</legend>
+                  <label>
+                    Tipo
+                    <select
+                      value={m.type}
+                      onChange={(e) =>
+                        mark(i, { type: e.target.value as Mark["type"] })
+                      }
+                    >
+                      <option value="Text">Letras</option>
+                      <option value="Image / Logo">Imagen / Logo</option>
+                    </select>
+                  </label>
+                  {m.type === "Text" ? (
+                    <label>
+                      Texto a grabar · {Array.from(m.text).length} caracteres
+                      <input
+                        required
+                        value={m.text}
+                        onChange={(e) => mark(i, { text: e.target.value })}
+                      />
+                    </label>
+                  ) : (
+                    <>
+                      <label>
+                        Enlace de la imagen o logo
+                        <input
+                          type="url"
+                          pattern="https?://.*"
+                          required
+                          placeholder="https://…"
+                          value={m.url}
+                          onChange={(e) => mark(i, { url: e.target.value })}
+                        />
+                      </label>
+                      {designs.length > 0 && (
+                        <label>
+                          Reutilizar un diseño
+                          <select
+                            value=""
+                            onChange={(e) => mark(i, { url: e.target.value })}
+                          >
+                            <option value="">
+                              Seleccionar diseño existente…
+                            </option>
+                            {designs.map((url, n) => (
+                              <option key={url} value={url}>
+                                Diseño {n + 1}: {url}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                      <small>
+                        Usa el mismo enlace para repetir un diseño sin cobrar
+                        otra adaptación.
+                      </small>
+                    </>
+                  )}
+                  {(draft.marks?.length ?? 0) > 1 && (
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() =>
+                        setDraft((d) => ({
+                          ...d,
+                          marks: d.marks?.filter((_, n) => n !== i),
+                        }))
+                      }
+                    >
+                      Quitar grabado
+                    </button>
+                  )}
+                </fieldset>
+              ))}
+              <button
+                type="button"
+                className="secondary"
+                onClick={() =>
+                  setDraft((d) => ({
+                    ...d,
+                    marks: [
+                      ...(d.marks ?? []),
+                      { type: "Text", text: "", url: "" },
+                    ],
+                  }))
+                }
+              >
+                Agregar otra marca / grabado
+              </button>
+            </>
+          )}
+          <label style={{ margin: "16px 0" }}>
+            Notas
+            <textarea
+              value={draft.notes}
+              onChange={(e) => update("notes", e.target.value)}
+            />
+          </label>
+          <div className="actions">
             <button
               type="button"
               className="secondary"
-              style={{ marginTop: 12 }}
-              onClick={() => setItems(items.filter((_, n) => n !== i))}
+              onClick={() => dialog.current?.close()}
             >
-              Quitar artículo
+              Cancelar
             </button>
-          )}
-        </section>
-      ))}
-      <div className="actions">
-        <button
-          type="button"
-          className="secondary"
-          onClick={() => setItems([...items, blank()])}
-        >
-          + Agregar artículo
-        </button>
-        <strong>Total: {money(total)}</strong>
-      </div>
-      <label style={{ margin: "20px 0" }}>
-        Notas generales
-        <textarea name="notes" />
-      </label>
-      {state.error && (
-        <p role="alert" className="notice error">
-          {state.error}
-        </p>
-      )}
-      <button disabled={pending}>
-        {pending
-          ? "Guardando…"
-          : revises
-            ? "Crear revisión"
-            : "Guardar cotización"}
-      </button>
-    </form>
+            <button>Guardar artículo</button>
+          </div>
+        </form>
+      </dialog>
+    </>
   );
 }

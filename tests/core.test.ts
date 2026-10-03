@@ -37,11 +37,57 @@ test("Adapters never pretend an upload or message succeeded", async () => {
 
 import { loginFailure } from "../src/lib/domain/auth-errors";
 test("Login errors distinguish configuration from credentials without leaking raw messages", () => {
-  assert.equal(loginFailure({message:"Invalid API key"}).reference,"AUTH_CONFIG");
-  assert.equal(loginFailure({code:"invalid_credentials",status:400}).reference,"invalid_credentials");
-  assert.equal(loginFailure({code:"email_not_confirmed"}).reference,"email_not_confirmed");
-  assert.equal(loginFailure({status:429}).reference,"AUTH_RATE_LIMIT");
-  const unknown=loginFailure({message:"private token and internal details"});
-  assert.equal(unknown.reference,"AUTH_UNAVAILABLE");
+  assert.equal(
+    loginFailure({ message: "Invalid API key" }).reference,
+    "AUTH_CONFIG",
+  );
+  assert.equal(
+    loginFailure({ code: "invalid_credentials", status: 400 }).reference,
+    "invalid_credentials",
+  );
+  assert.equal(
+    loginFailure({ code: "email_not_confirmed" }).reference,
+    "email_not_confirmed",
+  );
+  assert.equal(loginFailure({ status: 429 }).reference, "AUTH_RATE_LIMIT");
+  const unknown = loginFailure({
+    message: "private token and internal details",
+  });
+  assert.equal(unknown.reference, "AUTH_UNAVAILABLE");
   assert.ok(!unknown.message.includes("private token"));
+});
+
+import { blankItem, withAdaptation } from "../src/lib/domain/quote-items";
+test("Logo adaptation charges once per distinct link, across quantities and articles", () => {
+  const a = {
+    ...blankItem(),
+    quantity: 10,
+    unit_price: "2.00",
+    marks: [
+      {
+        type: "Image / Logo" as const,
+        text: "",
+        url: "https://example.com/a.png",
+      },
+    ],
+  };
+  const b = { ...a, quantity: 2 };
+  assert.equal(quoteTotal(withAdaptation([a, b])), "27.00");
+  const c = {
+    ...a,
+    quantity: 1,
+    marks: [
+      ...a.marks,
+      {
+        type: "Image / Logo" as const,
+        text: "",
+        url: "https://example.com/b.png",
+      },
+    ],
+  };
+  assert.equal(quoteTotal(withAdaptation([a, b, c])), "32.00");
+  assert.equal(
+    quoteTotal(withAdaptation([{ ...blankItem(), unit_price: "2.00" }])),
+    "2.00",
+  );
 });
