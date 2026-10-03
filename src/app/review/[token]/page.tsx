@@ -42,7 +42,7 @@ export default async function Review({
             Your ToolTag Job number is: <strong>{q.job_code}</strong>
           </p>
           <p>
-            A confirmation copy is pending email delivery. You can print or save
+            Your confirmation copy is available here. You can print or save
             this accepted record now.
           </p>
           <p>Accepted: {new Date(q.accepted_at).toISOString()}</p>

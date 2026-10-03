@@ -1,7 +1,6 @@
 import { context } from "@/lib/domain/context";
 import {
   renderQuoteMail,
-  prepareQuoteMail,
 } from "@/lib/integrations/quote-mail";
 import { headers } from "next/headers";
 export default async function EmailPreview({
@@ -30,16 +29,12 @@ export default async function EmailPreview({
     data.accepted ? "confirmation" : "quote",
     data.job_code,
   );
-  const prepared = await prepareQuoteMail(mail, {
-    mode: process.env.TOOLTAG_MAIL_MODE,
-    idempotencyKey: `${id}:${data.accepted ? "confirmation" : "quote"}`,
-  });
   return (
     <>
       <h1>Vista previa del correo</h1>
-      <p>No enviado · {prepared.status}</p>
+      <p>Esta vista previa no envía correos. Consulta el estado de entrega en Ajustes.</p>
       <p>
-        De: {mail.from} · Para: {mail.to}
+        De: {mail.from} · Para: {mail.to} · Responder a: {mail.replyTo}
       </p>
       <h2>{mail.subject}</h2>
       <iframe

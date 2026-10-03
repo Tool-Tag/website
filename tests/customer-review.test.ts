@@ -486,7 +486,7 @@ test("Additive upgrade preserves an already accepted legacy quote and its origin
       `create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;create function auth.role() returns text language sql stable as $$ select current_setting('request.jwt.claim.role',true) $$;grant usage on schema auth to anon,authenticated,service_role;grant execute on all functions in schema auth to anon,authenticated,service_role;`,
     );
     for (const f of (await readdir("supabase/migrations")).sort()) {
-      if (f !== "202610030002_customer_review.sql")
+      if (f < "202610030002_customer_review.sql")
         await legacy.exec(await readFile(`supabase/migrations/${f}`, "utf8"));
     }
     await legacy.exec(
@@ -528,4 +528,12 @@ test("Additive upgrade preserves an already accepted legacy quote and its origin
   } finally {
     await legacy.close();
   }
+});
+
+test("Paint is stored per engraving and charged once per colored piece", async () => {
+  const marks = [{type: "Text", text: "A", location: "left", url: "", paint_fill: true, paint_details: {mode: "single", color: "Blue", instructions: ""}}, {type: "Text", text: "B", location: "right", url: "", paint_fill: true, paint_details: {mode: "single", color: "Gold", instructions: ""}}];
+  const id = await rpc("create_quote", {unit_id: unit, customer_id: customer, items: [{article: "Battery", quantity: 3, engraving_type: "Text", unit_price: "10.00", marks}, {article: "Charger", quantity: 2, engraving_type: "Text", unit_price: "5.00", marks: [{type: "Text", text: "C", location: "top", url: "", paint_fill: false}]}]});
+  assert.equal(await value("select sum(quantity*unit_price)::text from public.quote_items where quote_id=$1", [id]), "46.00");
+  assert.equal(await value("select quantity from public.quote_items where quote_id=$1 and paint_fee", [id]), 3);
+  assert.equal(await value("select marks->0->'paint_details'->>'color' from public.quote_items where quote_id=$1 and article='Battery'", [id]), "Blue");
 });

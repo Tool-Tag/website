@@ -42,6 +42,7 @@ export async function Quotes({
                   ? i.paint_details
                   : undefined,
                 adaptation_fee: i.adaptation_fee,
+                paint_fee: i.paint_fee,
                 article: i.article,
                 quantity: i.quantity,
                 engraving_type: i.engraving_type,

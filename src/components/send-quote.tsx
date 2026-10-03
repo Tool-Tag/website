@@ -26,8 +26,7 @@ export function SendQuote({ id }: { id: string }) {
         {state.link && (
           <div className="notice">
             <p>
-              Cotización lista. Correo pendiente: Google Workspace aún no está
-              conectado. Copia el enlace para compartirlo.
+              {state.mailStatus || "Cotización lista. Puedes copiar el enlace para compartirlo."}
             </p>
             <input
               aria-label="Enlace privado"

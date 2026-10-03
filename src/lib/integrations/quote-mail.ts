@@ -1,3 +1,4 @@
+import { mailSender } from "./mail-routing";
 import { itemDetails, itemSubtotal } from "@/lib/domain/quote-summary";
 import type { QuoteItem } from "@/lib/domain/quote-items";
 import { money } from "@/lib/domain/money";
@@ -15,6 +16,7 @@ export type CommercialSnapshot = {
 };
 export type MailMessage = {
   from: string;
+  replyTo?: string;
   to: string;
   subject: string;
   html: string;
@@ -63,7 +65,7 @@ export function renderQuoteMail(
   const text = `Hi ${snapshot.customer_name.split(" ")[0]},\n\n${intro}\n\nQUOTE SUMMARY\n${summary}\n\nQuote Total: ${money(snapshot.total)}\n${confirmation ? "" : `Valid Until: ${expiry}\n`}\n${guidance}\n\n${confirmation ? "View accepted record" : "Review & Accept Quote"}: ${url}\n\nToolTag\nQuote: ${snapshot.code} · Version ${snapshot.revision}`;
   const html = `<!doctype html><html lang="en"><body style="font-family:Arial,sans-serif;background:#080b10;color:#f5f6fa;padding:24px"><main style="max-width:640px;margin:auto"><h1 style="color:#e7b84b">ToolTag</h1><p>Hi ${escape(snapshot.customer_name.split(" ")[0])},</p><p style="white-space:pre-line">${escape(intro)}</p><h2>Quote summary</h2><div style="white-space:pre-line">${escape(summary)}</div><p><strong>Quote Total: ${escape(money(snapshot.total))}</strong></p>${confirmation ? "" : `<p>Valid Until: ${escape(expiry)}</p>`}<p>${escape(guidance)}</p><p><a style="display:inline-block;background:#3975ff;color:white;padding:14px 20px;border-radius:8px" href="${escape(url)}">${confirmation ? "View accepted record" : "Review &amp; Accept Quote"}</a></p><footer>ToolTag · ${escape(snapshot.code)} · Version ${snapshot.revision}</footer></main></body></html>`;
   return {
-    from: process.env.TOOLTAG_MAIL_FROM || "Not configured",
+    ...mailSender(confirmation ? "AGREEMENT_ACCEPTED" : "QUOTE_SENT"),
     to: snapshot.customer_email,
     subject,
     html,

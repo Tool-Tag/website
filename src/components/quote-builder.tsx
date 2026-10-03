@@ -6,6 +6,7 @@ import { quoteTotal, money } from "@/lib/domain/money";
 import {
   blankItem,
   imageLinks,
+  paintedQuantity,
   withAdaptation,
   type QuoteItem,
   type Mark,
@@ -24,11 +25,12 @@ export function QuoteBuilder({
   notes?: string;
 }) {
   const [items, setItems] = useState<QuoteItem[]>(
-    (initial ?? []).filter((i) => !i.adaptation_fee),
+    (initial ?? []).filter((i) => !i.adaptation_fee && !i.paint_fee).map((item) => ({ ...item, marks: item.marks?.map((m) => ({ ...m, paint_fill: m.paint_fill ?? item.paint_fill, paint_details: m.paint_details ?? (item.paint_fill ? item.paint_details : undefined) })) })),
   );
   const [draft, setDraft] = useState<QuoteItem>(blankItem);
   const [editing, setEditing] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [paintIndex, setPaintIndex] = useState(0);
   const paintDialog = useRef<HTMLDialogElement>(null);
   const [paint, setPaint] = useState({
     mode: "single" as "single" | "multiple",
@@ -47,7 +49,7 @@ export function QuoteBuilder({
     setDraft({
       ...item,
       marks: item.marks?.length
-        ? item.marks
+        ? item.marks.map((m) => ({ ...m, paint_fill: m.paint_fill ?? item.paint_fill, paint_details: m.paint_details ?? (item.paint_fill ? item.paint_details : undefined) }))
         : [
             {
               type:
@@ -101,7 +103,7 @@ export function QuoteBuilder({
         </label>
         <p className="muted">
           Precio manual por artículo. Adaptación para Falcon: $3 por imagen/logo
-          diferente, una sola vez por cotización.
+          diferente, una sola vez por cotización. Pintura: $2 extra por pieza coloreada.
         </p>
         <div className="actions">
           <button
@@ -140,6 +142,7 @@ export function QuoteBuilder({
             {money(String(designs.length * 3))}
           </p>
         )}
+        {paintedQuantity(items) > 0 && <p>Relleno de pintura: {paintedQuantity(items)} pieza(s) × $2 = {money(String(paintedQuantity(items) * 2))}. Una vez por pieza, aunque tenga varios grabados con color.</p>}
         <h3>Total: {money(total)}</h3>
         <label style={{ margin: "20px 0" }}>
           Notas generales
@@ -169,18 +172,11 @@ export function QuoteBuilder({
             const marks = (
               draft.engraving_type === "Fee" ? [] : (draft.marks ?? [])
             ).map((m) => ({ ...m, text: m.text.trim(), url: m.url.trim() }));
-            if (
-              draft.engraving_type !== "Fee" &&
-              draft.paint_fill &&
-              !draft.paint_details?.mode
-            ) {
-              setPaint({ mode: "single", color: "", instructions: "" });
-              paintDialog.current?.showModal();
-              return;
-            }
             const saved = {
               ...draft,
-              paint_fill: draft.engraving_type !== "Fee" && draft.paint_fill,
+              paint_fill: false,
+              paint_details: undefined,
+              colors: 0,
               marks,
               engraving_type:
                 draft.engraving_type === "Fee"
@@ -224,6 +220,7 @@ export function QuoteBuilder({
             <>
               <h3>Confirma el trabajo antes de guardar</h3>
               <QuoteScope items={[draft]} />
+              {paintedQuantity([draft]) > 0 && <p>Pintura: {draft.quantity} pieza(s) × $2 = {money(String(draft.quantity * 2))} adicionales.</p>}
               <div className="actions">
                 <button
                   type="button"
@@ -306,50 +303,6 @@ export function QuoteBuilder({
                         onChange={(e) => update("height_mm", e.target.value)}
                       />
                     </label>
-                    <label className="checkbox">
-                      <input
-                        type="checkbox"
-                        checked={draft.paint_fill}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setPaint(
-                              draft.paint_details ?? {
-                                mode: "single",
-                                color: "",
-                                instructions: "",
-                              },
-                            );
-                            paintDialog.current?.showModal();
-                          } else {
-                            setDraft((d) => ({
-                              ...d,
-                              paint_fill: false,
-                              colors: 0,
-                              paint_details: undefined,
-                            }));
-                          }
-                        }}
-                      />
-                      Relleno de pintura
-                    </label>
-                    {draft.paint_fill && (
-                      <button
-                        type="button"
-                        className="secondary"
-                        onClick={() => {
-                          setPaint(
-                            draft.paint_details ?? {
-                              mode: "single",
-                              color: "",
-                              instructions: "",
-                            },
-                          );
-                          paintDialog.current?.showModal();
-                        }}
-                      >
-                        Editar pintura
-                      </button>
-                    )}
                   </>
                 )}
               </div>
@@ -443,6 +396,21 @@ export function QuoteBuilder({
                           </small>
                         </>
                       )}
+                      <label className="checkbox">
+                        <input type="checkbox" checked={!!m.paint_fill} onChange={(e) => {
+                          if (e.target.checked) {
+                            setPaintIndex(i);
+                            setPaint(m.paint_details ?? { mode: "single", color: "", instructions: "" });
+                            paintDialog.current?.showModal();
+                          } else mark(i, { paint_fill: false, paint_details: undefined });
+                        }} />
+                        Relleno de pintura · $2 extra por pieza
+                      </label>
+                      {m.paint_fill && <button type="button" className="secondary" onClick={() => {
+                        setPaintIndex(i);
+                        setPaint(m.paint_details ?? { mode: "single", color: "", instructions: "" });
+                        paintDialog.current?.showModal();
+                      }}>Editar pintura de este grabado</button>}
                       {(draft.marks?.length ?? 0) > 1 && (
                         <button
                           type="button"
@@ -505,12 +473,7 @@ export function QuoteBuilder({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            setDraft((d) => ({
-              ...d,
-              paint_fill: true,
-              colors: paint.mode === "single" ? 1 : 0,
-              paint_details: paint,
-            }));
+            mark(paintIndex, { paint_fill: true, paint_details: paint });
             paintDialog.current?.close();
           }}
         >

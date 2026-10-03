@@ -7,7 +7,7 @@ export function itemDetails(i: QuoteItem): string[] {
         `${i.marks.length} engraving(s) per article`,
         ...i.marks.map(
           (m, n) =>
-            `${n + 1}. ${m.type === "Text" ? "Text" : "Image / Logo"} · ${m.location || "Location not recorded"} · ${m.type === "Text" ? m.text : [m.description, m.url].filter(Boolean).join(" · ")}`,
+            `${n + 1}. ${m.type === "Text" ? "Text" : "Image / Logo"} · ${m.location || "Location not recorded"} · ${m.type === "Text" ? m.text : [m.description, m.url].filter(Boolean).join(" · ")}${m.paint_fill ? ` · Paint fill: ${m.paint_details?.mode === "single" ? m.paint_details.color : m.paint_details?.instructions || "Color not recorded"}` : m.paint_fill === false ? " · Paint fill: no" : ""}`,
         ),
       ]
     : [i.engraving_type, i.engraving_text || ""];
@@ -21,7 +21,7 @@ export function itemDetails(i: QuoteItem): string[] {
           : `Paint fill: multiple colors · ${i.paint_details.instructions}`
         : `Paint fill: ${i.colors || "unspecified"} color(s)`,
     );
-  else lines.push("Paint fill: no");
+  else if (!i.marks?.some((m) => m.paint_fill)) lines.push("Paint fill: no");
   if (i.notes) lines.push(i.notes);
   return lines;
 }

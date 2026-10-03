@@ -138,17 +138,18 @@ export async function Settings() {
           />
         </details>
       </Panel>
-      <Panel title="Avisos pendientes de integración">
+      <Panel title="Registro de notificaciones">
         <p className="muted">
-          Estos registros no significan que el cliente recibió un email o SMS.
+          Sent indica que Gmail aceptó el correo; no confirma que el cliente lo haya leído. Los envíos fallidos o sin confirmar requieren revisión antes de reenviar.
         </p>
         {notifications.length ? (
-          <Table headers={["Evento", "Estado", "Programado"]}>
+          <Table headers={["Evento", "Estado", "Programado", "Entrega"]}>
             {notifications.map((n) => (
               <tr key={n.id}>
                 <td>{n.event}</td>
                 <td>{n.status}</td>
                 <td>{new Date(n.due_at).toLocaleString("es-US")}</td>
+                <td>{n.mail_error || n.provider_id || "Pendiente"}</td>
               </tr>
             ))}
           </Table>

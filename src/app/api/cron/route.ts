@@ -1,3 +1,4 @@
+import { dispatchQuoteMail } from "@/lib/integrations/mail-dispatch";
 import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "node:crypto";
 export const dynamic = "force-dynamic";
@@ -20,5 +21,5 @@ export async function GET(request: Request) {
   const { error } = await db.rpc("run_scheduled_tasks");
   if (error)
     return Response.json({ error: "Scheduled tasks failed" }, { status: 500 });
-  return Response.json({ ok: true, messaging: "Pending integration" });
+  return Response.json({ ok: true, messaging: await dispatchQuoteMail(db) });
 }

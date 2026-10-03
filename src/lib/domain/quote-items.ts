@@ -4,6 +4,8 @@ export type Mark = {
   url: string;
   location?: string;
   description?: string;
+  paint_fill?: boolean;
+  paint_details?: QuoteItem["paint_details"];
 };
 export type QuoteItem = {
   article: string;
@@ -23,6 +25,7 @@ export type QuoteItem = {
   notes: string;
   marks?: Mark[];
   adaptation_fee?: boolean;
+  paint_fee?: boolean;
 };
 export const blankItem = (): QuoteItem => ({
   article: "",
@@ -54,6 +57,11 @@ export function withAdaptation(items: QuoteItem[]) {
   const count = imageLinks(items).length;
   return [
     ...items,
+    ...(paintedQuantity(items) ? [{ quantity: paintedQuantity(items), unit_price: "2.00" }] : []),
     ...(count ? [{ quantity: count, unit_price: "3.00" }] : []),
   ];
+}
+
+export function paintedQuantity(items: QuoteItem[]) {
+  return items.reduce((count, item) => count + (item.engraving_type !== "Fee" && item.marks?.some((mark) => mark.paint_fill) ? item.quantity : 0), 0);
 }

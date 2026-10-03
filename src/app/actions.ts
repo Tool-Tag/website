@@ -1,4 +1,5 @@
 "use server";
+import { dispatchQuoteMail, dispatchWorkerMail } from "@/lib/integrations/mail-dispatch";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { context } from "@/lib/domain/context";
@@ -7,7 +8,7 @@ import { cents } from "@/lib/domain/money";
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { loginFailure } from "@/lib/domain/auth-errors";
-export type ActionState = { error?: string; ok?: boolean; link?: string };
+export type ActionState = { error?: string; ok?: boolean; link?: string; mailStatus?: string };
 export async function login(
   _: ActionState,
   form: FormData,
@@ -101,6 +102,8 @@ export async function mutate(
                       type: z.literal("Text"),
                       location: z.string().trim().min(1),
                       description: z.string().optional(),
+                      paint_fill: z.boolean().optional(),
+                      paint_details: z.object({ mode: z.enum(["single", "multiple"]), color: z.string(), instructions: z.string() }).optional(),
                       text: z.string().trim().min(1),
                       url: z.string(),
                     }),
@@ -108,6 +111,8 @@ export async function mutate(
                       type: z.literal("Image / Logo"),
                       location: z.string().trim().min(1),
                       description: z.string().optional(),
+                      paint_fill: z.boolean().optional(),
+                      paint_details: z.object({ mode: z.enum(["single", "multiple"]), color: z.string(), instructions: z.string() }).optional(),
                       text: z.string(),
                       url: z.url().refine((v) => /^https?:\/\//.test(v)),
                     }),
@@ -121,16 +126,10 @@ export async function mutate(
           .map((item, index) => {
             if (item.engraving_type !== "Fee" && !item.marks.length)
               throw new Error("Agrega al menos un grabado con su ubicación.");
-            if (
-              item.paint_fill &&
-              (!item.paint_details ||
-                (item.paint_details.mode === "single"
-                  ? !item.paint_details.color.trim()
-                  : !item.paint_details.instructions.trim()))
-            )
-              throw new Error(
-                "Especifica el color o las instrucciones de pintura.",
-              );
+            for (const mark of item.marks) {
+              if (mark.paint_fill && (!mark.paint_details || (mark.paint_details.mode === "single" ? !mark.paint_details.color.trim() : !mark.paint_details.instructions.trim())))
+                throw new Error("Especifica el color o las instrucciones de pintura del grabado.");
+            }
             return { ...item, sort_order: index };
           });
         name = "create_quote";
@@ -186,7 +185,8 @@ export async function mutate(
     const { data, error } = await db.rpc(name, args);
     if (error) return { error: error.message };
     revalidatePath("/app", "layout");
-    if (operation === "send-quote") return { link: `/review/${data}` };
+    if (operation === "send-quote") return { link: `/review/${data}`, mailStatus: await dispatchQuoteMail(db, String(p.id)) };
+    if (operation === "job" || operation === "movement") await dispatchWorkerMail();
     if (operation === "job" && data) return { link: `/completion/${data}` };
     if (operation === "customer") destination = `/app/customers/${data}`;
     else if (operation === "quote") destination = `/app/quotes/${data}`;
@@ -216,6 +216,7 @@ export async function customerAction(
       p_phone: String(form.get("phone") ?? "").trim(),
     });
     if (error) return { error: error.message };
+    await dispatchWorkerMail();
     revalidatePath(`/review/${token}`);
     revalidatePath(`/accept/${token}`);
     revalidatePath("/app", "layout");
@@ -228,6 +229,7 @@ export async function customerAction(
     p_decision: kind,
   });
   if (error) return { error: error.message };
+  await dispatchWorkerMail();
   revalidatePath(`/completion/${token}`);
   return { ok: true };
 }
