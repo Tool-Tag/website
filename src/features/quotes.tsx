@@ -67,6 +67,8 @@ export async function Quotes({
   if (id) {
     const q = (await rows("quotes", { id }))[0];
     if (!q) return <Empty>Cotización no encontrada.</Empty>;
+    const flow = (await rows("commercial_flows", { id: q.flow_id }))[0];
+    const contact = flow ? (await rows("customers", { id: flow.customer_id }))[0] : null;
     const items = await rows("quote_items", { field: "quote_id", value: id });
     const jobs = await rows("jobs", { field: "flow_id", value: q.flow_id });
     return (
@@ -103,7 +105,7 @@ export async function Quotes({
               primer envío. Mientras Google Workspace se conecta, podrás copiar
               el enlace y ver el correo preparado.
             </p>
-            <SendQuote id={id} />
+            <SendQuote id={id} email={contact?.email} companyEmail={contact?.company_email} />
           </Panel>
         )}
         {q.status === "Accepted" && (

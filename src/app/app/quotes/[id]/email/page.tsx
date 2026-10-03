@@ -29,6 +29,7 @@ export default async function EmailPreview({
     data.accepted ? "confirmation" : "quote",
     data.job_code,
   );
+  if (!data.accepted && data.recipient) mail.to = data.recipient;
   return (
     <>
       <h1>Vista previa del correo</h1>

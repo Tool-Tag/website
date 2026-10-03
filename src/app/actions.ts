@@ -152,11 +152,8 @@ export async function mutate(
         args = { p_unit: unit, p_title: p.title, p_content: p.content };
         break;
       case "send-quote":
-        name =
-          form.get("regenerate") === "on"
-            ? "regenerate_quote_link"
-            : "send_quote";
-        args = { p_id: p.id };
+        name = "send_quote_to";
+        args = { p_id: p.id, p_recipient: String(form.get("recipient") || "").trim(), p_regenerate: form.get("regenerate") === "on" };
         break;
       case "job":
         name = "advance_job";
