@@ -1,4 +1,10 @@
-export type Mark = { type: "Text" | "Image / Logo"; text: string; url: string };
+export type Mark = {
+  type: "Text" | "Image / Logo";
+  text: string;
+  url: string;
+  location?: string;
+  description?: string;
+};
 export type QuoteItem = {
   article: string;
   quantity: number;
@@ -8,6 +14,11 @@ export type QuoteItem = {
   height_mm: string;
   paint_fill: boolean;
   colors: number;
+  paint_details?: {
+    mode: "single" | "multiple";
+    color: string;
+    instructions: string;
+  };
   unit_price: string;
   notes: string;
   marks?: Mark[];

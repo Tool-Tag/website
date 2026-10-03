@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { rows } from "@/lib/domain/context";
 import { Heading, Panel, Table, Empty, Badge } from "@/components/ui";
+import { QuoteScope } from "@/components/quote-scope";
 import { Form } from "@/components/form";
 export async function Jobs({ id }: { id?: string }) {
   if (!id) {
@@ -39,6 +40,10 @@ export async function Jobs({ id }: { id?: string }) {
     rows("documents", { field: "job_id", value: id }),
     rows("sale_balances", { field: "job_id", value: id }),
   ]);
+  const scope = await rows("quote_items", {
+    field: "quote_id",
+    value: j.quote_id,
+  });
   const action = ["Authorized", "Receiving Documentation"].includes(j.status)
     ? "start"
     : j.status === "In Process"
@@ -54,6 +59,9 @@ export async function Jobs({ id }: { id?: string }) {
           Cotización aprobada
         </Link>
       </Heading>
+      <Panel title="Trabajo aprobado">
+        <QuoteScope items={scope} />
+      </Panel>
       <Panel title="Siguiente paso">
         {action ? (
           <Form

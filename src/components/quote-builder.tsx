@@ -1,5 +1,6 @@
 "use client";
 import { useState, useActionState, useRef } from "react";
+import { QuoteScope } from "@/components/quote-scope";
 import { mutate } from "@/app/actions";
 import { quoteTotal, money } from "@/lib/domain/money";
 import {
@@ -14,17 +15,26 @@ export function QuoteBuilder({
   customer,
   revises,
   initial,
+  notes,
 }: {
   customers: { id: string; name: string }[];
   customer?: string;
   revises?: string;
   initial?: QuoteItem[];
+  notes?: string;
 }) {
   const [items, setItems] = useState<QuoteItem[]>(
     (initial ?? []).filter((i) => !i.adaptation_fee),
   );
   const [draft, setDraft] = useState<QuoteItem>(blankItem);
   const [editing, setEditing] = useState<number | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const paintDialog = useRef<HTMLDialogElement>(null);
+  const [paint, setPaint] = useState({
+    mode: "single" as "single" | "multiple",
+    color: "",
+    instructions: "",
+  });
   const dialog = useRef<HTMLDialogElement>(null);
   const [state, action, pending] = useActionState(
     mutate.bind(null, "quote", "/app/quotes"),
@@ -32,6 +42,7 @@ export function QuoteBuilder({
   );
   function open(index: number | null) {
     setEditing(index);
+    setConfirming(false);
     const item = index === null ? blankItem() : items[index];
     setDraft({
       ...item,
@@ -45,6 +56,7 @@ export function QuoteBuilder({
                   : "Text",
               text: item.engraving_text,
               url: "",
+              location: "",
             },
           ],
     });
@@ -102,15 +114,7 @@ export function QuoteBuilder({
         </div>
         {items.map((item, i) => (
           <section className="item" key={i}>
-            <h3>{item.article}</h3>
-            <p>
-              {item.quantity} × {money(item.unit_price)}
-            </p>
-            <p className="quote-mark-summary">
-              {item.marks
-                ?.map((m) => (m.type === "Text" ? m.text : m.url))
-                .join(" · ") || item.engraving_text}
-            </p>
+            <QuoteScope items={[item]} />
             <div className="actions">
               <button
                 type="button"
@@ -139,7 +143,7 @@ export function QuoteBuilder({
         <h3>Total: {money(total)}</h3>
         <label style={{ margin: "20px 0" }}>
           Notas generales
-          <textarea name="notes" />
+          <textarea name="notes" defaultValue={notes} />
         </label>
         {state.error && (
           <p role="alert" className="notice error">
@@ -165,8 +169,18 @@ export function QuoteBuilder({
             const marks = (
               draft.engraving_type === "Fee" ? [] : (draft.marks ?? [])
             ).map((m) => ({ ...m, text: m.text.trim(), url: m.url.trim() }));
+            if (
+              draft.engraving_type !== "Fee" &&
+              draft.paint_fill &&
+              !draft.paint_details?.mode
+            ) {
+              setPaint({ mode: "single", color: "", instructions: "" });
+              paintDialog.current?.showModal();
+              return;
+            }
             const saved = {
               ...draft,
+              paint_fill: draft.engraving_type !== "Fee" && draft.paint_fill,
               marks,
               engraving_type:
                 draft.engraving_type === "Fee"
@@ -180,6 +194,11 @@ export function QuoteBuilder({
                 )
                 .join("\n"),
             };
+            if (!confirming) {
+              setDraft(saved);
+              setConfirming(true);
+              return;
+            }
             setItems((old) =>
               editing === null
                 ? [...old, saved]
@@ -201,211 +220,348 @@ export function QuoteBuilder({
               Cerrar
             </button>
           </div>
-          <div className="formgrid">
-            <label>
-              Artículo / modelo
-              <input
-                autoFocus
-                required
-                value={draft.article}
-                onChange={(e) => update("article", e.target.value)}
-              />
-            </label>
-            <label>
-              Cantidad
-              <input
-                type="number"
-                min="1"
-                step="1"
-                required
-                value={draft.quantity}
-                onChange={(e) => update("quantity", Number(e.target.value))}
-              />
-            </label>
-            <label>
-              Precio unitario (USD)
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                required
-                value={draft.unit_price}
-                onChange={(e) => update("unit_price", e.target.value)}
-              />
-            </label>
-            <label>
-              Concepto
-              <select
-                value={draft.engraving_type === "Fee" ? "Fee" : "Engraving"}
-                onChange={(e) =>
-                  update(
-                    "engraving_type",
-                    e.target.value === "Fee" ? "Fee" : "Text",
-                  )
-                }
-              >
-                <option value="Engraving">Grabado</option>
-                <option value="Fee">Cargo adicional</option>
-              </select>
-            </label>
-            {draft.engraving_type !== "Fee" && (
-              <>
-                <label>
-                  Ancho (mm)
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={draft.width_mm}
-                    onChange={(e) => update("width_mm", e.target.value)}
-                  />
-                </label>
-                <label>
-                  Alto (mm)
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={draft.height_mm}
-                    onChange={(e) => update("height_mm", e.target.value)}
-                  />
-                </label>
-                <label className="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={draft.paint_fill}
-                    onChange={(e) => update("paint_fill", e.target.checked)}
-                  />
-                  Relleno de pintura
-                </label>
-                {draft.paint_fill && (
-                  <label>
-                    Colores
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      required
-                      value={draft.colors}
-                      onChange={(e) => update("colors", Number(e.target.value))}
-                    />
-                  </label>
-                )}
-              </>
-            )}
-          </div>
-          {draft.engraving_type !== "Fee" && (
+          {confirming ? (
             <>
-              {draft.marks?.map((m, i) => (
-                <fieldset className="item" key={i}>
-                  <legend>Marca / grabado {i + 1}</legend>
-                  <label>
-                    Tipo
-                    <select
-                      value={m.type}
-                      onChange={(e) =>
-                        mark(i, { type: e.target.value as Mark["type"] })
-                      }
-                    >
-                      <option value="Text">Letras</option>
-                      <option value="Image / Logo">Imagen / Logo</option>
-                    </select>
-                  </label>
-                  {m.type === "Text" ? (
+              <h3>Confirma el trabajo antes de guardar</h3>
+              <QuoteScope items={[draft]} />
+              <div className="actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setConfirming(false)}
+                >
+                  Volver a editar
+                </button>
+                <button>Confirmar y guardar</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="formgrid">
+                <label>
+                  Artículo / modelo
+                  <input
+                    autoFocus
+                    required
+                    value={draft.article}
+                    onChange={(e) => update("article", e.target.value)}
+                  />
+                </label>
+                <label>
+                  Cantidad
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    required
+                    value={draft.quantity}
+                    onChange={(e) => update("quantity", Number(e.target.value))}
+                  />
+                </label>
+                <label>
+                  Precio unitario (USD)
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    required
+                    value={draft.unit_price}
+                    onChange={(e) => update("unit_price", e.target.value)}
+                  />
+                </label>
+                <label>
+                  Concepto
+                  <select
+                    value={draft.engraving_type === "Fee" ? "Fee" : "Engraving"}
+                    onChange={(e) =>
+                      update(
+                        "engraving_type",
+                        e.target.value === "Fee" ? "Fee" : "Text",
+                      )
+                    }
+                  >
+                    <option value="Engraving">Grabado</option>
+                    <option value="Fee">Cargo adicional</option>
+                  </select>
+                </label>
+                {draft.engraving_type !== "Fee" && (
+                  <>
                     <label>
-                      Texto a grabar · {Array.from(m.text).length} caracteres
+                      Ancho (mm)
                       <input
-                        required
-                        value={m.text}
-                        onChange={(e) => mark(i, { text: e.target.value })}
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={draft.width_mm}
+                        onChange={(e) => update("width_mm", e.target.value)}
                       />
                     </label>
-                  ) : (
-                    <>
+                    <label>
+                      Alto (mm)
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={draft.height_mm}
+                        onChange={(e) => update("height_mm", e.target.value)}
+                      />
+                    </label>
+                    <label className="checkbox">
+                      <input
+                        type="checkbox"
+                        checked={draft.paint_fill}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setPaint(
+                              draft.paint_details ?? {
+                                mode: "single",
+                                color: "",
+                                instructions: "",
+                              },
+                            );
+                            paintDialog.current?.showModal();
+                          } else {
+                            setDraft((d) => ({
+                              ...d,
+                              paint_fill: false,
+                              colors: 0,
+                              paint_details: undefined,
+                            }));
+                          }
+                        }}
+                      />
+                      Relleno de pintura
+                    </label>
+                    {draft.paint_fill && (
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => {
+                          setPaint(
+                            draft.paint_details ?? {
+                              mode: "single",
+                              color: "",
+                              instructions: "",
+                            },
+                          );
+                          paintDialog.current?.showModal();
+                        }}
+                      >
+                        Editar pintura
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+              {draft.engraving_type !== "Fee" && (
+                <>
+                  <p>
+                    {draft.marks?.length ?? 0} grabado(s) por artículo. Agrega
+                    uno por cada ubicación.
+                  </p>
+                  {draft.marks?.map((m, i) => (
+                    <fieldset className="item" key={i}>
+                      <legend>Marca / grabado {i + 1}</legend>
                       <label>
-                        Enlace de la imagen o logo
+                        Tipo
+                        <select
+                          value={m.type}
+                          onChange={(e) =>
+                            mark(i, { type: e.target.value as Mark["type"] })
+                          }
+                        >
+                          <option value="Text">Letras</option>
+                          <option value="Image / Logo">Imagen / Logo</option>
+                        </select>
+                      </label>
+                      <label>
+                        Ubicación del grabado
                         <input
-                          type="url"
-                          pattern="https?://.*"
                           required
-                          placeholder="https://…"
-                          value={m.url}
-                          onChange={(e) => mark(i, { url: e.target.value })}
+                          value={m.location ?? ""}
+                          onChange={(e) =>
+                            mark(i, { location: e.target.value })
+                          }
+                          placeholder="Lado izquierdo, derecho, arriba…"
                         />
                       </label>
-                      {designs.length > 0 && (
+                      {m.type === "Text" ? (
                         <label>
-                          Reutilizar un diseño
-                          <select
-                            value=""
-                            onChange={(e) => mark(i, { url: e.target.value })}
-                          >
-                            <option value="">
-                              Seleccionar diseño existente…
-                            </option>
-                            {designs.map((url, n) => (
-                              <option key={url} value={url}>
-                                Diseño {n + 1}: {url}
-                              </option>
-                            ))}
-                          </select>
+                          Texto a grabar · {Array.from(m.text).length}{" "}
+                          caracteres
+                          <input
+                            required
+                            value={m.text}
+                            onChange={(e) => mark(i, { text: e.target.value })}
+                          />
                         </label>
+                      ) : (
+                        <>
+                          <label>
+                            Descripción del logo
+                            <input
+                              value={m.description ?? ""}
+                              onChange={(e) =>
+                                mark(i, { description: e.target.value })
+                              }
+                            />
+                          </label>
+                          <label>
+                            Enlace de la imagen o logo
+                            <input
+                              type="url"
+                              pattern="https?://.*"
+                              required
+                              placeholder="https://…"
+                              value={m.url}
+                              onChange={(e) => mark(i, { url: e.target.value })}
+                            />
+                          </label>
+                          {designs.length > 0 && (
+                            <label>
+                              Reutilizar un diseño
+                              <select
+                                value=""
+                                onChange={(e) =>
+                                  mark(i, { url: e.target.value })
+                                }
+                              >
+                                <option value="">
+                                  Seleccionar diseño existente…
+                                </option>
+                                {designs.map((url, n) => (
+                                  <option key={url} value={url}>
+                                    Diseño {n + 1}: {url}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
+                          <small>
+                            Usa el mismo enlace para repetir un diseño sin
+                            cobrar otra adaptación.
+                          </small>
+                        </>
                       )}
-                      <small>
-                        Usa el mismo enlace para repetir un diseño sin cobrar
-                        otra adaptación.
-                      </small>
-                    </>
-                  )}
-                  {(draft.marks?.length ?? 0) > 1 && (
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() =>
-                        setDraft((d) => ({
-                          ...d,
-                          marks: d.marks?.filter((_, n) => n !== i),
-                        }))
-                      }
-                    >
-                      Quitar grabado
-                    </button>
-                  )}
-                </fieldset>
-              ))}
-              <button
-                type="button"
-                className="secondary"
-                onClick={() =>
-                  setDraft((d) => ({
-                    ...d,
-                    marks: [
-                      ...(d.marks ?? []),
-                      { type: "Text", text: "", url: "" },
-                    ],
-                  }))
-                }
-              >
-                Agregar otra marca / grabado
-              </button>
+                      {(draft.marks?.length ?? 0) > 1 && (
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() =>
+                            setDraft((d) => ({
+                              ...d,
+                              marks: d.marks?.filter((_, n) => n !== i),
+                            }))
+                          }
+                        >
+                          Quitar grabado
+                        </button>
+                      )}
+                    </fieldset>
+                  ))}
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() =>
+                      setDraft((d) => ({
+                        ...d,
+                        marks: [
+                          ...(d.marks ?? []),
+                          { type: "Text", text: "", url: "" },
+                        ],
+                      }))
+                    }
+                  >
+                    Agregar otra marca / grabado
+                  </button>
+                </>
+              )}
+              <label style={{ margin: "16px 0" }}>
+                Notas
+                <textarea
+                  value={draft.notes}
+                  onChange={(e) => update("notes", e.target.value)}
+                />
+              </label>
+              <div className="actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => dialog.current?.close()}
+                >
+                  Cancelar
+                </button>
+                <button>Guardar artículo</button>
+              </div>
             </>
           )}
-          <label style={{ margin: "16px 0" }}>
-            Notas
-            <textarea
-              value={draft.notes}
-              onChange={(e) => update("notes", e.target.value)}
-            />
+        </form>
+      </dialog>
+      <dialog
+        ref={paintDialog}
+        className="quote-dialog"
+        aria-labelledby="paint-title"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setDraft((d) => ({
+              ...d,
+              paint_fill: true,
+              colors: paint.mode === "single" ? 1 : 0,
+              paint_details: paint,
+            }));
+            paintDialog.current?.close();
+          }}
+        >
+          <h2 id="paint-title">Relleno de pintura</h2>
+          <label>
+            Coloreado
+            <select
+              value={paint.mode}
+              onChange={(e) =>
+                setPaint((p) => ({
+                  ...p,
+                  mode: e.target.value as "single" | "multiple",
+                }))
+              }
+            >
+              <option value="single">Un color</option>
+              <option value="multiple">Varios colores</option>
+            </select>
           </label>
+          {paint.mode === "single" ? (
+            <label>
+              ¿Qué color?
+              <input
+                required
+                value={paint.color}
+                onChange={(e) =>
+                  setPaint((p) => ({ ...p, color: e.target.value }))
+                }
+              />
+            </label>
+          ) : (
+            <label>
+              Instrucciones del coloreado
+              <textarea
+                required
+                value={paint.instructions}
+                onChange={(e) =>
+                  setPaint((p) => ({ ...p, instructions: e.target.value }))
+                }
+              />
+            </label>
+          )}
           <div className="actions">
             <button
               type="button"
               className="secondary"
-              onClick={() => dialog.current?.close()}
+              onClick={() => paintDialog.current?.close()}
             >
               Cancelar
             </button>
-            <button>Guardar artículo</button>
+            <button>Guardar pintura</button>
           </div>
         </form>
       </dialog>

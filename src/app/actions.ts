@@ -86,17 +86,28 @@ export async function mutate(
               height_mm: z.string(),
               paint_fill: z.boolean(),
               colors: z.number().int().min(0),
+              paint_details: z
+                .object({
+                  mode: z.enum(["single", "multiple"]),
+                  color: z.string(),
+                  instructions: z.string(),
+                })
+                .optional(),
               notes: z.string(),
               marks: z
                 .array(
                   z.discriminatedUnion("type", [
                     z.object({
                       type: z.literal("Text"),
+                      location: z.string().trim().min(1),
+                      description: z.string().optional(),
                       text: z.string().trim().min(1),
                       url: z.string(),
                     }),
                     z.object({
                       type: z.literal("Image / Logo"),
+                      location: z.string().trim().min(1),
+                      description: z.string().optional(),
                       text: z.string(),
                       url: z.url().refine((v) => /^https?:\/\//.test(v)),
                     }),
@@ -107,7 +118,21 @@ export async function mutate(
           )
           .min(1)
           .parse(JSON.parse(String(p.items)))
-          .map((item, index) => ({ ...item, sort_order: index }));
+          .map((item, index) => {
+            if (item.engraving_type !== "Fee" && !item.marks.length)
+              throw new Error("Agrega al menos un grabado con su ubicación.");
+            if (
+              item.paint_fill &&
+              (!item.paint_details ||
+                (item.paint_details.mode === "single"
+                  ? !item.paint_details.color.trim()
+                  : !item.paint_details.instructions.trim()))
+            )
+              throw new Error(
+                "Especifica el color o las instrucciones de pintura.",
+              );
+            return { ...item, sort_order: index };
+          });
         name = "create_quote";
         break;
       case "movement":
@@ -128,7 +153,10 @@ export async function mutate(
         args = { p_unit: unit, p_title: p.title, p_content: p.content };
         break;
       case "send-quote":
-        name = "send_quote";
+        name =
+          form.get("regenerate") === "on"
+            ? "regenerate_quote_link"
+            : "send_quote";
         args = { p_id: p.id };
         break;
       case "job":
@@ -158,7 +186,7 @@ export async function mutate(
     const { data, error } = await db.rpc(name, args);
     if (error) return { error: error.message };
     revalidatePath("/app", "layout");
-    if (operation === "send-quote") return { link: `/accept/${data}` };
+    if (operation === "send-quote") return { link: `/review/${data}` };
     if (operation === "job" && data) return { link: `/completion/${data}` };
     if (operation === "customer") destination = `/app/customers/${data}`;
     else if (operation === "quote") destination = `/app/quotes/${data}`;
@@ -178,32 +206,28 @@ export async function customerAction(
   form: FormData,
 ): Promise<ActionState> {
   const db = await supabase();
-  const args =
-    kind === "quote"
-      ? { p_token: token }
-      : kind === "agreement"
-        ? {
-            p_token: token,
-            p_name: String(form.get("name")),
-            p_email: String(form.get("email") ?? "").trim(),
-            p_phone: String(form.get("phone")),
-          }
-        : { p_token: token, p_decision: kind };
-  if (
-    (kind === "quote" || kind === "agreement") &&
-    form.get("confirmed") !== "on"
-  )
-    return { error: "Confirma que revisaste y aceptas el contenido." };
-  const { error } = await db.rpc(
-    kind === "quote"
-      ? "accept_quote"
-      : kind === "agreement"
-        ? "accept_agreement"
-        : "public_completion",
-    args,
-  );
+  if (kind === "review") {
+    const { error } = await db.rpc("accept_review", {
+      p_token: token,
+      p_quote_confirmed: form.get("quote_confirmed") === "on",
+      p_agreement_confirmed: form.get("agreement_confirmed") === "on",
+      p_name: String(form.get("name") ?? "").trim(),
+      p_email: String(form.get("email") ?? "").trim(),
+      p_phone: String(form.get("phone") ?? "").trim(),
+    });
+    if (error) return { error: error.message };
+    revalidatePath(`/review/${token}`);
+    revalidatePath(`/accept/${token}`);
+    revalidatePath("/app", "layout");
+    return { ok: true };
+  }
+  if (!["accept", "issue"].includes(kind))
+    return { error: "Use the combined quote and Agreement review page." };
+  const { error } = await db.rpc("public_completion", {
+    p_token: token,
+    p_decision: kind,
+  });
   if (error) return { error: error.message };
-  revalidatePath(`/accept/${token}`);
   revalidatePath(`/completion/${token}`);
   return { ok: true };
 }

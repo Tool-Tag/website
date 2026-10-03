@@ -507,3 +507,5 @@ textarea:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+@media print { .no-print, button, form { display:none !important; } body, .panel, .item {background:white !important;color:black !important;} .public {max-width:none;} .item {break-inside:avoid;} }

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { rows } from "@/lib/domain/context";
 import { Heading, Panel, Table, Empty, Badge } from "@/components/ui";
-import { Form } from "@/components/form";
+import { SendQuote } from "@/components/send-quote";
+import { QuoteScope } from "@/components/quote-scope";
 import { QuoteBuilder } from "@/components/quote-builder";
 import { money, quoteTotal } from "@/lib/domain/money";
 export async function Quotes({
@@ -34,8 +35,12 @@ export async function Quotes({
               customers={customers.map((c) => ({ id: c.id, name: c.name }))}
               customer={originalFlow?.customer_id ?? customer}
               revises={revise}
+              notes={original?.notes ?? ""}
               initial={items?.map((i) => ({
                 marks: i.marks,
+                paint_details: i.paint_details?.mode
+                  ? i.paint_details
+                  : undefined,
                 adaptation_fee: i.adaptation_fee,
                 article: i.article,
                 quantity: i.quantity,
@@ -75,22 +80,7 @@ export async function Quotes({
           </Link>
         </Heading>
         <Panel title="Artículos aprobables">
-          <Table
-            headers={["Artículo", "Grabado", "Cantidad", "Precio unitario"]}
-          >
-            {items.map((i) => (
-              <tr key={i.id}>
-                <td>{i.article}</td>
-                <td>
-                  {i.engraving_type}
-                  <br />
-                  {i.engraving_text}
-                </td>
-                <td>{i.quantity}</td>
-                <td>{money(i.unit_price)}</td>
-              </tr>
-            ))}
-          </Table>
+          <QuoteScope items={items} />
           <h2 style={{ marginTop: 20 }}>
             Total:{" "}
             {money(
@@ -107,17 +97,20 @@ export async function Quotes({
         {["Draft", "Sent", "Viewed"].includes(q.status) && (
           <Panel title="Compartir con el cliente">
             <p className="muted">
-              Genera un enlace privado válido por 7 días desde el primer envío.
-              Puedes copiarlo y enviarlo personalmente; email y SMS aún no están
-              conectados. Regenerarlo invalida el enlace anterior.
+              Envía al cliente un enlace privado para revisar la cotización y
+              aceptar el Agreement. El enlace será válido por 7 días desde el
+              primer envío. Mientras Google Workspace se conecta, podrás copiar
+              el enlace y ver el correo preparado.
             </p>
-            <Form
-              operation="send-quote"
-              hidden={{ id }}
-              fields={[]}
-              button="Preparar enlace"
-            />
+            <SendQuote id={id} />
           </Panel>
+        )}
+        {q.status === "Accepted" && (
+          <p>
+            <Link href={`/app/quotes/${id}/email`}>
+              Vista previa de la confirmación
+            </Link>
+          </p>
         )}
         {jobs.map((j) => (
           <Panel key={j.id}>

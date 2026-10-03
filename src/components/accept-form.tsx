@@ -6,7 +6,7 @@ export function AcceptForm({
   kind,
 }: {
   token: string;
-  kind: "quote" | "agreement" | "accept" | "issue";
+  kind: "review" | "accept" | "issue";
 }) {
   const [state, action, pending] = useActionState(
     customerAction.bind(null, kind, token),
@@ -14,7 +14,7 @@ export function AcceptForm({
   );
   return (
     <form action={action} className="stack">
-      {kind === "agreement" && (
+      {kind === "review" && (
         <>
           <label>
             Your name
@@ -30,13 +30,17 @@ export function AcceptForm({
           </label>
         </>
       )}
-      {["quote", "agreement"].includes(kind) && (
-        <label className="checkbox">
-          <input type="checkbox" name="confirmed" required />
-          {kind === "quote"
-            ? "I reviewed and approve the items, text, design instructions, dimensions and price shown above."
-            : "I have read and accept the exact agreement version shown above."}
-        </label>
+      {kind === "review" && (
+        <>
+          <label className="checkbox">
+            <input type="checkbox" name="quote_confirmed" required />I have
+            reviewed and approve the quote details.
+          </label>
+          <label className="checkbox">
+            <input type="checkbox" name="agreement_confirmed" required />I have
+            read and agree to ToolTag’s Terms &amp; Conditions.
+          </label>
+        </>
       )}
       {state.error && (
         <p role="alert" className="notice error">
@@ -54,13 +58,11 @@ export function AcceptForm({
       >
         {pending
           ? "Saving…"
-          : kind === "quote"
-            ? "Accept Quote"
-            : kind === "agreement"
-              ? "Accept Agreement"
-              : kind === "accept"
-                ? "Accept Completion"
-                : "Report an Issue"}
+          : kind === "review"
+            ? "Accept Quote & Agreement"
+            : kind === "accept"
+              ? "Accept Completion"
+              : "Report an Issue"}
       </button>
     </form>
   );
