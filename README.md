@@ -1,3 +1,19 @@
+# ToolTag Workspace + sitio público
+
+La nueva aplicación vive en `/app` y usa Next.js, TypeScript y Supabase. El sitio público y las herramientas Falcon/Tiempos siguen en `dist/` sin cambios; se copian a `public/` al compilar.
+
+- **Instalación y activación:** [docs/SETUP.md](docs/SETUP.md)
+- **Validación y límites:** [docs/VALIDATION.md](docs/VALIDATION.md)
+- **Base reproducible:** `supabase/migrations/`
+- **Desarrollo:** `npm ci` y `npm run dev` (configurar `.env.local`).
+- **Checks:** `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:db`, `npm run build`.
+
+La aplicación remota requiere aplicar las migraciones y autorizar el primer usuario. Las integraciones de Drive/email/SMS no se simulan. No se modificó BOFT producción.
+
+---
+
+La documentación siguiente corresponde al sitio público estático conservado:
+
 # ToolTag V1
 
 Sitio one-page responsive EN/ES. HTML, CSS y JavaScript sin dependencias de producción, sin compilación y sin servicios de terceros en el navegador.
