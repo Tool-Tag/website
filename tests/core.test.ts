@@ -34,3 +34,14 @@ test("Adapters never pretend an upload or message succeeded", async () => {
     "TT-J-2026-00124-Receiving-02.jpg",
   );
 });
+
+import { loginFailure } from "../src/lib/domain/auth-errors";
+test("Login errors distinguish configuration from credentials without leaking raw messages", () => {
+  assert.equal(loginFailure({message:"Invalid API key"}).reference,"AUTH_CONFIG");
+  assert.equal(loginFailure({code:"invalid_credentials",status:400}).reference,"invalid_credentials");
+  assert.equal(loginFailure({code:"email_not_confirmed"}).reference,"email_not_confirmed");
+  assert.equal(loginFailure({status:429}).reference,"AUTH_RATE_LIMIT");
+  const unknown=loginFailure({message:"private token and internal details"});
+  assert.equal(unknown.reference,"AUTH_UNAVAILABLE");
+  assert.ok(!unknown.message.includes("private token"));
+});

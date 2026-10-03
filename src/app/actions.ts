@@ -5,6 +5,8 @@ import { context } from "@/lib/domain/context";
 import { supabase } from "@/lib/supabase/server";
 import { cents } from "@/lib/domain/money";
 import { z } from "zod";
+import { createHash } from "node:crypto";
+import { loginFailure } from "@/lib/domain/auth-errors";
 export type ActionState = { error?: string; ok?: boolean; link?: string };
 export async function login(
   _: ActionState,
@@ -12,14 +14,22 @@ export async function login(
 ): Promise<ActionState> {
   const db = await supabase();
   const { error } = await db.auth.signInWithPassword({
-    email: String(form.get("email")),
+    email: String(form.get("email") ?? "").trim(),
     password: String(form.get("password")),
   });
-  if (error)
-    return {
-      error:
-        "No se pudo iniciar sesión. Revisa tus datos y que la cuenta esté habilitada.",
-    };
+  if (error) {
+    const failure = loginFailure(error);
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
+    let projectHost = "invalid-url";
+    try { projectHost = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").host; } catch { /* Log only the configuration category. */ }
+    console.error("[auth.login.failed]", {
+      reference: failure.reference,
+      status: error.status,
+      projectHost,
+      keyFingerprint: createHash("sha256").update(key).digest("hex").slice(0, 12),
+    });
+    return { error: failure.message };
+  }
   redirect("/app");
 }
 export async function logout() {
@@ -135,7 +145,7 @@ export async function customerAction(
         ? {
             p_token: token,
             p_name: String(form.get("name")),
-            p_email: String(form.get("email")),
+            p_email: String(form.get("email") ?? "").trim(),
             p_phone: String(form.get("phone")),
           }
         : { p_token: token, p_decision: kind };
