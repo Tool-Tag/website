@@ -15,9 +15,11 @@ No se ha migrado ni modificado BOFT. Los registros de sus hojas no se importan e
 
 Las pruebas SQL ejecutan las migraciones completas con PostgreSQL embebido (PGlite), funciones `auth` mínimas de prueba y roles separados. No sustituyen la verificación final de Auth/SSR/PostgREST contra Supabase real.
 
-## Supabase remoto (límite de credenciales)
+## Supabase remoto
 
 Project ref proporcionado por el usuario: `eoldyqqupkuggyyfhqkg`.
+
+Estado: proyecto vinculado y las nueve migraciones aplicadas correctamente. Se verificó que no había tablas previas y no se importaron datos de BOFT. Falta crear el primer usuario Auth y asignar sus permisos.
 
 Desde este repositorio:
 
@@ -80,7 +82,7 @@ Para el trabajo programado: configurar `SUPABASE_SERVICE_ROLE_KEY` y un `CRON_SE
 - Email/SMS: cola persistente, sin envíos. Enlaces se entregan manualmente. El plazo de 3 días solo empieza después de confirmar entrega del enlace; `completion_email_sent_at` permanece vacío sin email real.
 - Recibos: snapshot consultable del pago (importe, método, fecha, total, cobrado, saldo, venta/trabajo); exportación PDF y copia al cliente pendientes del adaptador documental/mensajería.
 - Términos legales definitivos: requeridos antes de compartir cotizaciones. No hay texto legal inventado.
-- Supabase remoto y primer usuario: requieren autenticación del dueño del proyecto.
+- Primer usuario: crear la cuenta en Auth y asignar membresías. El proyecto remoto ya quedó vinculado y migrado.
 
 ## Decisiones y límites explícitos de esta fase
 
