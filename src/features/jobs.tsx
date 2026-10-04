@@ -40,14 +40,18 @@ export async function Jobs({ id }: { id?: string }) {
     );
   }
 
-  const { role } = await context();
+  const { role, db } = await context();
   const j = (await rows("jobs", { id }))[0];
   if (!j) return <Empty>Trabajo no encontrado.</Empty>;
 
-  const [docs, sales] = await Promise.all([
+  const [docs, sales, customerStatusResult] = await Promise.all([
     rows("documents", { field: "job_id", value: id }),
     rows("sale_balances", { field: "job_id", value: id }),
+    role === "admin"
+      ? db.rpc("job_customer_status", { p_job: id })
+      : Promise.resolve({ data: null, error: null }),
   ]);
+  const customerStatus = customerStatusResult.data;
 
   const scope = await rows("quote_items", {
     field: "quote_id",
@@ -107,6 +111,40 @@ export async function Jobs({ id }: { id?: string }) {
           </p>
         )}
       </Panel>
+
+      {role === "admin" && customerStatus && (
+        <Panel title="Estatus visible para el cliente">
+          <p>
+            Estado actual: <Badge>{customerStatus.stage}</Badge>
+          </p>
+          <div className="actions">
+            {customerStatus.stage === "In Process" && (
+              <Form
+                operation="customer-stage"
+                hidden={{ id, stage: "Engraving" }}
+                fields={[]}
+                button="Marcar en grabado"
+                back={`/app/jobs/${id}`}
+              />
+            )}
+            {customerStatus.stage === "Engraving" && (
+              <p className="muted">
+                Al marcar el trabajo listo para entrega, el cliente verá “Completed”.
+              </p>
+            )}
+            {customerStatus.path && (
+              <Link
+                className="button secondary"
+                href={customerStatus.path}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Abrir vista del cliente
+              </Link>
+            )}
+          </div>
+        </Panel>
+      )}
 
       <div className="grid two">
         {["Receiving Evidence", "Completed Evidence"].map((type) => (
