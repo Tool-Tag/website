@@ -14,5 +14,12 @@ export function receiptText(s:ReceiptSnapshot) {
  return `Job: ${s.code}\nCustomer: ${s.customer_name}\n\nORIGINAL QUOTE ${s.original_quote.code}\n${s.original_quote.items.map(i=>`${i.article} × ${i.quantity}\n${itemDetails(i).join("\n")}`).join("\n")}\nSubtotal: ${money(s.totals.base_amount)}\n\n${s.extensions.map(x=>`${x.code}\n${x.scope}\nSubtotal: ${money(x.total)}`).join("\n\n")}\n\nGRAND TOTAL: ${money(s.totals.grand_total)}\n\nPAYMENT HISTORY\n${s.payments.map(p=>`${p.date} · ${money(p.amount)} · ${p.method || "—"} · ${p.reference || ""}`).join("\n")}\n\nAmount paid: ${money(s.totals.collected)}\nRefunds: ${money(s.totals.refunded)}\nBalance due: ${money(s.totals.balance_due)}\n${s.paid_in_full ? `PAID IN FULL\nPaid in full date: ${s.paid_in_full_date}` : "Payment status: balance pending or refund adjustment"}\n\nThis payment summary is separate from confirmation of physical delivery.`;
 }
 export function renderJobReceipt(s:ReceiptSnapshot,to:string) {
- return renderNotification(`ToolTag ${s.paid_in_full ? "Paid in Full" : "Payment Summary"} — ${s.code}`,receiptText(s),to,"PAYMENT_RECEIPT");
+ return renderNotification(
+  s.paid_in_full ? `Payment confirmed — ${s.code}` : `ToolTag Payment Summary — ${s.code}`,
+  s.paid_in_full
+    ? `ToolTag has confirmed your payment.\n\n${receiptText(s)}`
+    : receiptText(s),
+  to,
+  "PAYMENT_RECEIPT",
+ );
 }
