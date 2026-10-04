@@ -1,5 +1,6 @@
 "use client";
 import { useState, useActionState, useRef } from "react";
+import { QuoteImageInput } from "@/components/quote-image-input";
 import { QuoteScope } from "@/components/quote-scope";
 import { mutate } from "@/app/actions";
 import { quoteTotal, money } from "@/lib/domain/money";
@@ -365,17 +366,7 @@ export function QuoteBuilder({
                               }
                             />
                           </label>
-                          <label>
-                            Enlace de la imagen o logo
-                            <input
-                              type="url"
-                              pattern="https?://.*"
-                              required
-                              placeholder="https://…"
-                              value={m.url}
-                              onChange={(e) => mark(i, { url: e.target.value })}
-                            />
-                          </label>
+                          <QuoteImageInput value={m.url} onChange={(url) => mark(i, { url })} />
                           {designs.length > 0 && (
                             <label>
                               Reutilizar un diseño

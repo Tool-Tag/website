@@ -35,7 +35,7 @@ begin
 end $$;
 revoke all on function public.activate_customer_mail(),public.customer_mail_status() from public,anon;
 grant execute on function public.activate_customer_mail(),public.customer_mail_status() to authenticated;
-create function public.claim_mail_for_mode(p_quote uuid,p_test_recipient text,p_mode text)
+create or replace function public.claim_mail_for_mode(p_quote uuid,p_test_recipient text,p_mode text)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare n public.notifications; content jsonb;
 begin
