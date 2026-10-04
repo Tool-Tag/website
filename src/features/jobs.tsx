@@ -9,6 +9,7 @@ import { QuoteScope } from "@/components/quote-scope";
 import { Form } from "@/components/form";
 import { WorkPreparation } from "@/components/work-preparation";
 import { money } from "@/lib/domain/money";
+import { jobStatusLabel, paymentStatusLabel, workStageLabel } from "@/lib/domain/status-labels";
 
 export async function Jobs({ id }: { id?: string }) {
   if (!id) {
@@ -16,10 +17,13 @@ export async function Jobs({ id }: { id?: string }) {
 
     const activeJobs = list.filter(
       (j) =>
-        !["Payment", "Payment Verification", "Closed"].includes(
+        !["Payment", "Payment Verification", "Closed", "Issue Review"].includes(
           j.work_stage ?? "Not Started",
         ) &&
         !["Cancelled"].includes(j.status),
+    );
+    const reviewJobs = list.filter(
+      (j) => j.work_stage === "Issue Review" || j.status === "Issue / Review",
     );
     const paymentJobs = list.filter((j) =>
       ["Payment", "Payment Verification"].includes(j.work_stage),
@@ -37,10 +41,10 @@ export async function Jobs({ id }: { id?: string }) {
                   <Link href={`/app/jobs/${j.id}`}>{j.code}</Link>
                 </td>
                 <td>
-                  <Badge>{j.work_stage ?? "Not Started"}</Badge>
+                  <Badge>{workStageLabel(j.work_stage ?? "Not Started")}</Badge>
                 </td>
                 <td>
-                  <Badge>{j.status}</Badge>
+                  <Badge>{jobStatusLabel(j.status)}</Badge>
                 </td>
                 <td>{new Date(j.created_at).toLocaleDateString("es-US")}</td>
               </tr>
@@ -66,6 +70,12 @@ export async function Jobs({ id }: { id?: string }) {
               label: "Activos",
               count: activeJobs.length,
               content: jobTable(activeJobs, "No hay trabajos activos."),
+            },
+            {
+              id: "review",
+              label: "Revisión",
+              count: reviewJobs.length,
+              content: jobTable(reviewJobs, "No hay trabajos en revisión."),
             },
             {
               id: "payments",
@@ -121,17 +131,6 @@ export async function Jobs({ id }: { id?: string }) {
   const receivingFiles = docs.filter((d) => d.type === "Receiving Evidence");
   const completedFiles = docs.filter((d) => d.type === "Completed Evidence");
   const stage = j.work_stage ?? "Not Started";
-  const stageLabels: Record<string, string> = {
-    "Not Started": "Sin iniciar",
-    "Receiving Evidence": "Evidencia recepción",
-    Preparing: "Preparando",
-    "Final Evidence": "Grabado / evidencia final",
-    "Awaiting Delivery Acceptance": "Esperando entrega",
-    Payment: "Pago",
-    "Payment Verification": "Verificando pago",
-    Closed: "Completado",
-  };
-
   const receivingEvidence = (
     <Panel title="Evidencia de cómo se recibió">
       <EvidenceGallery files={receivingFiles} />
@@ -295,7 +294,7 @@ export async function Jobs({ id }: { id?: string }) {
           {pendingPayment ? (
             <>
               <p>
-                <strong>{pendingPayment.method}</strong> · {money(pendingPayment.amount)} · Pending Verification
+                <strong>{pendingPayment.method}</strong> · {money(pendingPayment.amount)} · {paymentStatusLabel(pendingPayment.status)}
               </p>
               {pendingProofUrl && (
                 <p>
@@ -371,7 +370,7 @@ export async function Jobs({ id }: { id?: string }) {
         title={
           <span className="job-title-inline">
             <span>{j.code}</span>
-            <Badge>{stageLabels[stage] ?? stage}</Badge>
+            <Badge>{workStageLabel(stage)}</Badge>
           </span>
         }
       >
