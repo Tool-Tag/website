@@ -1004,3 +1004,9 @@ textarea:focus-visible {
   font-weight: 600;
   letter-spacing: 0.2px;
 }
+
+
+.payment-copy-row strong {
+  user-select: text;
+  cursor: text;
+}
