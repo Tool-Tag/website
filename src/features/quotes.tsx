@@ -156,28 +156,39 @@ export async function Quotes({
       (q.status === "Accepted" && hasClosedJob(q.id)),
   );
 
-  const quoteTable = (quotes: typeof list, empty: string) => (
+  const quoteTable = (
+    quotes: typeof list,
+    empty: string,
+    completedLabel = false,
+  ) => (
     <Panel>
       {quotes.length ? (
         <Table headers={["Cotización", "Versión", "Estado", "Vigencia"]}>
-          {quotes.map((q) => (
-            <tr key={q.id}>
-              <td>
-                <Link href={`/app/quotes/${q.id}`}>{q.code}</Link>
-              </td>
-              <td>{q.revision}</td>
-              <td>
-                <Badge>{q.status}</Badge>
-              </td>
-              <td>
-                {q.expires_at
-                  ? new Date(q.expires_at).toLocaleDateString("es-US")
-                  : q.status === "Draft"
-                    ? "Sin enviar"
-                    : "—"}
-              </td>
-            </tr>
-          ))}
+          {quotes.map((q) => {
+            const displayStatus =
+              completedLabel && q.status === "Accepted" && hasClosedJob(q.id)
+                ? "Completada"
+                : quoteStatusLabel(q.status);
+
+            return (
+              <tr key={q.id}>
+                <td>
+                  <Link href={`/app/quotes/${q.id}`}>{q.code}</Link>
+                </td>
+                <td>{q.revision}</td>
+                <td>
+                  <Badge>{displayStatus}</Badge>
+                </td>
+                <td>
+                  {q.expires_at
+                    ? new Date(q.expires_at).toLocaleDateString("es-US")
+                    : q.status === "Draft"
+                      ? "Sin enviar"
+                      : "—"}
+                </td>
+              </tr>
+            );
+          })}
         </Table>
       ) : (
         <Empty>{empty}</Empty>
@@ -227,6 +238,7 @@ export async function Quotes({
             content: quoteTable(
               historyQuotes,
               "No hay cotizaciones en historial.",
+              true,
             ),
           },
         ]}
