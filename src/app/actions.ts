@@ -104,6 +104,8 @@ export async function mutate(
         name="generate_job_receipt"; args={p_job:p.job_id}; break;
       case "confirm-payment":
         name="confirm_payment_request"; args={p_id:p.id}; break;
+      case "customer-stage":
+        name="set_job_customer_stage"; args={p_job:p.id,p_stage:p.stage}; break;
       case "customer":
         z.object({
           name: z.string().min(1),
@@ -332,7 +334,10 @@ export async function customerAction(
       p_phone: String(form.get("phone") ?? "").trim(),
     });
     if (error) return { error: error.message };
-    after(async () => { await processAcceptedWorker(); });
+    after(async () => {
+      await processAcceptedWorker();
+      await dispatchWorkerMail();
+    });
     revalidatePath(`/review/${token}`);
     revalidatePath(`/accept/${token}`);
     revalidatePath("/app", "layout");
