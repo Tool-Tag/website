@@ -7,6 +7,7 @@ import { rows, context } from "@/lib/domain/context";
 import { Heading, Panel, Table, Empty, Badge } from "@/components/ui";
 import { QuoteScope } from "@/components/quote-scope";
 import { Form } from "@/components/form";
+import { WorkPreparation } from "@/components/work-preparation";
 
 export async function Jobs({ id }: { id?: string }) {
   if (!id) {
@@ -57,6 +58,16 @@ export async function Jobs({ id }: { id?: string }) {
   const receivingFiles = docs.filter((d) => d.type === "Receiving Evidence");
   const completedFiles = docs.filter((d) => d.type === "Completed Evidence");
   const stage = j.work_stage ?? "Not Started";
+  const stageLabels: Record<string, string> = {
+    "Not Started": "Sin iniciar",
+    "Receiving Evidence": "Evidencia recepción",
+    Preparing: "Preparando",
+    "Final Evidence": "Grabado / evidencia final",
+    "Awaiting Delivery Acceptance": "Esperando entrega",
+    Payment: "Pago",
+    "Payment Verification": "Verificando pago",
+    Closed: "Completado",
+  };
 
   const receivingEvidence = (
     <Panel title="Evidencia de cómo se recibió">
@@ -165,7 +176,7 @@ export async function Jobs({ id }: { id?: string }) {
             <p className="muted">
               Revisa aquí exactamente lo aprobado antes de comenzar el grabado.
             </p>
-            <QuoteScope items={scope} />
+            <WorkPreparation items={scope} />
           </Panel>
           <Panel title="Siguiente paso">
             <p className="muted">
@@ -280,7 +291,7 @@ export async function Jobs({ id }: { id?: string }) {
         title={
           <span className="job-title-inline">
             <span>{j.code}</span>
-            <Badge>{stage}</Badge>
+            <Badge>{stageLabels[stage] ?? stage}</Badge>
           </span>
         }
       >
