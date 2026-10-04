@@ -5,6 +5,7 @@ import { context, rows } from "@/lib/domain/context";
 import { Panel } from "./ui";
 import { Form } from "./form";
 import { money } from "@/lib/domain/money";
+import { extensionStatusLabel, paymentStatusLabel } from "@/lib/domain/status-labels";
 
 type JobLifecycleSection = "customer" | "commercial" | "delivery" | "activity";
 
@@ -75,7 +76,7 @@ export async function JobLifecycle({
         <Panel title="Extensiones del trabajo">
           {extensions.map((x) => (
             <p key={x.id}>
-              <Link href={`/app/job-extensions/${x.id}`}>{x.code}</Link> · {x.status} ·{" "}
+              <Link href={`/app/job-extensions/${x.id}`}>{x.code}</Link> · {extensionStatusLabel(x.status)} ·{" "}
               {money(x.total)}
             </p>
           ))}
@@ -131,7 +132,7 @@ export async function JobLifecycle({
             paymentRequests.map((request) => (
               <div className="item" key={request.id}>
                 <p>
-                  <strong>{request.method}</strong> · {money(request.amount)} · {request.status}
+                  <strong>{request.method}</strong> · {money(request.amount)} · {paymentStatusLabel(request.status)}
                 </p>
                 <p className="muted">
                   Enviado: {new Date(request.submitted_at).toLocaleString("es-US")}
