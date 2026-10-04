@@ -11,9 +11,13 @@ const labels: Record<string, { title: string; description: string }> = {
     title: "Engraving",
     description: "Your items are currently in the engraving stage.",
   },
+  "Final Details": {
+    title: "Final Details",
+    description: "Your Job is in final adjustments and quality review.",
+  },
   Completed: {
     title: "Completed",
-    description: "The work is finished and is moving through final delivery.",
+    description: "The work is finished and ready for delivery acceptance.",
   },
 };
 
@@ -39,7 +43,7 @@ export default async function JobStatusPage({
 
   const steps = Array.isArray(data.steps)
     ? data.steps
-    : ["In Process", "Engraving", "Completed"];
+    : ["In Process", "Engraving", "Final Details", "Completed"];
   const currentIndex = Math.max(0, steps.indexOf(data.stage));
   const current = labels[data.stage] ?? labels["In Process"];
 
