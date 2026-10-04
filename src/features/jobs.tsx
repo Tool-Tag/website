@@ -178,18 +178,13 @@ export async function Jobs({ id }: { id?: string }) {
             </p>
             <WorkPreparation items={scope} />
           </Panel>
-          <Panel title="Siguiente paso">
-            <p className="muted">
-              Al continuar, el Job pasará a grabado y después deberás registrar la evidencia final.
-            </p>
-            <Form
-              operation="job"
-              hidden={{ id, action: "preparation-done" }}
-              fields={[]}
-              back={`/app/jobs/${id}`}
-              button="Siguiente"
-            />
-          </Panel>
+          <Form
+            operation="job"
+            hidden={{ id, action: "preparation-done" }}
+            fields={[]}
+            back={`/app/jobs/${id}`}
+            button="Siguiente"
+          />
         </>
       )}
 
