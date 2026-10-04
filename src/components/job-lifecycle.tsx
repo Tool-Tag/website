@@ -10,12 +10,13 @@ type JobLifecycleSection = "customer" | "commercial" | "delivery" | "activity";
 
 const getLifecycleData = cache(async (id: string) => {
   const { db, role } = await context();
-  const [extensions, totals, ack, receipts, activity, { data: lifecycle }] =
+  const [extensions, totals, ack, receipts, paymentRequests, activity, { data: lifecycle }] =
     await Promise.all([
       rows("job_extensions", { field: "job_id", value: id, order: "sequence" }),
       rows("job_commercial_totals", { id }),
       rows("delivery_acknowledgments", { field: "job_id", value: id }),
       rows("job_receipts", { field: "job_id", value: id, order: "created_at" }),
+      rows("payment_requests", { field: "job_id", value: id, order: "submitted_at" }),
       rows("audit_log", { field: "entity_id", value: id, order: "created_at", limit: 20 }),
       db.rpc("job_lifecycle", { p_job: id }),
     ]);
@@ -26,6 +27,7 @@ const getLifecycleData = cache(async (id: string) => {
     totals,
     ack,
     receipts,
+    paymentRequests,
     activity,
     lifecycle,
   };
@@ -38,7 +40,7 @@ export async function JobLifecycle({
   id: string;
   section: JobLifecycleSection;
 }) {
-  const { role, extensions, totals, ack, receipts, activity, lifecycle } =
+  const { role, extensions, totals, ack, receipts, paymentRequests, activity, lifecycle } =
     await getLifecycleData(id);
   const t = totals[0];
 
@@ -53,6 +55,21 @@ export async function JobLifecycle({
   }
 
   if (section === "commercial") {
+    const proofLinks = new Map<string, string>();
+    if (role === "admin") {
+      const { db } = await context();
+      await Promise.all(
+        paymentRequests
+          .filter((request) => request.proof_path)
+          .map(async (request) => {
+            const { data } = await db.storage
+              .from("payment-proofs")
+              .createSignedUrl(request.proof_path, 3600);
+            if (data?.signedUrl) proofLinks.set(request.id, data.signedUrl);
+          }),
+      );
+    }
+
     return (
       <>
         <Panel title="Extensiones del trabajo">
@@ -108,6 +125,51 @@ export async function JobLifecycle({
               ))}
           </Panel>
         )}
+
+        <Panel title="Pagos del cliente">
+          {paymentRequests.length ? (
+            paymentRequests.map((request) => (
+              <div className="item" key={request.id}>
+                <p>
+                  <strong>{request.method}</strong> · {money(request.amount)} · {request.status}
+                </p>
+                <p className="muted">
+                  Enviado: {new Date(request.submitted_at).toLocaleString("es-US")}
+                </p>
+                {proofLinks.get(request.id) && (
+                  <p>
+                    <a
+                      href={proofLinks.get(request.id)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Ver comprobante →
+                    </a>
+                  </p>
+                )}
+                {request.status === "Confirmed" && (
+                  <p>
+                    Confirmado: {money(request.confirmed_amount)} ·{" "}
+                    {request.confirmed_at
+                      ? new Date(request.confirmed_at).toLocaleString("es-US")
+                      : ""}
+                  </p>
+                )}
+                {role === "admin" && request.status === "Pending Verification" && (
+                  <Form
+                    operation="confirm-payment"
+                    hidden={{ id: request.id }}
+                    fields={[]}
+                    button="Confirmar pago recibido"
+                    back={`/app/jobs/${id}`}
+                  />
+                )}
+              </div>
+            ))
+          ) : (
+            <p>Sin pagos enviados por el cliente.</p>
+          )}
+        </Panel>
 
         <Panel title="Recibos del trabajo">
           {receipts.map((r) => (
