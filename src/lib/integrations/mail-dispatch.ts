@@ -22,7 +22,22 @@ export async function dispatchQuoteMail(db: SupabaseClient, quoteId?: string) {
         const message = event.payload.template === "job_receipt"
           ? renderJobReceipt(event.payload.snapshot,event.recipient)
           : event.payload.template === "notification"
-          ? renderNotification(event.payload.subject, event.payload.text, event.recipient, event.event, event.action_path ? new URL(event.action_path,origin).href : event.completion_token ? new URL(`/completion/${event.completion_token}`, origin).href : undefined)
+          ? renderNotification(
+              event.payload.subject,
+              event.payload.text,
+              event.recipient,
+              event.event,
+              event.action_path
+                ? new URL(event.action_path, origin).href
+                : event.completion_token
+                  ? new URL(`/completion/${event.completion_token}`, origin).href
+                  : undefined,
+              event.event === "Completion acknowledgment"
+                ? "Accept Delivery"
+                : event.event === "JOB_STATUS_LINK"
+                  ? "View Job Status"
+                  : "Review details",
+            )
           : renderQuoteMail(event.payload.snapshot, new URL(`/review/${event.token}`, origin).href, event.event === "Agreement accepted copy" ? "confirmation" : "quote", event.payload.job_code);
         Object.assign(message, mailSender(event.event), {to: event.recipient});
         if (event.event === "Quote expiration reminder") message.subject = `Your ToolTag Quote expires soon — ${event.payload.snapshot.code}`;
