@@ -1,34 +1,183 @@
 import Link from "next/link";
+import { cache } from "react";
 import { randomUUID } from "node:crypto";
-import { context,rows } from "@/lib/domain/context";
+import { context, rows } from "@/lib/domain/context";
 import { Panel } from "./ui";
 import { Form } from "./form";
 import { money } from "@/lib/domain/money";
-export async function JobLifecycle({id}:{id:string}) {
- const {db,role}=await context();
- const [extensions,totals,ack,receipts,activity,{data:lifecycle}] = await Promise.all([
-  rows("job_extensions",{field:"job_id",value:id,order:"sequence"}),rows("job_commercial_totals",{id}),rows("delivery_acknowledgments",{field:"job_id",value:id}),rows("job_receipts",{field:"job_id",value:id,order:"created_at"}),rows("audit_log",{field:"entity_id",value:id,order:"created_at",limit:20}),db.rpc("job_lifecycle",{p_job:id}),
- ]);
- const t=totals[0];
- return <>
-  {lifecycle?.customer && <Panel title="Cliente"><p>{lifecycle.customer.name} · {lifecycle.customer.email}</p></Panel>}
-  <Panel title="Extensiones del trabajo">
-   {extensions.map(x=><p key={x.id}><Link href={`/app/job-extensions/${x.id}`}>{x.code}</Link> · {x.status} · {money(x.total)}</p>)}
-   {!extensions.length && <p>Sin ampliaciones.</p>}
-   {role==="admin" && <details><summary>Agregar solicitud de trabajo adicional</summary><Form operation="request-extension" hidden={{job_id:id,request_key:randomUUID()}} fields={[{name:"request",label:"Trabajo solicitado",type:"textarea",required:true}]} button="Crear extensión" back={`/app/jobs/${id}`}/></details>}
-  </Panel>
-  {t && <Panel title="Total y pagos"><p>Cotización base: {money(t.base_amount)}</p><p>Extensiones aprobadas: {money(t.extensions_amount)}</p><h3>Total: {money(t.grand_total)}</h3><p>Cobrado: {money(t.collected)} · Reembolsado: {money(t.refunded)} · Saldo: {money(t.balance_due)}</p><p className="muted">Cada extensión aprobada tiene su componente de venta y sus cobros. Aquí se consolidan sin duplicar ingresos.</p>{extensions.filter(x=>x.sale_id).map(x=><p key={x.id}><Link href={`/app/finance/sales/${x.sale_id}`}>Registrar cobro de {x.code}</Link></p>)}</Panel>}
-  <Panel title="Revisión del cliente y entrega">
-   <p>Respuesta: {lifecycle?.review?.response==="ready"?"Listo para entrega":lifecycle?.review?.response==="additional"?"Solicitó trabajo adicional":"Pendiente"}</p>
-   {lifecycle?.review?.customer_request && <p>{lifecycle.review.customer_request}</p>}
-   <p>Correo de revisión: {lifecycle?.review?.notified_at || "Pendiente"}<br/>Primera visita: {lifecycle?.review?.viewed_at || "Pendiente"}<br/>Respuesta: {lifecycle?.review?.response_at || "Pendiente"}</p>
-   {lifecycle?.review_path && <Link href={lifecycle.review_path} target="_blank" rel="noreferrer">Abrir revisión privada</Link>}
-   <p>Recepción confirmada: {ack[0]?new Date(ack[0].acknowledged_at).toLocaleString("es-US"):"Sin confirmación explícita"}</p>
-  </Panel>
-  <Panel title="Recibos del trabajo">
-   {receipts.map(r=><p key={r.id}><Link href={`/app/job-receipts/${r.id}`}>Resumen del {new Date(r.created_at).toLocaleString("es-US")}</Link> · {r.storage_status}</p>)}
-   {role==="admin" && <Form operation="generate-receipt" hidden={{job_id:id}} fields={[]} button="Generar y enviar resumen de pagos" back={`/app/jobs/${id}`}/>}
-  </Panel>
-  <Panel title="Actividad">{activity.length ? activity.map(a=><p key={a.id}>{new Date(a.created_at).toLocaleString("es-US")} · {a.field} · {typeof a.new_value === "string" ? a.new_value : JSON.stringify(a.new_value)}</p>):<p>Sin actividad registrada.</p>}</Panel>
- </>;
+
+type JobLifecycleSection = "customer" | "commercial" | "delivery" | "activity";
+
+const getLifecycleData = cache(async (id: string) => {
+  const { db, role } = await context();
+  const [extensions, totals, ack, receipts, activity, { data: lifecycle }] =
+    await Promise.all([
+      rows("job_extensions", { field: "job_id", value: id, order: "sequence" }),
+      rows("job_commercial_totals", { id }),
+      rows("delivery_acknowledgments", { field: "job_id", value: id }),
+      rows("job_receipts", { field: "job_id", value: id, order: "created_at" }),
+      rows("audit_log", { field: "entity_id", value: id, order: "created_at", limit: 20 }),
+      db.rpc("job_lifecycle", { p_job: id }),
+    ]);
+
+  return {
+    role,
+    extensions,
+    totals,
+    ack,
+    receipts,
+    activity,
+    lifecycle,
+  };
+});
+
+export async function JobLifecycle({
+  id,
+  section,
+}: {
+  id: string;
+  section: JobLifecycleSection;
+}) {
+  const { role, extensions, totals, ack, receipts, activity, lifecycle } =
+    await getLifecycleData(id);
+  const t = totals[0];
+
+  if (section === "customer") {
+    return lifecycle?.customer ? (
+      <Panel title="Cliente">
+        <p>
+          {lifecycle.customer.name} · {lifecycle.customer.email}
+        </p>
+      </Panel>
+    ) : null;
+  }
+
+  if (section === "commercial") {
+    return (
+      <>
+        <Panel title="Extensiones del trabajo">
+          {extensions.map((x) => (
+            <p key={x.id}>
+              <Link href={`/app/job-extensions/${x.id}`}>{x.code}</Link> · {x.status} ·{" "}
+              {money(x.total)}
+            </p>
+          ))}
+          {!extensions.length && <p>Sin ampliaciones.</p>}
+          {role === "admin" && (
+            <details>
+              <summary>Agregar solicitud de trabajo adicional</summary>
+              <Form
+                operation="request-extension"
+                hidden={{ job_id: id, request_key: randomUUID() }}
+                fields={[
+                  {
+                    name: "request",
+                    label: "Trabajo solicitado",
+                    type: "textarea",
+                    required: true,
+                  },
+                ]}
+                button="Crear extensión"
+                back={`/app/jobs/${id}`}
+              />
+            </details>
+          )}
+        </Panel>
+
+        {t && (
+          <Panel title="Total y pagos">
+            <p>Cotización base: {money(t.base_amount)}</p>
+            <p>Extensiones aprobadas: {money(t.extensions_amount)}</p>
+            <h3>Total: {money(t.grand_total)}</h3>
+            <p>
+              Cobrado: {money(t.collected)} · Reembolsado: {money(t.refunded)} · Saldo:{" "}
+              {money(t.balance_due)}
+            </p>
+            <p className="muted">
+              Cada extensión aprobada tiene su componente de venta y sus cobros. Aquí se
+              consolidan sin duplicar ingresos.
+            </p>
+            {extensions
+              .filter((x) => x.sale_id)
+              .map((x) => (
+                <p key={x.id}>
+                  <Link href={`/app/finance/sales/${x.sale_id}`}>
+                    Registrar cobro de {x.code}
+                  </Link>
+                </p>
+              ))}
+          </Panel>
+        )}
+
+        <Panel title="Recibos del trabajo">
+          {receipts.map((r) => (
+            <p key={r.id}>
+              <Link href={`/app/job-receipts/${r.id}`}>
+                Resumen del {new Date(r.created_at).toLocaleString("es-US")}
+              </Link>{" "}
+              · {r.storage_status}
+            </p>
+          ))}
+          {role === "admin" && (
+            <Form
+              operation="generate-receipt"
+              hidden={{ job_id: id }}
+              fields={[]}
+              button="Generar y enviar resumen de pagos"
+              back={`/app/jobs/${id}`}
+            />
+          )}
+        </Panel>
+      </>
+    );
+  }
+
+  if (section === "delivery") {
+    return (
+      <Panel title="Revisión del cliente y entrega">
+        <p>
+          Respuesta:{" "}
+          {lifecycle?.review?.response === "ready"
+            ? "Listo para entrega"
+            : lifecycle?.review?.response === "additional"
+              ? "Solicitó trabajo adicional"
+              : "Pendiente"}
+        </p>
+        {lifecycle?.review?.customer_request && <p>{lifecycle.review.customer_request}</p>}
+        <p>
+          Correo de revisión: {lifecycle?.review?.notified_at || "Pendiente"}
+          <br />
+          Primera visita: {lifecycle?.review?.viewed_at || "Pendiente"}
+          <br />
+          Respuesta: {lifecycle?.review?.response_at || "Pendiente"}
+        </p>
+        {lifecycle?.review_path && (
+          <Link href={lifecycle.review_path} target="_blank" rel="noreferrer">
+            Abrir revisión privada
+          </Link>
+        )}
+        <p>
+          Recepción confirmada:{" "}
+          {ack[0]
+            ? new Date(ack[0].acknowledged_at).toLocaleString("es-US")
+            : "Sin confirmación explícita"}
+        </p>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel title="Actividad">
+      {activity.length ? (
+        activity.map((a) => (
+          <p key={a.id}>
+            {new Date(a.created_at).toLocaleString("es-US")} · {a.field} ·{" "}
+            {typeof a.new_value === "string" ? a.new_value : JSON.stringify(a.new_value)}
+          </p>
+        ))
+      ) : (
+        <p>Sin actividad registrada.</p>
+      )}
+    </Panel>
+  );
 }
