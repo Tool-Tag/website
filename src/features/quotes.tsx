@@ -5,6 +5,7 @@ import { Heading, Panel, Table, Empty, Badge } from "@/components/ui";
 import { SendQuote } from "@/components/send-quote";
 import { QuoteScope } from "@/components/quote-scope";
 import { QuoteBuilder } from "@/components/quote-builder";
+import { QuoteTabs } from "@/components/quote-tabs";
 import { money, quoteTotal } from "@/lib/domain/money";
 export async function Quotes({
   id,
@@ -131,40 +132,91 @@ export async function Quotes({
     );
   }
   const list = await rows("quotes", { order: "created_at" });
+
+  const activeQuotes = list.filter((q) =>
+    ["Sent", "Viewed", "Agreement Pending"].includes(q.status),
+  );
+  const draftQuotes = list.filter((q) => q.status === "Draft");
+  const acceptedQuotes = list.filter((q) => q.status === "Accepted");
+  const historyQuotes = list.filter((q) =>
+    ["Declined", "Expired", "Revised"].includes(q.status),
+  );
+
+  const quoteTable = (quotes: typeof list, empty: string) => (
+    <Panel>
+      {quotes.length ? (
+        <Table headers={["Cotización", "Versión", "Estado", "Vigencia"]}>
+          {quotes.map((q) => (
+            <tr key={q.id}>
+              <td>
+                <Link href={`/app/quotes/${q.id}`}>{q.code}</Link>
+              </td>
+              <td>{q.revision}</td>
+              <td>
+                <Badge>{q.status}</Badge>
+              </td>
+              <td>
+                {q.expires_at
+                  ? new Date(q.expires_at).toLocaleDateString("es-US")
+                  : q.status === "Draft"
+                    ? "Sin enviar"
+                    : "—"}
+              </td>
+            </tr>
+          ))}
+        </Table>
+      ) : (
+        <Empty>{empty}</Empty>
+      )}
+    </Panel>
+  );
+
   return (
     <>
       <Heading
         title="Cotizaciones"
-        subtitle="Precio manual. Aprobación y términos versionados."
+        subtitle="Organizadas según la etapa comercial."
       >
         <Link className="button" href="/app/quotes/new">
           + Nueva cotización
         </Link>
       </Heading>
-      <Panel>
-        {list.length ? (
-          <Table headers={["Cotización", "Versión", "Estado", "Vigencia"]}>
-            {list.map((q) => (
-              <tr key={q.id}>
-                <td>
-                  <Link href={`/app/quotes/${q.id}`}>{q.code}</Link>
-                </td>
-                <td>{q.revision}</td>
-                <td>
-                  <Badge>{q.status}</Badge>
-                </td>
-                <td>
-                  {q.expires_at
-                    ? new Date(q.expires_at).toLocaleDateString("es-US")
-                    : "Sin enviar"}
-                </td>
-              </tr>
-            ))}
-          </Table>
-        ) : (
-          <Empty />
-        )}
-      </Panel>
+
+      <QuoteTabs
+        defaultTab="active"
+        tabs={[
+          {
+            id: "active",
+            label: "Activas",
+            count: activeQuotes.length,
+            content: quoteTable(activeQuotes, "No hay cotizaciones activas."),
+          },
+          {
+            id: "drafts",
+            label: "Borradores",
+            count: draftQuotes.length,
+            content: quoteTable(draftQuotes, "No hay borradores."),
+          },
+          {
+            id: "accepted",
+            label: "Aceptadas",
+            count: acceptedQuotes.length,
+            content: quoteTable(
+              acceptedQuotes,
+              "No hay cotizaciones aceptadas.",
+            ),
+          },
+          {
+            id: "history",
+            label: "Historial",
+            count: historyQuotes.length,
+            content: quoteTable(
+              historyQuotes,
+              "No hay cotizaciones en historial.",
+            ),
+          },
+        ]}
+      />
     </>
   );
 }
