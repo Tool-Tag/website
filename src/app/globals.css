@@ -509,3 +509,55 @@ textarea:focus-visible {
 }
 
 @media print { .no-print, button, form { display:none !important; } body, .panel, .item {background:white !important;color:black !important;} .public {max-width:none;} .item {break-inside:avoid;} }
+
+
+.job-tabs {
+  min-width: 0;
+}
+
+.job-tab-list {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0 14px;
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: thin;
+}
+
+.job-tab {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.job-tab:hover {
+  background: #121a26;
+  color: var(--ink);
+  filter: none;
+}
+
+.job-tab.active {
+  background: #152139;
+  border-color: #2e4266;
+  color: #fff;
+}
+
+.job-tab-panel {
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .job-tab-list {
+    margin-left: -4px;
+    margin-right: -4px;
+  }
+
+  .job-tab {
+    padding-inline: 12px;
+  }
+}
