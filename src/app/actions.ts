@@ -4,11 +4,12 @@ import { after } from "next/server";
 import { processAcceptedDocument, processAcceptedWorker } from "@/lib/documents/accepted-delivery";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { context } from "@/lib/domain/context";
+import { context, TOOLTAG } from "@/lib/domain/context";
 import { supabase } from "@/lib/supabase/server";
 import { cents } from "@/lib/domain/money";
 import { z } from "zod";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { createClient } from "@supabase/supabase-js";
 import { loginFailure } from "@/lib/domain/auth-errors";
 export type ActionState = { error?: string; ok?: boolean; link?: string; mailStatus?: string; mailRequestedAt?: string };
 export async function login(
@@ -101,6 +102,8 @@ export async function mutate(
         name="cancel_job_extension"; args={p_id:p.id}; break;
       case "generate-receipt":
         name="generate_job_receipt"; args={p_job:p.job_id}; break;
+      case "confirm-payment":
+        name="confirm_payment_request"; args={p_id:p.id}; break;
       case "customer":
         z.object({
           name: z.string().min(1),
@@ -224,7 +227,7 @@ export async function mutate(
     if (error) return { error: error.message };
     revalidatePath("/app", "layout");
     if (operation === "send-quote" || operation === "resend-quote") return { mailRequestedAt: new Date().toISOString(), link: `/review/${data}`, mailStatus: await dispatchQuoteMail(db, String(p.id)) };
-    if (["job","movement","extension-send","extension-cancel","generate-receipt","retry-notification"].includes(operation)) await dispatchWorkerMail();
+    if (["job","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment"].includes(operation)) await dispatchWorkerMail();
     if (operation === "extension-send") return {link:`/extension/${data}`};
     if (operation === "job" && data) return { link: `/completion/${data}` };
     if (operation === "customer") destination = `/app/customers/${data}`;
@@ -254,6 +257,70 @@ export async function customerAction(
       : await db.rpc("public_work_review",{p_token:token,p_response:kind==="work-ready"?"ready":"additional",p_request:String(form.get("request")||"").trim()});
     if(error) return {error:error.message};
     revalidatePath(`/work/${token}`);revalidatePath(`/extension/${token}`);revalidatePath("/app","layout");return {ok:true};
+  }
+  if (kind === "payment") {
+    const method = String(form.get("method") || "");
+    const requestKey = randomUUID();
+    let proofPath: string | null = null;
+    const file = form.get("proof");
+
+    if (!["Cash", "Zelle", "Venmo"].includes(method))
+      return { error: "Choose Cash, Zelle or Venmo." };
+
+    if (method !== "Cash") {
+      if (!(file instanceof File) || file.size === 0)
+        return { error: "Upload a screenshot of your Zelle or Venmo payment." };
+      if (file.size > 5 * 1024 * 1024)
+        return { error: "Payment proof must be 5 MB or smaller." };
+
+      const extensions: Record<string, string> = {
+        "image/png": "png",
+        "image/jpeg": "jpg",
+        "image/webp": "webp",
+      };
+      const ext = extensions[file.type];
+      if (!ext) return { error: "Use a PNG, JPG, or WebP screenshot." };
+
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!url || !key) return { error: "Payment upload is not configured." };
+
+      const admin = createClient(url, key, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      proofPath = `${TOOLTAG}/${requestKey}.${ext}`;
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const { error: uploadError } = await admin.storage
+        .from("payment-proofs")
+        .upload(proofPath, bytes, { contentType: file.type, upsert: false });
+      if (uploadError) return { error: "Could not upload payment proof." };
+    }
+
+    const { error } = await db.rpc("public_submit_payment_request", {
+      p_token: token,
+      p_request: requestKey,
+      p_method: method,
+      p_proof_path: proofPath,
+    });
+
+    if (error) {
+      if (proofPath) {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (url && key) {
+          const admin = createClient(url, key, {
+            auth: { persistSession: false, autoRefreshToken: false },
+          });
+          await admin.storage.from("payment-proofs").remove([proofPath]);
+        }
+      }
+      return { error: error.message };
+    }
+
+    await dispatchWorkerMail();
+    revalidatePath(`/completion/${token}`);
+    revalidatePath("/app", "layout");
+    return { ok: true };
   }
   if (kind === "review") {
     const { error } = await db.rpc("accept_review", {
