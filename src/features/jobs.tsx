@@ -40,157 +40,200 @@ export async function Jobs({ id }: { id?: string }) {
     );
   }
 
-  const { role, db } = await context();
+  const { role } = await context();
   const j = (await rows("jobs", { id }))[0];
   if (!j) return <Empty>Trabajo no encontrado.</Empty>;
 
-  const [docs, sales, customerStatusResult] = await Promise.all([
+  const [docs, sales] = await Promise.all([
     rows("documents", { field: "job_id", value: id }),
     rows("sale_balances", { field: "job_id", value: id }),
-    role === "admin"
-      ? db.rpc("job_customer_status", { p_job: id })
-      : Promise.resolve({ data: null, error: null }),
   ]);
-  const customerStatus = customerStatusResult.data;
 
   const scope = await rows("quote_items", {
     field: "quote_id",
     value: j.quote_id,
   });
 
-  const action = ["Authorized", "Receiving Documentation"].includes(j.status)
-    ? "start"
-    : j.status === "In Process"
-      ? "ready"
-      : j.status === "Ready for Delivery"
-        ? "deliver"
-        : null;
+  const receivingFiles = docs.filter((d) => d.type === "Receiving Evidence");
+  const completedFiles = docs.filter((d) => d.type === "Completed Evidence");
+  const stage = j.work_stage ?? "Not Started";
+
+  const receivingEvidence = (
+    <Panel title="Evidencia de cómo se recibió">
+      <EvidenceGallery files={receivingFiles} />
+      {role === "admin" && (
+        <details>
+          <summary>Administración: vincular archivo existente de Drive</summary>
+          <p className="muted">
+            Carga el archivo directamente en Drive y registra su ID. La integración
+            de subida directa sigue pendiente.
+          </p>
+          <Form
+            operation="document"
+            hidden={{ job_id: id, type: "Receiving Evidence" }}
+            back={`/app/jobs/${id}`}
+            fields={[
+              {
+                name: "file_name",
+                label: "Nombre",
+                required: true,
+                value: `${j.code}-Receiving-${String(receivingFiles.length + 1).padStart(2, "0")}.jpg`,
+              },
+              {
+                name: "drive_file_id",
+                label: "Drive File ID",
+                required: true,
+              },
+            ]}
+          />
+        </details>
+      )}
+    </Panel>
+  );
+
+  const completedEvidence = (
+    <Panel title="Evidencia de trabajo terminado">
+      <EvidenceGallery files={completedFiles} />
+      {role === "admin" && (
+        <details>
+          <summary>Administración: vincular archivo existente de Drive</summary>
+          <p className="muted">
+            Carga el archivo directamente en Drive y registra su ID. La integración
+            de subida directa sigue pendiente.
+          </p>
+          <Form
+            operation="document"
+            hidden={{ job_id: id, type: "Completed Evidence" }}
+            back={`/app/jobs/${id}`}
+            fields={[
+              {
+                name: "file_name",
+                label: "Nombre",
+                required: true,
+                value: `${j.code}-Completed-${String(completedFiles.length + 1).padStart(2, "0")}.jpg`,
+              },
+              {
+                name: "drive_file_id",
+                label: "Drive File ID",
+                required: true,
+              },
+            ]}
+          />
+        </details>
+      )}
+    </Panel>
+  );
 
   const workTab = (
     <>
-      <Panel title="Siguiente paso">
-        {action ? (
+      {stage === "Not Started" && (
+        <Panel title="Comenzar trabajo">
+          <p className="muted">
+            Inicia el flujo operativo de este Job.
+          </p>
           <Form
             operation="job"
-            hidden={{ id, action }}
+            hidden={{ id, action: "start" }}
             fields={[]}
             back={`/app/jobs/${id}`}
-            button={
-              action === "start"
-                ? "Comenzar trabajo"
-                : action === "ready"
-                  ? "Marcar listo para entrega"
-                  : "Registrar entrega y preparar enlace"
-            }
+            button="Comenzar trabajo"
           />
-        ) : (
-          <p>{j.completion_reason ?? j.status}</p>
-        )}
-
-        {j.status === "Delivered – Pending Customer Acceptance" &&
-          !j.acceptance_deadline && (
-            <>
-              <p className="muted">
-                El plazo de 3 días empieza cuando confirmas que entregaste el enlace al
-                cliente o Gmail confirma el envío de la notificación de entrega.
-              </p>
-              <Form
-                operation="notified"
-                hidden={{ id }}
-                fields={[]}
-                button="Confirmar que entregué el enlace"
-                back={`/app/jobs/${id}`}
-              />
-            </>
-          )}
-
-        {j.acceptance_deadline && (
-          <p>
-            Plazo de respuesta:{" "}
-            {new Date(j.acceptance_deadline).toLocaleString("es-US")}
-          </p>
-        )}
-      </Panel>
-
-      {role === "admin" && customerStatus && (
-        <Panel title="Estatus visible para el cliente">
-          <p>
-            Estado actual: <Badge>{customerStatus.stage}</Badge>
-          </p>
-          <div className="actions">
-            {customerStatus.stage === "In Process" && (
-              <Form
-                operation="customer-stage"
-                hidden={{ id, stage: "Engraving" }}
-                fields={[]}
-                button="Marcar en grabado"
-                back={`/app/jobs/${id}`}
-              />
-            )}
-            {customerStatus.stage === "Engraving" && (
-              <p className="muted">
-                Al marcar el trabajo listo para entrega, el cliente verá “Completed”.
-              </p>
-            )}
-            {customerStatus.path && (
-              <Link
-                className="button secondary"
-                href={customerStatus.path}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Abrir vista del cliente
-              </Link>
-            )}
-          </div>
         </Panel>
       )}
 
-      <div className="grid two">
-        {["Receiving Evidence", "Completed Evidence"].map((type) => (
-          <Panel
-            key={type}
-            title={
-              type === "Receiving Evidence"
-                ? "Evidencia de recepción"
-                : "Evidencia de trabajo terminado"
-            }
-          >
-            <EvidenceGallery files={docs.filter((d) => d.type === type)} />
-            {role === "admin" && (
-              <details>
-                <summary>Administración: vincular archivo existente de Drive</summary>
-                <p className="muted">
-                  Carga el archivo directamente en Drive y registra su ID. La integración
-                  de subida está pendiente.
-                </p>
-                <Form
-                  operation="document"
-                  hidden={{ job_id: id, type }}
-                  back={`/app/jobs/${id}`}
-                  fields={[
-                    {
-                      name: "file_name",
-                      label: "Nombre",
-                      required: true,
-                      value: `${j.code}-${
-                        type === "Receiving Evidence" ? "Receiving" : "Completed"
-                      }-${String(
-                        docs.filter((d) => d.type === type).length + 1,
-                      ).padStart(2, "0")}.jpg`,
-                    },
-                    {
-                      name: "drive_file_id",
-                      label: "Drive File ID",
-                      required: true,
-                    },
-                  ]}
-                />
-              </details>
-            )}
+      {stage === "Receiving Evidence" && (
+        <>
+          {receivingEvidence}
+          <Panel title="Siguiente paso">
+            <p className="muted">
+              Cuando la evidencia de recepción esté registrada, continúa a preparación.
+            </p>
+            <Form
+              operation="job"
+              hidden={{ id, action: "receiving-done" }}
+              fields={[]}
+              back={`/app/jobs/${id}`}
+              button="Siguiente"
+            />
           </Panel>
-        ))}
-      </div>
+        </>
+      )}
+
+      {stage === "Preparing" && (
+        <>
+          <Panel title="Preparando">
+            <p className="muted">
+              Revisa aquí exactamente lo aprobado antes de comenzar el grabado.
+            </p>
+            <QuoteScope items={scope} />
+          </Panel>
+          <Panel title="Siguiente paso">
+            <p className="muted">
+              Al continuar, el Job pasará a grabado y después deberás registrar la evidencia final.
+            </p>
+            <Form
+              operation="job"
+              hidden={{ id, action: "preparation-done" }}
+              fields={[]}
+              back={`/app/jobs/${id}`}
+              button="Siguiente"
+            />
+          </Panel>
+        </>
+      )}
+
+      {stage === "Final Evidence" && (
+        <>
+          {completedEvidence}
+          <Panel title="Terminar trabajo">
+            <p className="muted">
+              Al marcar Terminado se enviará al cliente la notificación con el enlace seguro para aceptar la entrega.
+            </p>
+            <Form
+              operation="job"
+              hidden={{ id, action: "finished" }}
+              fields={[]}
+              back={`/app/jobs/${id}`}
+              button="Terminado"
+            />
+          </Panel>
+        </>
+      )}
+
+      {stage === "Awaiting Delivery Acceptance" && (
+        <Panel title="Esperando aceptación de entrega">
+          <p>
+            El cliente recibió el enlace seguro para confirmar que recibió el trabajo y está conforme.
+          </p>
+          {j.acceptance_deadline && (
+            <p className="muted">
+              Plazo de respuesta: {new Date(j.acceptance_deadline).toLocaleString("es-US")}
+            </p>
+          )}
+        </Panel>
+      )}
+
+      {stage === "Payment" && (
+        <Panel title="Pago pendiente">
+          <p>
+            La entrega ya fue aceptada. El cliente debe completar el paso de pago.
+          </p>
+        </Panel>
+      )}
+
+      {stage === "Payment Verification" && (
+        <Panel title="Pago pendiente de verificación">
+          <p>
+            El cliente ya envió su forma de pago. Revisa y confirma el pago en la pestaña Comercial.
+          </p>
+        </Panel>
+      )}
+
+      {stage === "Closed" && (
+        <Panel title="Trabajo completado">
+          <p className="notice success">Entrega aceptada y pago confirmado.</p>
+        </Panel>
+      )}
     </>
   );
 
@@ -233,8 +276,14 @@ export async function Jobs({ id }: { id?: string }) {
 
   return (
     <>
-      <Heading title={j.code}>
-        <Badge>{j.status}</Badge>
+      <Heading
+        title={
+          <span className="job-title-inline">
+            <span>{j.code}</span>
+            <Badge>{stage}</Badge>
+          </span>
+        }
+      >
         <Link className="button secondary" href={`/app/quotes/${j.quote_id}`}>
           Cotización aprobada
         </Link>
