@@ -131,15 +131,28 @@ export async function Quotes({
       </>
     );
   }
-  const list = await rows("quotes", { order: "created_at" });
+  const [list, jobs] = await Promise.all([
+    rows("quotes", { order: "created_at" }),
+    rows("jobs", { order: "created_at" }),
+  ]);
+
+  const jobByQuote = new Map(jobs.map((job) => [job.quote_id, job]));
+  const hasClosedJob = (quoteId: string) => {
+    const job = jobByQuote.get(quoteId);
+    return Boolean(job && (job.work_stage === "Closed" || job.status === "Cancelled"));
+  };
 
   const activeQuotes = list.filter((q) =>
     ["Sent", "Viewed", "Agreement Pending"].includes(q.status),
   );
   const draftQuotes = list.filter((q) => q.status === "Draft");
-  const acceptedQuotes = list.filter((q) => q.status === "Accepted");
-  const historyQuotes = list.filter((q) =>
-    ["Declined", "Expired", "Revised"].includes(q.status),
+  const acceptedQuotes = list.filter(
+    (q) => q.status === "Accepted" && !hasClosedJob(q.id),
+  );
+  const historyQuotes = list.filter(
+    (q) =>
+      ["Declined", "Expired", "Revised"].includes(q.status) ||
+      (q.status === "Accepted" && hasClosedJob(q.id)),
   );
 
   const quoteTable = (quotes: typeof list, empty: string) => (
