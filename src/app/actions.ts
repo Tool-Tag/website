@@ -10,7 +10,7 @@ import { cents } from "@/lib/domain/money";
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { loginFailure } from "@/lib/domain/auth-errors";
-export type ActionState = { error?: string; ok?: boolean; link?: string; mailStatus?: string };
+export type ActionState = { error?: string; ok?: boolean; link?: string; mailStatus?: string; mailRequestedAt?: string };
 export async function login(
   _: ActionState,
   form: FormData,
@@ -188,9 +188,13 @@ export async function mutate(
         name = "publish_policy";
         args = { p_unit: unit, p_title: p.title, p_content: p.content };
         break;
+      case "resend-quote":
+        name = "resend_quote";
+        args = { p_id: p.id };
+        break;
       case "send-quote":
-        name = "send_quote_to";
-        args = { p_id: p.id, p_recipient: String(form.get("recipient") || "").trim(), p_regenerate: form.get("regenerate") === "on" };
+        name = form.get("resend") === "true" ? "resend_quote" : "send_quote_to";
+        args = form.get("resend") === "true" ? { p_id: p.id } : { p_id: p.id, p_recipient: String(form.get("recipient") || "").trim(), p_regenerate: form.get("regenerate") === "on" };
         break;
       case "job":
         name = "advance_job";
@@ -219,7 +223,7 @@ export async function mutate(
     const { data, error } = await db.rpc(name, args);
     if (error) return { error: error.message };
     revalidatePath("/app", "layout");
-    if (operation === "send-quote") return { link: `/review/${data}`, mailStatus: await dispatchQuoteMail(db, String(p.id)) };
+    if (operation === "send-quote" || operation === "resend-quote") return { mailRequestedAt: new Date().toISOString(), link: `/review/${data}`, mailStatus: await dispatchQuoteMail(db, String(p.id)) };
     if (["job","movement","extension-send","extension-cancel","generate-receipt","retry-notification"].includes(operation)) await dispatchWorkerMail();
     if (operation === "extension-send") return {link:`/extension/${data}`};
     if (operation === "job" && data) return { link: `/completion/${data}` };

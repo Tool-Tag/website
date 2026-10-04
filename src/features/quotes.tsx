@@ -73,6 +73,8 @@ export async function Quotes({
     const contact = flow ? (await rows("customers", { id: flow.customer_id }))[0] : null;
     const {db}=await context();
     const delivery=q.sent_at ? (await db.rpc("quote_delivery",{p_id:id})).data : null;
+    const quoteMail = await db.from("notifications").select("created_at,mail_attempted_at,status").eq("entity_id",id).eq("event","Quote Sent").order("created_at",{ascending:false}).limit(1);
+    const latestMail = quoteMail.data?.[0];
     const items = await rows("quote_items", { field: "quote_id", value: id });
     const jobs = await rows("jobs", { field: "flow_id", value: q.flow_id });
     return (
@@ -109,7 +111,7 @@ export async function Quotes({
               primer envío. El destinatario elegido queda fijado para esta versión.
               También puedes copiar el enlace y ver el correo preparado.
             </p>
-            <SendQuote id={id} email={delivery?.recipient || contact?.email} companyEmail={delivery?.recipient ? undefined : contact?.company_email} />
+            <SendQuote id={id} sent={Boolean(q.sent_at)} lastRequestedAt={latestMail?.mail_attempted_at || latestMail?.created_at || q.sent_at} email={delivery?.recipient || contact?.email} companyEmail={delivery?.recipient ? undefined : contact?.company_email} />
           </Panel>
         )}
         <AcceptedDocuments quoteId={id} />
