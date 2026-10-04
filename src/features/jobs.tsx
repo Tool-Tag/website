@@ -41,14 +41,27 @@ export async function Jobs({ id }: { id?: string }) {
     );
   }
 
-  const { role } = await context();
+  const { role, db } = await context();
   const j = (await rows("jobs", { id }))[0];
   if (!j) return <Empty>Trabajo no encontrado.</Empty>;
 
-  const [docs, sales] = await Promise.all([
+  const [docs, sales, paymentRequests] = await Promise.all([
     rows("documents", { field: "job_id", value: id }),
     rows("sale_balances", { field: "job_id", value: id }),
+    rows("payment_requests", { field: "job_id", value: id, order: "submitted_at" }),
   ]);
+
+  const pendingPayment = paymentRequests.find(
+    (request) => request.status === "Pending Verification",
+  );
+
+  let pendingProofUrl: string | null = null;
+  if (role === "admin" && pendingPayment?.proof_path) {
+    const { data } = await db.storage
+      .from("payment-proofs")
+      .createSignedUrl(pendingPayment.proof_path, 3600);
+    pendingProofUrl = data?.signedUrl ?? null;
+  }
 
   const scope = await rows("quote_items", {
     field: "quote_id",
@@ -229,9 +242,31 @@ export async function Jobs({ id }: { id?: string }) {
 
       {stage === "Payment Verification" && (
         <Panel title="Pago pendiente de verificación">
-          <p>
-            El cliente ya envió su forma de pago. Revisa y confirma el pago en la pestaña Comercial.
-          </p>
+          {pendingPayment ? (
+            <>
+              <p>
+                <strong>{pendingPayment.method}</strong> · {pendingPayment.amount} · Pending Verification
+              </p>
+              {pendingProofUrl && (
+                <p>
+                  <a href={pendingProofUrl} target="_blank" rel="noreferrer">
+                    Ver comprobante →
+                  </a>
+                </p>
+              )}
+              {role === "admin" && (
+                <Form
+                  operation="confirm-payment"
+                  hidden={{ id: pendingPayment.id }}
+                  fields={[]}
+                  button="Confirmar pago recibido"
+                  back={`/app/jobs/${id}`}
+                />
+              )}
+            </>
+          ) : (
+            <p>El pago está pendiente de verificación.</p>
+          )}
         </Panel>
       )}
 
