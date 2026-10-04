@@ -1,9 +1,8 @@
+import Link from "next/link";
 import { QuoteScope } from "@/components/quote-scope";
 import type { QuoteItem } from "@/lib/domain/quote-items";
 import { supabase } from "@/lib/supabase/server";
 import { AcceptForm } from "@/components/accept-form";
-import { PaymentForm } from "@/components/payment-form";
-import { money } from "@/lib/domain/money";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +24,6 @@ export default async function Completion({
       </main>
     );
 
-  const payment = j.payment;
-  const request = payment?.request;
-
   return (
     <main className="public">
       <p className="eyebrow">ToolTag · Delivery</p>
@@ -42,51 +38,31 @@ export default async function Completion({
         </section>
       ))}
 
-      {!j.acknowledgment && (
-        <p>
-          I confirm that I received the items/work associated with this ToolTag Job.
-          This confirms receipt only. It does not confirm payment or waive your legal rights.
-        </p>
-      )}
-
       {j.status === "Delivered – Pending Customer Acceptance" ? (
-        <div className="grid two">
-          <AcceptForm token={token} kind="accept" />
-          <AcceptForm token={token} kind="issue" />
-        </div>
-      ) : j.acknowledgment ? (
         <>
-          <p className="notice success">
-            Delivery confirmed. Your payment is handled separately from the delivery acknowledgment.
-          </p>
-
-          {payment?.paid_in_full ? (
-            <section className="panel">
-              <h2>Payment</h2>
-              <p className="notice success">Paid in Full</p>
-              <p>
-                Total: {money(payment.grand_total)} · Paid: {money(payment.collected)}
-              </p>
-            </section>
-          ) : request?.status === "Pending Verification" ? (
-            <section className="panel">
-              <h2>Payment</h2>
-              <p>
-                {request.method} payment submitted for <strong>{money(request.amount)}</strong>.
-              </p>
-              <p className="notice">
-                Pending ToolTag verification. Your balance will update only after the payment is confirmed.
-              </p>
-            </section>
-          ) : (
-            <PaymentForm
-              token={token}
-              balanceDue={payment?.balance_due ?? 0}
-              zelleEmail={payment?.methods?.zelle_email}
-              venmoHandle={payment?.methods?.venmo_handle}
-            />
-          )}
+          <section className="panel">
+            <h2>Accept Delivery</h2>
+            <p>
+              I confirm that I received the items/work associated with this ToolTag Job
+              and that the delivered work matches the approved scope.
+            </p>
+            <p className="muted">
+              Delivery acceptance is separate from payment and does not waive your legal rights.
+            </p>
+            <div className="grid two">
+              <AcceptForm token={token} kind="accept" />
+              <AcceptForm token={token} kind="issue" />
+            </div>
+          </section>
         </>
+      ) : j.acknowledgment ? (
+        <section className="panel">
+          <p className="notice success">Delivery accepted.</p>
+          <p>Continue to the separate payment step.</p>
+          <Link className="button" href={`/payment/${token}`}>
+            Continue to Payment
+          </Link>
+        </section>
       ) : (
         <p className="notice">{j.reason ?? j.status}</p>
       )}
