@@ -322,7 +322,7 @@ export async function customerAction(
     await dispatchWorkerMail();
     revalidatePath(`/completion/${token}`);
     revalidatePath("/app", "layout");
-    return { ok: true };
+    return { ok: true, link: `/payment/${token}/confirmation` };
   }
   if (kind === "review") {
     const { error } = await db.rpc("accept_review", {
@@ -352,5 +352,7 @@ export async function customerAction(
   if (error) return { error: error.message };
   await dispatchWorkerMail();
   revalidatePath(`/completion/${token}`);
-  return { ok: true };
+  return kind === "accept"
+    ? { ok: true, link: `/payment/${token}` }
+    : { ok: true };
 }
