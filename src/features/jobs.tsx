@@ -29,7 +29,7 @@ export async function Jobs({ id }: { id?: string }) {
       ["Payment", "Payment Verification"].includes(j.work_stage),
     );
     const completedJobs = list.filter((j) => j.work_stage === "Closed");
-    const historyJobs = list.filter((j) => j.status === "Cancelled");
+    const cancelledJobs = list.filter((j) => j.status === "Cancelled");
 
     const jobTable = (jobs: typeof list, empty: string) => (
       <Panel>
@@ -89,12 +89,16 @@ export async function Jobs({ id }: { id?: string }) {
               count: completedJobs.length,
               content: jobTable(completedJobs, "No hay trabajos completados."),
             },
-            {
-              id: "history",
-              label: "Historial",
-              count: historyJobs.length,
-              content: jobTable(historyJobs, "No hay trabajos en historial."),
-            },
+            ...(cancelledJobs.length
+              ? [
+                  {
+                    id: "cancelled",
+                    label: "Cancelados",
+                    count: cancelledJobs.length,
+                    content: jobTable(cancelledJobs, "No hay trabajos cancelados."),
+                  },
+                ]
+              : []),
           ]}
         />
       </>
