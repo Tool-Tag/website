@@ -229,7 +229,7 @@ export async function mutate(
     if (error) return { error: error.message };
     revalidatePath("/app", "layout");
     if (operation === "send-quote" || operation === "resend-quote") return { mailRequestedAt: new Date().toISOString(), link: `/review/${data}`, mailStatus: await dispatchQuoteMail(db, String(p.id)) };
-    if (["job","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment"].includes(operation)) await dispatchWorkerMail();
+    if (["job","document","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment"].includes(operation)) await dispatchWorkerMail();
     if (operation === "extension-send") return {link:`/extension/${data}`};
     if (operation === "job" && data) return { link: `/completion/${data}` };
     if (operation === "customer") destination = `/app/customers/${data}`;
