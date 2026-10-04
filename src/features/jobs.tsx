@@ -13,31 +13,80 @@ import { money } from "@/lib/domain/money";
 export async function Jobs({ id }: { id?: string }) {
   if (!id) {
     const list = await rows("jobs", { order: "created_at" });
+
+    const activeJobs = list.filter(
+      (j) =>
+        !["Payment", "Payment Verification", "Closed"].includes(
+          j.work_stage ?? "Not Started",
+        ) &&
+        !["Cancelled"].includes(j.status),
+    );
+    const paymentJobs = list.filter((j) =>
+      ["Payment", "Payment Verification"].includes(j.work_stage),
+    );
+    const completedJobs = list.filter((j) => j.work_stage === "Closed");
+    const historyJobs = list.filter((j) => j.status === "Cancelled");
+
+    const jobTable = (jobs: typeof list, empty: string) => (
+      <Panel>
+        {jobs.length ? (
+          <Table headers={["Trabajo", "Etapa", "Estado", "Creado"]}>
+            {jobs.map((j) => (
+              <tr key={j.id}>
+                <td>
+                  <Link href={`/app/jobs/${j.id}`}>{j.code}</Link>
+                </td>
+                <td>
+                  <Badge>{j.work_stage ?? "Not Started"}</Badge>
+                </td>
+                <td>
+                  <Badge>{j.status}</Badge>
+                </td>
+                <td>{new Date(j.created_at).toLocaleDateString("es-US")}</td>
+              </tr>
+            ))}
+          </Table>
+        ) : (
+          <Empty>{empty}</Empty>
+        )}
+      </Panel>
+    );
+
     return (
       <>
         <Heading
           title="Trabajos"
-          subtitle="Se crean al aceptar la cotización y los términos."
+          subtitle="Organizados según su etapa operativa."
         />
-        <Panel>
-          {list.length ? (
-            <Table headers={["Trabajo", "Estado", "Creado"]}>
-              {list.map((j) => (
-                <tr key={j.id}>
-                  <td>
-                    <Link href={`/app/jobs/${j.id}`}>{j.code}</Link>
-                  </td>
-                  <td>
-                    <Badge>{j.status}</Badge>
-                  </td>
-                  <td>{new Date(j.created_at).toLocaleDateString("es-US")}</td>
-                </tr>
-              ))}
-            </Table>
-          ) : (
-            <Empty />
-          )}
-        </Panel>
+        <JobTabs
+          defaultTab="active"
+          tabs={[
+            {
+              id: "active",
+              label: "Activos",
+              count: activeJobs.length,
+              content: jobTable(activeJobs, "No hay trabajos activos."),
+            },
+            {
+              id: "payments",
+              label: "Pagos",
+              count: paymentJobs.length,
+              content: jobTable(paymentJobs, "No hay trabajos pendientes de pago."),
+            },
+            {
+              id: "completed",
+              label: "Completados",
+              count: completedJobs.length,
+              content: jobTable(completedJobs, "No hay trabajos completados."),
+            },
+            {
+              id: "history",
+              label: "Historial",
+              count: historyJobs.length,
+              content: jobTable(historyJobs, "No hay trabajos en historial."),
+            },
+          ]}
+        />
       </>
     );
   }
