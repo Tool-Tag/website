@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 type JobTab = {
   id: string;
   label: string;
+  count?: number;
   content: ReactNode;
 };
 
@@ -25,7 +26,7 @@ export function JobTabs({
 
   return (
     <div className="job-tabs">
-      <nav className="job-tab-list no-print" role="tablist" aria-label="Secciones del trabajo">
+      <nav className="job-tab-list no-print" role="tablist" aria-label="Secciones">
         {tabs.map((tab) => {
           const selected = tab.id === current.id;
           return (
@@ -40,6 +41,9 @@ export function JobTabs({
               onClick={() => setActive(tab.id)}
             >
               {tab.label}
+              {typeof tab.count === "number" && (
+                <span className="tab-count">{tab.count}</span>
+              )}
             </button>
           );
         })}
