@@ -122,7 +122,6 @@ export function PaymentForm({
               onClick={() => setMethod("Venmo")}
             >
               Venmo
-              {!venmoReady && <small>Pending</small>}
             </button>
           </div>
         </div>
@@ -172,9 +171,7 @@ export function PaymentForm({
           )}
 
           {method === "Venmo" && !venmoHandle && (
-            <p className="muted">
-              Venmo payment details are being configured and are not available yet.
-            </p>
+            <div className="payment-coming-soon">Coming soon</div>
           )}
         </div>
 
