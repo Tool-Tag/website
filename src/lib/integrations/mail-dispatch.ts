@@ -34,7 +34,7 @@ export async function dispatchQuoteMail(db: SupabaseClient, quoteId?: string) {
                   : undefined,
               event.event === "Completion acknowledgment"
                 ? "Accept Delivery"
-                : event.event === "JOB_STATUS_LINK"
+                : ["JOB_STATUS_LINK", "JOB_STATUS_UPDATE"].includes(event.event)
                   ? "View Job Status"
                   : "Review details",
             )
