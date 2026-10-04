@@ -8,6 +8,7 @@ import { Heading, Panel, Table, Empty, Badge } from "@/components/ui";
 import { QuoteScope } from "@/components/quote-scope";
 import { Form } from "@/components/form";
 import { WorkPreparation } from "@/components/work-preparation";
+import { money } from "@/lib/domain/money";
 
 export async function Jobs({ id }: { id?: string }) {
   if (!id) {
@@ -245,7 +246,7 @@ export async function Jobs({ id }: { id?: string }) {
           {pendingPayment ? (
             <>
               <p>
-                <strong>{pendingPayment.method}</strong> · {pendingPayment.amount} · Pending Verification
+                <strong>{pendingPayment.method}</strong> · {money(pendingPayment.amount)} · Pending Verification
               </p>
               {pendingProofUrl && (
                 <p>
