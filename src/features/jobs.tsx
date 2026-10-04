@@ -250,7 +250,7 @@ export async function Jobs({ id }: { id?: string }) {
         </>
       )}
 
-      {stage === "Final Evidence" && (
+      {["Final Evidence", "Final Details"].includes(stage) && (
         <>
           {completedEvidence}
           <Panel title="Terminar trabajo">
@@ -278,6 +278,15 @@ export async function Jobs({ id }: { id?: string }) {
               Plazo de respuesta: {new Date(j.acceptance_deadline).toLocaleString("es-US")}
             </p>
           )}
+        </Panel>
+      )}
+
+
+      {stage === "Issue Review" && (
+        <Panel title="Incidencia / revisión">
+          <p>
+            El cliente reportó un problema con la entrega. Este Job requiere revisión antes de continuar.
+          </p>
         </Panel>
       )}
 
