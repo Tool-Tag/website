@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { customerAction } from "@/app/actions";
 import { money } from "@/lib/domain/money";
 
@@ -50,11 +51,16 @@ export function PaymentForm({
   zelleEmail?: string | null;
   venmoHandle?: string | null;
 }) {
+  const router = useRouter();
   const [method, setMethod] = useState("Cash");
   const [state, action, pending] = useActionState(
     customerAction.bind(null, "payment", token),
     {},
   );
+
+  useEffect(() => {
+    if (state.link) router.push(state.link);
+  }, [state.link, router]);
 
   return (
     <section className="panel">
