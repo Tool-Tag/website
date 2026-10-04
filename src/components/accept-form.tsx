@@ -1,5 +1,6 @@
 "use client";
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { customerAction } from "@/app/actions";
 export function AcceptForm({
   token,
@@ -8,10 +9,15 @@ export function AcceptForm({
   token: string;
   kind: "review" | "accept" | "issue" | "work-ready" | "work-additional" | "extension-accept";
 }) {
+  const router = useRouter();
   const [state, action, pending] = useActionState(
     customerAction.bind(null, kind, token),
     {},
   );
+
+  useEffect(() => {
+    if (state.link) router.push(state.link);
+  }, [state.link, router]);
   return (
     <form action={action} className="stack">
       {kind === "review" && (
