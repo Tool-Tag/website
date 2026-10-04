@@ -7,6 +7,7 @@ import { QuoteScope } from "@/components/quote-scope";
 import { QuoteBuilder } from "@/components/quote-builder";
 import { QuoteTabs } from "@/components/quote-tabs";
 import { money, quoteTotal } from "@/lib/domain/money";
+import { quoteStatusLabel } from "@/lib/domain/status-labels";
 export async function Quotes({
   id,
   customer,
@@ -81,7 +82,7 @@ export async function Quotes({
     return (
       <>
         <Heading title={q.code} subtitle={`Versión ${q.revision}`}>
-          <Badge>{q.status}</Badge>
+          <Badge>{quoteStatusLabel(q.status)}</Badge>
           <Link
             className="button secondary"
             href={`/app/quotes/new?revise=${q.id}`}
