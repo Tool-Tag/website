@@ -16,22 +16,6 @@ export function AcceptForm({
     <form action={action} className="stack">
       {kind === "review" && (
         <>
-          <label>
-            Your name
-            <input name="name" required autoComplete="name" />
-          </label>
-          <label>
-            Email
-            <input name="email" type="email" required autoComplete="email" />
-          </label>
-          <label>
-            Phone
-            <input name="phone" required type="tel" autoComplete="tel" />
-          </label>
-        </>
-      )}
-      {kind === "review" && (
-        <>
           <label className="checkbox">
             <input type="checkbox" name="quote_confirmed" required />I have
             reviewed and approve the quote details.
