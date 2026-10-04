@@ -62,6 +62,8 @@ export function PaymentForm({
     if (state.link) router.push(state.link);
   }, [state.link, router]);
 
+  const venmoReady = Boolean(venmoHandle);
+
   return (
     <section className="panel">
       <h2>Payment</h2>
@@ -70,61 +72,111 @@ export function PaymentForm({
       </p>
 
       <form action={action} className="stack">
-        <label>
-          Payment method
-          <select
-            name="method"
-            value={method}
-            onChange={(event) => setMethod(event.target.value)}
+        <input type="hidden" name="method" value={method} />
+
+        <div>
+          <span className="payment-method-label">Payment method</span>
+          <div
+            className="payment-method-tabs"
+            role="tablist"
+            aria-label="Payment method"
           >
-            <option value="Cash">Cash</option>
-            {zelleEmail && <option value="Zelle">Zelle</option>}
-            {venmoHandle && <option value="Venmo">Venmo</option>}
-          </select>
-        </label>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={method === "Cash"}
+              className={
+                method === "Cash"
+                  ? "payment-method-tab active"
+                  : "payment-method-tab"
+              }
+              onClick={() => setMethod("Cash")}
+            >
+              Cash
+            </button>
 
-        {method === "Cash" && (
-          <p className="muted">
-            Pay cash directly to ToolTag. Your payment will remain pending until
-            ToolTag confirms the cash was received.
-          </p>
-        )}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={method === "Zelle"}
+              className={
+                method === "Zelle"
+                  ? "payment-method-tab active"
+                  : "payment-method-tab"
+              }
+              onClick={() => setMethod("Zelle")}
+              disabled={!zelleEmail}
+            >
+              Zelle
+            </button>
 
-        {method === "Zelle" && zelleEmail && (
-          <>
-            <CopyValue value={zelleEmail} label="Zelle email" />
+            <button
+              type="button"
+              role="tab"
+              aria-selected={method === "Venmo"}
+              className={
+                method === "Venmo"
+                  ? "payment-method-tab active"
+                  : "payment-method-tab"
+              }
+              onClick={() => setMethod("Venmo")}
+            >
+              Venmo
+              {!venmoReady && <small>Pending</small>}
+            </button>
+          </div>
+        </div>
+
+        <div className="payment-method-panel">
+          {method === "Cash" && (
             <p className="muted">
-              Copy the address above before sending your payment to help avoid typing errors.
+              Pay cash directly to ToolTag. Your payment will remain pending until
+              ToolTag confirms the cash was received.
             </p>
-            <label>
-              Payment screenshot
-              <input
-                type="file"
-                name="proof"
-                accept="image/png,image/jpeg,image/webp"
-                required
-              />
-            </label>
-          </>
-        )}
+          )}
 
-        {method === "Venmo" && venmoHandle && (
-          <>
-            <CopyValue value={venmoHandle} label="Venmo" />
+          {method === "Zelle" && zelleEmail && (
+            <>
+              <CopyValue value={zelleEmail} label="Zelle email" />
+              <p className="muted">
+                Copy the address above before sending your payment to help avoid typing errors.
+              </p>
+              <label>
+                Payment screenshot
+                <input
+                  type="file"
+                  name="proof"
+                  accept="image/png,image/jpeg,image/webp"
+                  required
+                />
+              </label>
+            </>
+          )}
+
+          {method === "Venmo" && venmoHandle && (
+            <>
+              <CopyValue value={venmoHandle} label="Venmo" />
+              <p className="muted">
+                Copy the Venmo account above before sending your payment.
+              </p>
+              <label>
+                Payment screenshot
+                <input
+                  type="file"
+                  name="proof"
+                  accept="image/png,image/jpeg,image/webp"
+                  required
+                />
+              </label>
+            </>
+          )}
+
+          {method === "Venmo" && !venmoHandle && (
             <p className="muted">
-              Copy the Venmo account above before sending your payment.
+              Venmo payment details are being configured and are not available yet.
             </p>
-            <label>
-              Payment screenshot
-              <input
-                type="file"
-                name="proof"
-                accept="image/png,image/jpeg,image/webp"
-                required
-              />
-            </label>
-          </>
-        )}
+          )}
+        </div>
 
         {state.error && (
           <p role="alert" className="notice error">
@@ -138,7 +190,7 @@ export function PaymentForm({
           </p>
         )}
 
-        <button disabled={pending || state.ok}>
+        <button disabled={pending || state.ok || (method === "Venmo" && !venmoReady)}>
           {pending ? "Submitting…" : "Submit payment for verification"}
         </button>
       </form>
