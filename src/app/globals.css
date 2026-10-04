@@ -1010,3 +1010,24 @@ textarea:focus-visible {
   user-select: text;
   cursor: text;
 }
+
+
+.tab-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 7px;
+  padding: 0 6px;
+  border: 1px solid #303a49;
+  border-radius: 999px;
+  background: #0a0f15;
+  color: #8792a3;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.job-tab.active .tab-count {
+  border-color: #3a4d68;
+  color: #c7d5ea;
+}
