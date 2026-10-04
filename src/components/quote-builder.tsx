@@ -7,6 +7,7 @@ import {
   blankItem,
   imageLinks,
   paintedQuantity,
+  additionalEngravings,
   withAdaptation,
   type QuoteItem,
   type Mark,
@@ -17,15 +18,17 @@ export function QuoteBuilder({
   revises,
   initial,
   notes,
+  extensionId,
 }: {
   customers: { id: string; name: string }[];
   customer?: string;
   revises?: string;
   initial?: QuoteItem[];
   notes?: string;
+  extensionId?: string;
 }) {
   const [items, setItems] = useState<QuoteItem[]>(
-    (initial ?? []).filter((i) => !i.adaptation_fee && !i.paint_fee).map((item) => ({ ...item, marks: item.marks?.map((m) => ({ ...m, paint_fill: m.paint_fill ?? item.paint_fill, paint_details: m.paint_details ?? (item.paint_fill ? item.paint_details : undefined) })) })),
+    (initial ?? []).filter((i) => !i.adaptation_fee && !i.paint_fee && !i.additional_engraving_fee).map((item) => ({ ...item, marks: item.marks?.map((m) => ({ ...m, paint_fill: m.paint_fill ?? item.paint_fill, paint_details: m.paint_details ?? (item.paint_fill ? item.paint_details : undefined) })) })),
   );
   const [draft, setDraft] = useState<QuoteItem>(blankItem);
   const [editing, setEditing] = useState<number | null>(null);
@@ -39,7 +42,7 @@ export function QuoteBuilder({
   });
   const dialog = useRef<HTMLDialogElement>(null);
   const [state, action, pending] = useActionState(
-    mutate.bind(null, "quote", "/app/quotes"),
+    mutate.bind(null, extensionId ? "extension-scope" : "quote", extensionId ? `/app/job-extensions/${extensionId}` : "/app/quotes"),
     {},
   );
   function open(index: number | null) {
@@ -83,6 +86,7 @@ export function QuoteBuilder({
   return (
     <>
       <form action={action}>
+        {extensionId && <input type="hidden" name="id" value={extensionId}/>}
         <input type="hidden" name="items" value={JSON.stringify(items)} />
         {revises && <input type="hidden" name="revises_id" value={revises} />}
         <label>
@@ -91,7 +95,7 @@ export function QuoteBuilder({
             name="customer_id"
             required
             defaultValue={customer}
-            disabled={!!revises}
+            disabled={!!revises || !!extensionId}
           >
             <option value="">Seleccionar cliente…</option>
             {customers.map((c) => (
@@ -103,7 +107,7 @@ export function QuoteBuilder({
         </label>
         <p className="muted">
           Precio manual por artículo. Adaptación para Falcon: $3 por imagen/logo
-          diferente, una sola vez por cotización. Pintura: $2 extra por pieza coloreada.
+          diferente, una sola vez por cotización. Primer grabado incluido; cada adicional cuesta $5 por pieza. Pintura: $2 extra por pieza coloreada.
         </p>
         <div className="actions">
           <button
@@ -143,6 +147,7 @@ export function QuoteBuilder({
           </p>
         )}
         {paintedQuantity(items) > 0 && <p>Relleno de pintura: {paintedQuantity(items)} pieza(s) × $2 = {money(String(paintedQuantity(items) * 2))}. Una vez por pieza, aunque tenga varios grabados con color.</p>}
+        {additionalEngravings(items)>0 && <p>Grabados adicionales: {additionalEngravings(items)} × $5 = {money(String(additionalEngravings(items)*5))}</p>}
         <h3>Total: {money(total)}</h3>
         <label style={{ margin: "20px 0" }}>
           Notas generales
@@ -158,7 +163,7 @@ export function QuoteBuilder({
             ? "Guardando…"
             : revises
               ? "Crear revisión"
-              : "Guardar cotización"}
+              : extensionId ? "Guardar propuesta de extensión" : "Guardar cotización"}
         </button>
       </form>
       <dialog
@@ -220,6 +225,7 @@ export function QuoteBuilder({
             <>
               <h3>Confirma el trabajo antes de guardar</h3>
               <QuoteScope items={[draft]} />
+              {additionalEngravings([draft])>0 && <p>Grabados adicionales: {money(String(additionalEngravings([draft])*5))}</p>}
               {paintedQuantity([draft]) > 0 && <p>Pintura: {draft.quantity} pieza(s) × $2 = {money(String(draft.quantity * 2))} adicionales.</p>}
               <div className="actions">
                 <button

@@ -26,6 +26,8 @@ export type QuoteItem = {
   marks?: Mark[];
   adaptation_fee?: boolean;
   paint_fee?: boolean;
+  additional_engraving_fee?: boolean;
+  pricing?: { version?: number; engraving_count?: number; additional_engraving_charge?: number; paint_charge?: number; line_total?: number };
 };
 export const blankItem = (): QuoteItem => ({
   article: "",
@@ -57,6 +59,7 @@ export function withAdaptation(items: QuoteItem[]) {
   const count = imageLinks(items).length;
   return [
     ...items,
+    ...(additionalEngravings(items) ? [{ quantity: additionalEngravings(items), unit_price: "5.00" }] : []),
     ...(paintedQuantity(items) ? [{ quantity: paintedQuantity(items), unit_price: "2.00" }] : []),
     ...(count ? [{ quantity: count, unit_price: "3.00" }] : []),
   ];
@@ -64,4 +67,8 @@ export function withAdaptation(items: QuoteItem[]) {
 
 export function paintedQuantity(items: QuoteItem[]) {
   return items.reduce((count, item) => count + (item.engraving_type !== "Fee" && item.marks?.some((mark) => mark.paint_fill) ? item.quantity : 0), 0);
+}
+
+export function additionalEngravings(items: QuoteItem[]) {
+  return items.reduce((sum, i) => sum + (i.engraving_type === "Fee" ? 0 : Math.max((i.marks?.length || 0)-1,0)*i.quantity),0);
 }

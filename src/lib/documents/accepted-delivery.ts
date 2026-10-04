@@ -24,9 +24,9 @@ export async function processAcceptedDocument(db: SupabaseClient, id: string) {
     const {data: saved, error} = await db.rpc("finish_accepted_pdf", {p_id:id, p_claim:claimed.claim, p_pdf:bytes.toString("base64")});
     if (error || !saved) return "No se confirmó el guardado del PDF. Revisa su estado antes de reintentar.";
   }
-  // This phase is test-only. Never override a live/disabled environment to send mail.
-  if (process.env.TOOLTAG_MAIL_MODE !== "test-delivery" || process.env.TOOLTAG_MAIL_TEST_RECIPIENT?.toLowerCase() !== ACCEPTED_TEST_RECIPIENT || !mailEnabled())
-    return "PDF preparado o en proceso. Las copias esperan el modo de prueba con quotes@tooltag.martinlab.studio.";
+  const mode = process.env.TOOLTAG_MAIL_MODE;
+  if (!mailEnabled() || !["live","test-delivery"].includes(mode || "")) return "PDF preparado. El correo aún no está habilitado.";
+  if (mode === "test-delivery" && process.env.TOOLTAG_MAIL_TEST_RECIPIENT?.toLowerCase() !== ACCEPTED_TEST_RECIPIENT) return "Configura el destinatario de prueba de los Agreements.";
   const {data: artifact, error: fileError} = await db.rpc("accepted_pdf_file", {p_id:id});
   if (fileError || !artifact) return "PDF pendiente de generación. La aceptación permanece válida.";
   // Load the stored bytes once and reuse the same buffer for both independent copies.
@@ -34,17 +34,17 @@ export async function processAcceptedDocument(db: SupabaseClient, id: string) {
   if (createHash("sha256").update(pdf).digest("hex") !== artifact.sha256) return "No se pudo verificar la integridad del PDF.";
   let delivered = 0;
   for (const copy of ["customer", "internal"] as const) {
-    const {data:event, error} = await db.rpc("claim_accepted_copy", {p_id:id,p_copy:copy});
+    const {data:event, error} = await db.rpc("claim_document_copy", {p_id:id,p_copy:copy,p_mode:mode});
     if (error) return "No se pudo preparar la copia del correo.";
     if (!event) continue;
     let provider: string | null = null, failure: string | null = null;
     try {
       const s = d.snapshot;
       const subject = copy === "customer"
-        ? `[TEST CUSTOMER COPY] Your Accepted ToolTag Agreement — ${d.acceptance_folio}`
-        : `[TEST TOOLTAG COPY] Accepted Agreement Copy — ${d.acceptance_folio} — ${s.customer_name}`;
-      const text = `Quote and Agreement accepted.\nCustomer: ${s.customer_name}\nQuote: ${s.quote_code} / revision ${s.quote_revision}\nJob: ${s.job_code}\nAgreement Folio: ${d.acceptance_folio}\nAgreed total: ${money(String(s.total))}\n\nYour accepted PDF is attached for your records.\n\nTEST ONLY: both copies are sent to ToolTag. Intended quote recipient: ${s.customer_email}`;
-      const message = renderNotification(subject, text, ACCEPTED_TEST_RECIPIENT, "AGREEMENT_ACCEPTED");
+        ? `${mode === "test-delivery" ? "[TEST CUSTOMER COPY] " : ""}Your Accepted ToolTag Agreement — ${d.acceptance_folio}`
+        : `${mode === "test-delivery" ? "[TEST TOOLTAG COPY] " : ""}Accepted Agreement Copy — ${d.acceptance_folio} — ${s.customer_name}`;
+      const text = `Quote and Agreement accepted.\nCustomer: ${s.customer_name}\nQuote: ${s.quote_code} / revision ${s.quote_revision}\nJob: ${s.job_code}\nAgreement Folio: ${d.acceptance_folio}\nAgreed total: ${money(String(s.total))}\n\nYour accepted PDF is attached for your records.${mode === "test-delivery" ? `\n\nTEST ONLY. Original quote recipient: ${s.customer_email}` : ""}`;
+      const message = renderNotification(subject, text, event.recipient, "AGREEMENT_ACCEPTED");
       message.attachments = [{filename:d.file_name,content:pdf}];
       provider = (await new GmailTransport().deliver(message,event.dedupe_key)).providerId;
     } catch (error) { failure = error instanceof MailFailure ? error.code : "ACCEPTED_MAIL_FAILED"; }
@@ -52,7 +52,7 @@ export async function processAcceptedDocument(db: SupabaseClient, id: string) {
     if (finishError || !finished) return "El resultado de correo requiere revisión antes de reintentar.";
     if (provider) delivered++;
   }
-  return delivered ? `${delivered} copia(s) de prueba aceptada(s) por Gmail para quotes@tooltag.martinlab.studio.` : "Consulta el estado de cada copia. El PDF y el folio se conservan.";
+  return delivered ? `${delivered} copia(s) aceptada(s) por Gmail para sus destinatarios.` : "Consulta el estado de cada copia. El PDF y el folio se conservan.";
 }
 export async function processAcceptedQueue(db: SupabaseClient) {
   const {data, error} = await db.rpc("pending_accepted_documents");

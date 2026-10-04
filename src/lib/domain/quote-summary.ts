@@ -22,6 +22,7 @@ export function itemDetails(i: QuoteItem): string[] {
         : `Paint fill: ${i.colors || "unspecified"} color(s)`,
     );
   else if (!i.marks?.some((m) => m.paint_fill)) lines.push("Paint fill: no");
+  if (i.pricing?.version) lines.push(`Additional engravings: ${money(i.pricing.additional_engraving_charge)} · Paint: ${money(i.pricing.paint_charge)} · Item total with these charges: ${money(i.pricing.line_total)}`);
   if (i.notes) lines.push(i.notes);
   return lines;
 }

@@ -88,7 +88,7 @@ export function Form({
       )}
       {state.link && (
         <div className="notice success wide">
-          Enlace preparado. Aún no se ha enviado automáticamente.
+          Enlace preparado. Consulta el registro de notificaciones para conocer el estado del correo.
           <br />
           <a href={state.link} target="_blank" rel="noreferrer">
             Abrir vista del cliente ↗
@@ -105,6 +105,7 @@ export function Form({
           />
         </div>
       )}
+      {state.mailStatus && <p className="notice wide">{state.mailStatus}</p>}
       {state.ok && <div className="notice success wide">Guardado.</div>}
       <button disabled={pending}>{pending ? "Guardando…" : button}</button>
     </form>

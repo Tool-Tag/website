@@ -1,3 +1,5 @@
+import { QuoteScope } from "@/components/quote-scope";
+import type { QuoteItem } from "@/lib/domain/quote-items";
 import { supabase } from "@/lib/supabase/server";
 import { AcceptForm } from "@/components/accept-form";
 export const dynamic = "force-dynamic";
@@ -21,10 +23,11 @@ export default async function Completion({
     <main className="public">
       <p className="eyebrow">ToolTag · Delivery</p>
       <h1>{j.code}</h1>
+      {j.original_quote && <QuoteScope items={j.original_quote.items}/>}
+      {j.extensions?.map((x:{code:string;items:QuoteItem[]})=><section key={x.code}><h2>{x.code}</h2><QuoteScope items={x.items}/></section>)}
       <p>
-        This acknowledgment confirms that you received the items/work and that
-        the delivered work corresponds to what you previously approved. It does
-        not waive your general legal or refund rights.
+        I confirm that I received the items/work associated with this ToolTag Job.
+        This confirms receipt only. It does not confirm payment or waive your legal rights.
       </p>
       {j.status === "Delivered – Pending Customer Acceptance" ? (
         <div className="grid two">

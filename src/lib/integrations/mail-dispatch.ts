@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { GmailTransport, mailEnabled, MailFailure } from "./gmail";
 import { renderNotification } from "./notification-mail";
 import { renderQuoteMail } from "./quote-mail";
+import { renderJobReceipt } from "./receipt-mail";
 import { mailSender } from "./mail-routing";
 export async function dispatchQuoteMail(db: SupabaseClient, quoteId?: string) {
   if (!mailEnabled()) return "Correo pendiente: configura Google Workspace. Puedes copiar el enlace.";
@@ -13,13 +14,15 @@ export async function dispatchQuoteMail(db: SupabaseClient, quoteId?: string) {
   let sent = 0;
   try {
     for (let i = 0; i < 5; i++) {
-      const {data: event, error} = await db.rpc("claim_quote_mail", {p_quote: quoteId || null, p_test_recipient: testRecipient});
+      const {data: event, error} = await db.rpc("claim_mail_for_mode", {p_quote: quoteId || null, p_test_recipient: testRecipient,p_mode:process.env.TOOLTAG_MAIL_MODE});
       if (error) return "Correo pendiente: no se pudo consultar la cola.";
       if (!event) break;
       let providerId: string | null = null, failure: string | null = null;
       try {
-        const message = event.payload.template === "notification"
-          ? renderNotification(event.payload.subject, event.payload.text, event.recipient, event.event, event.completion_token ? new URL(`/completion/${event.completion_token}`, origin).href : undefined)
+        const message = event.payload.template === "job_receipt"
+          ? renderJobReceipt(event.payload.snapshot,event.recipient)
+          : event.payload.template === "notification"
+          ? renderNotification(event.payload.subject, event.payload.text, event.recipient, event.event, event.action_path ? new URL(event.action_path,origin).href : event.completion_token ? new URL(`/completion/${event.completion_token}`, origin).href : undefined)
           : renderQuoteMail(event.payload.snapshot, new URL(`/review/${event.token}`, origin).href, event.event === "Agreement accepted copy" ? "confirmation" : "quote", event.payload.job_code);
         Object.assign(message, mailSender(event.event), {to: event.recipient});
         if (event.event === "Quote expiration reminder") message.subject = `Your ToolTag Quote expires soon — ${event.payload.snapshot.code}`;

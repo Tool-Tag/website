@@ -1,3 +1,4 @@
+import { BackNavigation } from "@/components/back-navigation";
 import Link from "next/link";
 import { context } from "@/lib/domain/context";
 import { isConfigured } from "@/lib/supabase/server";
@@ -56,6 +57,7 @@ export default async function AppLayout({
               contiene datos de prueba ni permite guardar.
             </div>
           )}
+          <BackNavigation />
           {children}
         </main>
         <footer className="footer">

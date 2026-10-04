@@ -1,6 +1,8 @@
+import { EvidenceGallery } from "@/components/evidence-gallery";
+import { JobLifecycle } from "@/components/job-lifecycle";
 import { AcceptedDocuments } from "@/components/accepted-documents";
 import Link from "next/link";
-import { rows } from "@/lib/domain/context";
+import { rows, context } from "@/lib/domain/context";
 import { Heading, Panel, Table, Empty, Badge } from "@/components/ui";
 import { QuoteScope } from "@/components/quote-scope";
 import { Form } from "@/components/form";
@@ -35,6 +37,7 @@ export async function Jobs({ id }: { id?: string }) {
       </>
     );
   }
+  const {role} = await context();
   const j = (await rows("jobs", { id }))[0];
   if (!j) return <Empty>Trabajo no encontrado.</Empty>;
   const [docs, sales] = await Promise.all([
@@ -61,6 +64,7 @@ export async function Jobs({ id }: { id?: string }) {
         </Link>
       </Heading>
       <AcceptedDocuments jobId={id} />
+      <JobLifecycle id={id} />
       <Panel title="Trabajo aprobado">
         <QuoteScope items={scope} />
       </Panel>
@@ -87,8 +91,7 @@ export async function Jobs({ id }: { id?: string }) {
             <>
               <p className="muted">
                 El plazo de 3 días empieza cuando confirmas que entregaste el
-                enlace al cliente. No se ha enviado ningún correo
-                automáticamente.
+                enlace al cliente o Gmail confirma el envío de la notificación de entrega.
               </p>
               <Form
                 operation="notified"
@@ -116,24 +119,10 @@ export async function Jobs({ id }: { id?: string }) {
                 : "Evidencia de trabajo terminado"
             }
           >
-            {docs
-              .filter((d) => d.type === type)
-              .map((d) => (
-                <p key={d.id}>
-                  <a
-                    href={`https://drive.google.com/file/d/${encodeURIComponent(d.drive_file_id)}/view`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {d.file_name} ↗
-                  </a>
-                </p>
-              ))}
-            {!docs.some((d) => d.type === type) && (
-              <Empty>Sin evidencia registrada.</Empty>
-            )}
+            <EvidenceGallery files={docs.filter(d=>d.type===type)} />
+            {role === "admin" && <>
             <details>
-              <summary>Vincular archivo de Drive</summary>
+              <summary>Administración: vincular archivo existente de Drive</summary>
               <p className="muted">
                 Carga el archivo directamente en Drive y registra su ID. La
                 integración de subida está pendiente.
@@ -157,6 +146,7 @@ export async function Jobs({ id }: { id?: string }) {
                 ]}
               />
             </details>
+            </>}
           </Panel>
         ))}
       </div>

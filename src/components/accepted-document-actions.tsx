@@ -10,10 +10,11 @@ export function AcceptedDocumentActions({id,back}:{id:string;back:string}) {
         <option value="process">Procesar PDF / copias pendientes</option>
         <option value="pdf">Reintentar generación fallida</option>
         <option value="customer">Reintentar copia cliente fallida</option>
+        <option value="authorize-live">Autorizar copias reales de este documento</option>
         <option value="internal">Reintentar copia ToolTag fallida</option>
       </select>
     </label>
-    <label className="checkbox"><input type="checkbox" name="reconciled"/>Para un envío de resultado incierto: revisé Enviados en Gmail y confirmé que esa copia no fue enviada.</label>
+    <label className="checkbox"><input type="checkbox" name="reconciled"/>Confirmo el envío seleccionado al destinatario real; revisé Enviados en Gmail para evitar duplicados.</label>
     <button disabled={pending}>{pending ? "Procesando…" : "Aplicar"}</button>
     {state.error && <p role="alert" className="notice error">{state.error}</p>}
     {state.mailStatus && <p role="status" className="notice">{state.mailStatus}</p>}

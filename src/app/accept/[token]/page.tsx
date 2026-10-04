@@ -1,2 +1,3 @@
 export const maxDuration = 300;
-export { default, dynamic } from "@/app/review/[token]/page";
+export const dynamic = "force-dynamic";
+export { default } from "@/app/review/[token]/page";

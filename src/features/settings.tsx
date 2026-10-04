@@ -1,4 +1,4 @@
-import { rows } from "@/lib/domain/context";
+import { rows, context } from "@/lib/domain/context";
 import { Heading, Panel, Table, Empty } from "@/components/ui";
 import { Form } from "@/components/form";
 export async function Settings() {
@@ -8,6 +8,8 @@ export async function Settings() {
     rows("notifications", { order: "created_at", limit: 30 }),
     rows("categories"),
   ]);
+  const {db,role}=await context();
+  const {data:mail}=await db.rpc("customer_mail_status");
   const s = settings[0];
   return (
     <>
@@ -15,6 +17,14 @@ export async function Settings() {
         title="Configuración"
         subtitle="ToolTag · Bandits of the Framing LLC"
       />
+      <Panel title="Correo de producción">
+        <p>Modo del servidor: {process.env.TOOLTAG_MAIL_MODE || "preview"}</p>
+        <p>Inicio de avisos elegibles: {mail?.activated_at || "Pendiente de activar"}</p>
+        <p>La activación no reenvía pruebas ni notificaciones históricas. Los fallos requieren un reintento individual.</p>
+        {role==="admin" && !mail?.activated_at && <Form operation="activate-live-mail" fields={[]} button="Habilitar avisos nuevos" back="/app/settings"><label className="checkbox"><input type="checkbox" name="confirm" required/>Activar únicamente los avisos nuevos desde este momento.</label></Form>}
+        <p className="muted">Para entregar a clientes, Vercel debe tener TOOLTAG_MAIL_MODE=live. Esta pantalla no modifica variables de Vercel.</p>
+      </Panel>
+      <Panel title="Google Drive"><p>Preparado visualmente · pendiente de configurar. Subidas y vistas previas desactivadas.</p><pre style={{whiteSpace:"pre-wrap"}}>ToolTag Customers / Cliente / Jobs / Trabajo / Agreement, Receiving, Completed, Payments, Issue-Review, Other</pre></Panel>
       <Panel title="Acuerdos / políticas">
         <p className="notice">
           No se ha inventado texto legal. Publica únicamente el texto aprobado.
@@ -142,11 +152,12 @@ export async function Settings() {
         <p className="muted">
           Sent indica que Gmail aceptó el correo; no confirma que el cliente lo haya leído. Los envíos fallidos o sin confirmar requieren revisión antes de reenviar.
         </p>
+        {role==="admin" && <details><summary>Reintentar un aviso específico</summary><Form operation="retry-notification" fields={[{name:"id",label:"ID de notificación",required:true}]} button="Autorizar reintento" back="/app/settings"><label className="checkbox"><input type="checkbox" name="reconciled" required/>Revisé el destinatario y Enviados en Gmail; autorizo este envío real sin duplicarlo.</label></Form></details>}
         {notifications.length ? (
           <Table headers={["Evento", "Estado", "Programado", "Entrega"]}>
             {notifications.map((n) => (
               <tr key={n.id}>
-                <td>{n.event}</td>
+                <td>{n.event}<small style={{display:"block"}}>{n.id}</small></td>
                 <td>{n.status}</td>
                 <td>{new Date(n.due_at).toLocaleString("es-US")}</td>
                 <td>{n.mail_error || n.provider_id || "Pendiente"}</td>

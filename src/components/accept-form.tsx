@@ -6,7 +6,7 @@ export function AcceptForm({
   kind,
 }: {
   token: string;
-  kind: "review" | "accept" | "issue";
+  kind: "review" | "accept" | "issue" | "work-ready" | "work-additional" | "extension-accept";
 }) {
   const [state, action, pending] = useActionState(
     customerAction.bind(null, kind, token),
@@ -42,6 +42,8 @@ export function AcceptForm({
           </label>
         </>
       )}
+      {kind==="work-additional" && <label>What would you like to add?<textarea name="request" required maxLength={5000}/></label>}
+      {kind==="extension-accept" && <><label>Your name<input name="name" required/></label><label className="checkbox"><input type="checkbox" name="confirmed" required/>I approve this extension’s additional scope and price.</label></>}
       {state.error && (
         <p role="alert" className="notice error">
           {state.error}
@@ -58,10 +60,10 @@ export function AcceptForm({
       >
         {pending
           ? "Saving…"
-          : kind === "review"
+          : kind === "work-ready" ? "Ready for Delivery" : kind === "work-additional" ? "I Would Like to Add Something" : kind === "extension-accept" ? "Approve Extension" : kind === "review"
             ? "Accept Quote & Agreement"
             : kind === "accept"
-              ? "Accept Completion"
+              ? "I confirm receipt of my items/work"
               : "Report an Issue"}
       </button>
     </form>

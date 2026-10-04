@@ -5,7 +5,7 @@ export function SendQuote({ id, email, companyEmail }: { id: string; email?: str
   const recipients = [
     { label: "Correo personal", email: email?.trim() || "" },
     { label: "Correo de compañía", email: companyEmail?.trim() || "" },
-  ].filter((entry, index, all) => entry.email && all.findIndex((other) => other.email.toLowerCase() === entry.email.toLowerCase()) === index);
+  ].filter((entry, index, all) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(entry.email) && all.findIndex((other) => other.email.toLowerCase() === entry.email.toLowerCase()) === index);
   const [state, action, pending] = useActionState(
     mutate.bind(null, "send-quote", `/app/quotes/${id}`),
     {},

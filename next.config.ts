@@ -21,7 +21,7 @@ const config: NextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
         ],
       },
-      ...["/review/:path*", "/accept/:path*"].map((source) => ({
+      ...["/review/:path*", "/accept/:path*", "/work/:path*", "/extension/:path*", "/completion/:path*"].map((source) => ({
         source,
         headers: [
           { key: "Referrer-Policy", value: "no-referrer" },

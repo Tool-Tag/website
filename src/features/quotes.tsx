@@ -1,6 +1,6 @@
 import { AcceptedDocuments } from "@/components/accepted-documents";
 import Link from "next/link";
-import { rows } from "@/lib/domain/context";
+import { rows, context } from "@/lib/domain/context";
 import { Heading, Panel, Table, Empty, Badge } from "@/components/ui";
 import { SendQuote } from "@/components/send-quote";
 import { QuoteScope } from "@/components/quote-scope";
@@ -44,6 +44,7 @@ export async function Quotes({
                   : undefined,
                 adaptation_fee: i.adaptation_fee,
                 paint_fee: i.paint_fee,
+                additional_engraving_fee: i.additional_engraving_fee,
                 article: i.article,
                 quantity: i.quantity,
                 engraving_type: i.engraving_type,
@@ -70,6 +71,8 @@ export async function Quotes({
     if (!q) return <Empty>Cotización no encontrada.</Empty>;
     const flow = (await rows("commercial_flows", { id: q.flow_id }))[0];
     const contact = flow ? (await rows("customers", { id: flow.customer_id }))[0] : null;
+    const {db}=await context();
+    const delivery=q.sent_at ? (await db.rpc("quote_delivery",{p_id:id})).data : null;
     const items = await rows("quote_items", { field: "quote_id", value: id });
     const jobs = await rows("jobs", { field: "flow_id", value: q.flow_id });
     return (
@@ -103,10 +106,10 @@ export async function Quotes({
             <p className="muted">
               Envía al cliente un enlace privado para revisar la cotización y
               aceptar el Agreement. El enlace será válido por 7 días desde el
-              primer envío. Mientras Google Workspace se conecta, podrás copiar
-              el enlace y ver el correo preparado.
+              primer envío. El destinatario elegido queda fijado para esta versión.
+              También puedes copiar el enlace y ver el correo preparado.
             </p>
-            <SendQuote id={id} email={contact?.email} companyEmail={contact?.company_email} />
+            <SendQuote id={id} email={delivery?.recipient || contact?.email} companyEmail={delivery?.recipient ? undefined : contact?.company_email} />
           </Panel>
         )}
         <AcceptedDocuments quoteId={id} />

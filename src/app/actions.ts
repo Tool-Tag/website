@@ -70,7 +70,11 @@ export async function mutate(
       case "accepted-document": {
         const id = z.uuid().parse(p.id);
         const part = String(p.part || "process");
-        if (part !== "process") {
+        if (part === "authorize-live") {
+          if (form.get("reconciled")!=="on") return {error:"Confirma el envío al destinatario real antes de autorizar."};
+          const {error}=await db.rpc("authorize_document_live_copies",{p_id:id});
+          if(error) return {error:error.message};
+        } else if (part !== "process") {
           const {error} = await db.rpc("retry_accepted_document", {p_id:id,p_part:part,p_reconciled:form.get("reconciled")==="on"});
           if (error) return {error:error.message};
         }
@@ -78,6 +82,25 @@ export async function mutate(
         revalidatePath("/app","layout");
         return {ok:true,mailStatus};
       }
+      case "prepare-accepted-document": {
+        const {data:id,error}=await db.rpc("prepare_existing_accepted_document",{p_quote:p.quote_id});
+        if(error) return {error:error.message};
+        const mailStatus=await processAcceptedDocument(db,id);
+        revalidatePath("/app","layout");return {ok:true,mailStatus};
+      }
+      case "activate-live-mail":
+        if (form.get("confirm")!=="on") return {error:"Confirma la activación solo para avisos nuevos."};
+        name="activate_customer_mail"; args={}; break;
+      case "retry-notification":
+        name="retry_customer_notification"; args={p_id:p.id,p_reconciled:form.get("reconciled")==="on"}; break;
+      case "request-extension":
+        name="request_job_extension"; args={p_job:p.job_id,p_request:p.request,p_key:p.request_key}; break;
+      case "extension-send":
+        name="send_job_extension"; args={p_id:p.id}; break;
+      case "extension-cancel":
+        name="cancel_job_extension"; args={p_id:p.id}; break;
+      case "generate-receipt":
+        name="generate_job_receipt"; args={p_job:p.job_id}; break;
       case "customer":
         z.object({
           name: z.string().min(1),
@@ -87,6 +110,7 @@ export async function mutate(
         }).parse(p);
         name = "save_customer";
         break;
+      case "extension-scope":
       case "quote":
         p.items = z
           .array(
@@ -145,7 +169,7 @@ export async function mutate(
             }
             return { ...item, sort_order: index };
           });
-        name = "create_quote";
+        name = operation === "extension-scope" ? "save_job_extension" : "create_quote";
         break;
       case "movement":
         cents(String(p.amount));
@@ -196,9 +220,12 @@ export async function mutate(
     if (error) return { error: error.message };
     revalidatePath("/app", "layout");
     if (operation === "send-quote") return { link: `/review/${data}`, mailStatus: await dispatchQuoteMail(db, String(p.id)) };
-    if (operation === "job" || operation === "movement") await dispatchWorkerMail();
+    if (["job","movement","extension-send","extension-cancel","generate-receipt","retry-notification"].includes(operation)) await dispatchWorkerMail();
+    if (operation === "extension-send") return {link:`/extension/${data}`};
     if (operation === "job" && data) return { link: `/completion/${data}` };
     if (operation === "customer") destination = `/app/customers/${data}`;
+    else if (operation === "request-extension") destination=`/app/job-extensions/${data}`;
+    else if (operation === "extension-scope") destination=`/app/job-extensions/${data}`;
     else if (operation === "quote") destination = `/app/quotes/${data}`;
     else if (operation === "movement" && p.type === "EXPENSE")
       destination = `/app/finance/expenses?created=${data}`;
@@ -216,6 +243,14 @@ export async function customerAction(
   form: FormData,
 ): Promise<ActionState> {
   const db = await supabase();
+  if (["work-ready","work-additional","extension-accept"].includes(kind)) {
+    if(kind==="extension-accept" && form.get("confirmed")!=="on") return {error:"Confirm the additional scope and price."};
+    const {error}= kind==="extension-accept"
+      ? await db.rpc("public_extension",{p_token:token,p_accept:true,p_name:String(form.get("name")||"").trim()})
+      : await db.rpc("public_work_review",{p_token:token,p_response:kind==="work-ready"?"ready":"additional",p_request:String(form.get("request")||"").trim()});
+    if(error) return {error:error.message};
+    revalidatePath(`/work/${token}`);revalidatePath(`/extension/${token}`);revalidatePath("/app","layout");return {ok:true};
+  }
   if (kind === "review") {
     const { error } = await db.rpc("accept_review", {
       p_token: token,
