@@ -64,6 +64,11 @@ export function CancellationServiceCard({
           This service has been cancelled. ToolTag will send the cancellation details
           and any applicable refund information by email.
         </p>
+        {confirmState.data?.status_path && (
+          <a className="button" href={confirmState.data.status_path}>
+            Open Job Status
+          </a>
+        )}
       </section>
     );
   }
