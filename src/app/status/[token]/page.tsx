@@ -69,7 +69,19 @@ const pickupLabels: Record<string, { title: string; description: string }> = {
   },
 };
 
-function pickupCurrent(data: any) {
+type PickupStatusData = {
+  job_status?: string | null;
+  work_stage?: string | null;
+  items_completed?: number | string | null;
+  items_total?: number | string | null;
+  pickup_return?: {
+    fee_status?: string | null;
+    pickup_status?: string | null;
+    return_status?: string | null;
+  } | null;
+};
+
+function pickupCurrent(data: PickupStatusData) {
   const pr = data.pickup_return;
   if (!pr) return null;
   if (data.job_status === "Completed" || data.work_stage === "Closed") return "Completed";
