@@ -264,6 +264,41 @@ export async function customerAction(
   form: FormData,
 ): Promise<ActionState> {
   const db = await supabase();
+  if (kind === "status-cancel") {
+    const { error } = await db.rpc("public_status_confirm_cancellation", {
+      p_token: token,
+    });
+    if (error) return { error: error.message };
+    await dispatchWorkerMail();
+    revalidatePath(`/status/${token}`);
+    revalidatePath(`/status/${token}/cancel`);
+    revalidatePath("/app", "layout");
+    return { ok: true };
+  }
+  if (kind === "cancel-job") {
+    const id = String(form.get("id") || "");
+    const { error } = await db.rpc("public_confirm_job_cancellation", {
+      p_token: token,
+      p_job: id,
+    });
+    if (error) return { error: error.message };
+    await dispatchWorkerMail();
+    revalidatePath(`/help/cancel/${token}`);
+    revalidatePath("/app", "layout");
+    return { ok: true };
+  }
+  if (kind === "cancel-quote") {
+    const id = String(form.get("id") || "");
+    const { error } = await db.rpc("public_cancel_quote", {
+      p_token: token,
+      p_quote: id,
+    });
+    if (error) return { error: error.message };
+    await dispatchWorkerMail();
+    revalidatePath(`/help/cancel/${token}`);
+    revalidatePath("/app", "layout");
+    return { ok: true };
+  }
   if (["work-ready","work-additional","extension-accept"].includes(kind)) {
     if(kind==="extension-accept" && form.get("confirmed")!=="on") return {error:"Confirm the additional scope and price."};
     const {error}= kind==="extension-accept"
