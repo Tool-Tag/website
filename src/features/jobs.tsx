@@ -109,11 +109,18 @@ export async function Jobs({ id }: { id?: string }) {
   const j = (await rows("jobs", { id }))[0];
   if (!j) return <Empty>Trabajo no encontrado.</Empty>;
 
-  const [docs, sales, paymentRequests] = await Promise.all([
+  const [docs, sales, paymentRequests, rawJobItems, pickupRows, cancellationRows] = await Promise.all([
     rows("documents", { field: "job_id", value: id }),
     rows("sale_balances", { field: "job_id", value: id }),
     rows("payment_requests", { field: "job_id", value: id, order: "submitted_at" }),
+    rows("job_items", { field: "job_id", value: id, limit: 500 }),
+    rows("pick_return_orders", { field: "job_id", value: id }),
+    rows("cancellation_requests", { field: "job_id", value: id, order: "requested_at" }),
   ]);
+
+  const jobItems = [...rawJobItems].sort((a, b) => Number(a.sequence) - Number(b.sequence));
+  const pickupReturn = pickupRows[0] ?? null;
+  const activeCancellation = cancellationRows.find((request) => request.status === "Requested") ?? null;
 
   const pendingPayment = paymentRequests.find(
     (request) => request.status === "Pending Verification",
@@ -133,17 +140,27 @@ export async function Jobs({ id }: { id?: string }) {
   });
 
   const receivingFiles = docs.filter((d) => d.type === "Receiving Evidence");
-  const completedFiles = docs.filter((d) => d.type === "Completed Evidence");
   const stage = j.work_stage ?? "Not Started";
+  const currentItem = jobItems.find((item) => !["Finished", "Cancelled"].includes(item.stage));
+  const finishedItems = jobItems.filter((item) => item.stage === "Finished").length;
+  const itemEvidence = currentItem
+    ? docs.filter(
+        (d) => d.type === "Finished Evidence" && d.job_item_id === currentItem.id,
+      )
+    : [];
+  const currentScope = currentItem?.scope_snapshot
+    ? [{ ...currentItem.scope_snapshot, quantity: 1 }]
+    : [];
+  const allItemsFinished = jobItems.length > 0 && finishedItems === jobItems.length;
+
   const receivingEvidence = (
-    <Panel title="Evidencia de cómo se recibió">
+    <Panel title="Receiving evidence">
       <EvidenceGallery files={receivingFiles} />
       {role === "admin" && (
         <details>
-          <summary>Administración: vincular archivo existente de Drive</summary>
+          <summary>Admin: link an existing Drive file</summary>
           <p className="muted">
-            Carga el archivo directamente en Drive y registra su ID. La integración
-            de subida directa sigue pendiente.
+            Upload the file to Drive and register its file ID. Direct uploads are still pending.
           </p>
           <Form
             operation="document"
@@ -152,7 +169,7 @@ export async function Jobs({ id }: { id?: string }) {
             fields={[
               {
                 name: "file_name",
-                label: "Nombre",
+                label: "Name",
                 required: true,
                 value: `${j.code}-Receiving-${String(receivingFiles.length + 1).padStart(2, "0")}.jpg`,
               },
@@ -168,142 +185,181 @@ export async function Jobs({ id }: { id?: string }) {
     </Panel>
   );
 
-  const completedEvidence = (
-    <Panel title="Evidencia de trabajo terminado">
-      <EvidenceGallery files={completedFiles} />
-      {role === "admin" && (
-        <details>
-          <summary>Administración: vincular archivo existente de Drive</summary>
-          <p className="muted">
-            Carga el archivo directamente en Drive y registra su ID. La integración
-            de subida directa sigue pendiente.
-          </p>
-          <Form
-            operation="document"
-            hidden={{ job_id: id, type: "Completed Evidence" }}
-            back={`/app/jobs/${id}`}
-            fields={[
-              {
-                name: "file_name",
-                label: "Nombre",
-                required: true,
-                value: `${j.code}-Completed-${String(completedFiles.length + 1).padStart(2, "0")}.jpg`,
-              },
-              {
-                name: "drive_file_id",
-                label: "Drive File ID",
-                required: true,
-              },
-            ]}
-          />
-        </details>
-      )}
-    </Panel>
-  );
+  const currentItemPanel = currentItem ? (
+    <>
+      <Panel title={`Item ${currentItem.sequence} of ${jobItems.length} · ${currentItem.article}`}>
+        <p className="muted">
+          {finishedItems}/{jobItems.length} items finished
+        </p>
+        {currentItem.stage === "Preparation" && (
+          <>
+            <p className="muted">Review the approved scope for this item before engraving.</p>
+            <WorkPreparation items={currentScope as any} />
+          </>
+        )}
+
+        {["Engraving", "Finished Evidence"].includes(currentItem.stage) && (
+          <>
+            <p>
+              <strong>Stage:</strong>{" "}
+              {currentItem.stage === "Finished Evidence" ? "Finished evidence" : "Engraving"}
+            </p>
+            <EvidenceGallery files={itemEvidence} />
+            {role === "admin" && (
+              <details open={!itemEvidence.length}>
+                <summary>Finished evidence for this item</summary>
+                <Form
+                  operation="document"
+                  hidden={{
+                    job_id: id,
+                    job_item_id: currentItem.id,
+                    type: "Finished Evidence",
+                  }}
+                  back={`/app/jobs/${id}`}
+                  fields={[
+                    {
+                      name: "file_name",
+                      label: "Name",
+                      required: true,
+                      value: `${j.code}-Item-${String(currentItem.sequence).padStart(2, "0")}-Finished-${String(itemEvidence.length + 1).padStart(2, "0")}.jpg`,
+                    },
+                    {
+                      name: "drive_file_id",
+                      label: "Drive File ID",
+                      required: true,
+                    },
+                  ]}
+                />
+              </details>
+            )}
+          </>
+        )}
+      </Panel>
+
+      {activeCancellation ? (
+        <p className="notice error">
+          Cancellation request detected. Production is locked and this Job cannot continue.
+        </p>
+      ) : currentItem.stage === "Preparation" ? (
+        <Form
+          operation="job-item"
+          hidden={{ item_id: currentItem.id, action: "next" }}
+          fields={[]}
+          back={`/app/jobs/${id}`}
+          button="Next"
+        />
+      ) : currentItem.stage === "Finished Evidence" ? (
+        <Form
+          operation="job-item"
+          hidden={{ item_id: currentItem.id, action: "finished" }}
+          fields={[]}
+          back={`/app/jobs/${id}`}
+          button="Finished"
+        />
+      ) : null}
+    </>
+  ) : null;
 
   const workTab = (
     <>
-      {stage === "Not Started" && (
-        <Panel title="Comenzar trabajo">
-          <p className="muted">
-            Inicia el flujo operativo de este Job.
-          </p>
+      {stage === "Not Started" && !pickupReturn && (
+        <>
+          <Panel title="Start Job">
+            <p className="muted">Start the receiving workflow for this Job.</p>
+          </Panel>
           <Form
             operation="job"
             hidden={{ id, action: "start" }}
             fields={[]}
             back={`/app/jobs/${id}`}
-            button="Comenzar trabajo"
+            button="Start Job"
           />
+        </>
+      )}
+
+      {stage === "Not Started" && pickupReturn && (
+        <Panel title="Pickup & Return">
+          <p>
+            Pickup fee: <strong>{money(pickupReturn.fee_amount)}</strong> · {pickupReturn.fee_status}
+          </p>
+          <p className="muted">
+            This Job enters production automatically after Pickup receiving evidence is recorded and the items are marked Picked Up.
+          </p>
+          <Link className="button" href="/pick-return">
+            Open Pick & Return
+          </Link>
         </Panel>
       )}
 
       {stage === "Receiving Evidence" && (
         <>
           {receivingEvidence}
-          <Panel title="Siguiente paso">
-            <p className="muted">
-              Cuando la evidencia de recepción esté registrada, continúa a preparación.
-            </p>
-            <Form
-              operation="job"
-              hidden={{ id, action: "receiving-done" }}
-              fields={[]}
-              back={`/app/jobs/${id}`}
-              button="Siguiente"
-            />
-          </Panel>
-        </>
-      )}
-
-      {stage === "Preparing" && (
-        <>
-          <Panel title="Preparando">
-            <p className="muted">
-              Revisa aquí exactamente lo aprobado antes de comenzar el grabado.
-            </p>
-            <WorkPreparation items={scope} />
-          </Panel>
           <Form
             operation="job"
-            hidden={{ id, action: "preparation-done" }}
+            hidden={{ id, action: "receiving-done" }}
             fields={[]}
             back={`/app/jobs/${id}`}
-            button="Siguiente"
+            button="Next"
           />
         </>
       )}
 
-      {["Final Evidence", "Final Details"].includes(stage) && (
-        <>
-          {completedEvidence}
-          <Panel title="Terminar trabajo">
-            <p className="muted">
-              Al marcar Terminado se enviará al cliente la notificación con el enlace seguro para aceptar la entrega.
-            </p>
-            <Form
-              operation="job"
-              hidden={{ id, action: "finished" }}
-              fields={[]}
-              back={`/app/jobs/${id}`}
-              button="Terminado"
-            />
-          </Panel>
-        </>
+      {["Preparing", "Engraving", "Final Evidence", "Final Details"].includes(stage) &&
+        currentItemPanel}
+
+      {["Preparing", "Engraving", "Final Evidence", "Final Details"].includes(stage) &&
+        allItemsFinished &&
+        !pickupReturn && (
+          <Form
+            operation="complete-job-work"
+            hidden={{ id }}
+            fields={[]}
+            back={`/app/jobs/${id}`}
+            button="Ready for Delivery"
+          />
+        )}
+
+      {stage === "Delivery In Progress" && pickupReturn && (
+        <Panel title="Delivery in progress">
+          <p>
+            All {jobItems.length} items are finished. The Job is now in the Return workflow.
+          </p>
+          <p className="muted">
+            Return status: {pickupReturn.return_status}
+          </p>
+          <Link className="button" href="/pick-return">
+            Open Return Mode
+          </Link>
+        </Panel>
       )}
 
       {stage === "Awaiting Delivery Acceptance" && (
-        <Panel title="Esperando aceptación de entrega">
+        <Panel title="Waiting for delivery acceptance">
           <p>
-            El cliente recibió el enlace seguro para confirmar que recibió el trabajo y está conforme.
+            The customer received the secure link to confirm receipt of the completed work.
           </p>
           {j.acceptance_deadline && (
             <p className="muted">
-              Plazo de respuesta: {new Date(j.acceptance_deadline).toLocaleString("es-US")}
+              Response deadline: {new Date(j.acceptance_deadline).toLocaleString("en-US")}
             </p>
           )}
         </Panel>
       )}
 
-
       {stage === "Issue Review" && (
-        <Panel title="Incidencia / revisión">
-          <p>
-            El cliente reportó un problema con la entrega. Este Job requiere revisión antes de continuar.
-          </p>
+        <Panel title="Issue / Review">
+          <p>The customer reported an issue. This Job requires review before continuing.</p>
         </Panel>
       )}
 
       {stage === "Payment" && (
-        <Panel title="Pago pendiente">
-          <p>
-            La entrega ya fue aceptada. El cliente debe completar el paso de pago.
-          </p>
+        <Panel title="Payment pending">
+          <p>Delivery was accepted. The customer must complete the payment step.</p>
         </Panel>
       )}
 
       {stage === "Payment Verification" && (
-        <Panel title="Pago pendiente de verificación">
+        <Panel title="Payment verification">
           {pendingPayment ? (
             <>
               <p>
@@ -312,7 +368,7 @@ export async function Jobs({ id }: { id?: string }) {
               {pendingProofUrl && (
                 <p>
                   <a href={pendingProofUrl} target="_blank" rel="noreferrer">
-                    Ver comprobante →
+                    View payment proof →
                   </a>
                 </p>
               )}
@@ -321,20 +377,20 @@ export async function Jobs({ id }: { id?: string }) {
                   operation="confirm-payment"
                   hidden={{ id: pendingPayment.id }}
                   fields={[]}
-                  button="Confirmar pago recibido"
+                  button="Confirm payment received"
                   back={`/app/jobs/${id}`}
                 />
               )}
             </>
           ) : (
-            <p>El pago está pendiente de verificación.</p>
+            <p>Payment is pending verification.</p>
           )}
         </Panel>
       )}
 
       {stage === "Closed" && (
-        <Panel title="Trabajo completado">
-          <p className="notice success">Entrega aceptada y pago confirmado.</p>
+        <Panel title="Completed">
+          <p className="notice success">Delivery accepted and payment confirmed.</p>
         </Panel>
       )}
     </>
