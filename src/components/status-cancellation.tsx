@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { statusCancellationAction } from "@/app/status-actions";
 
 function money(value: unknown) {
@@ -12,6 +13,7 @@ function money(value: unknown) {
 }
 
 export function StatusCancellation({ token }: { token: string }) {
+  const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [assessmentState, assessAction, assessing] = useActionState(
     statusCancellationAction.bind(null, token, "assess"),
@@ -29,10 +31,11 @@ export function StatusCancellation({ token }: { token: string }) {
   }, [assessmentState.data]);
 
   useEffect(() => {
-    if (confirmState.ok && dialogRef.current?.open) {
-      dialogRef.current.close();
+    if (confirmState.ok) {
+      if (dialogRef.current?.open) dialogRef.current.close();
+      router.refresh();
     }
-  }, [confirmState.ok]);
+  }, [confirmState.ok, router]);
 
   const payload = assessmentState.data as any;
   const assessment = payload?.assessment;
