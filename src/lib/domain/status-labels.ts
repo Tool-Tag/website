@@ -32,6 +32,7 @@ export const workStageLabel = (stage: string) =>
     "Final Evidence": "Engraving",
     "Final Details": "Final Details",
     "Delivery In Progress": "Delivery In Progress",
+    "Cancellation Requested / Production Hold": "Cancellation Requested / Production Hold",
     "Awaiting Delivery Acceptance": "Esperando aceptación",
     "Issue Review": "Incidencia / revisión",
     Payment: "Pago pendiente",
