@@ -11,7 +11,7 @@ import { z } from "zod";
 import { createHash, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { loginFailure } from "@/lib/domain/auth-errors";
-export type ActionState = { error?: string; ok?: boolean; link?: string; mailStatus?: string; mailRequestedAt?: string };
+export type ActionState = { error?: string; ok?: boolean; link?: string; mailStatus?: string; mailRequestedAt?: string; data?: any };
 export async function login(
   _: ActionState,
   form: FormData,
@@ -205,6 +205,32 @@ export async function mutate(
         name = "advance_job";
         args = { p_id: p.id, p_action: p.action };
         break;
+      case "job-item":
+        name = "advance_job_item";
+        args = { p_item: p.item_id, p_action: p.action };
+        break;
+      case "complete-job-work":
+        name = "complete_job_work";
+        args = { p_job: p.id };
+        break;
+      case "pick-return-schedule":
+        name = "schedule_pick_return";
+        args = {
+          p_job: p.job_id,
+          p_leg: p.leg,
+          p_window_start: p.window_start,
+          p_window_end: p.window_end,
+          p_eta: p.eta ?? null,
+        };
+        break;
+      case "pick-return-stop":
+        name = "advance_pick_return_stop";
+        args = { p_stop: p.stop_id, p_action: p.action };
+        break;
+      case "cancellation-refund":
+        name = "confirm_cancellation_refund";
+        args = { p_request: p.request_id, p_method: p.method, p_reference: p.reference ?? null };
+        break;
       case "notified":
         name = "confirm_completion_notified";
         args = { p_id: p.id };
@@ -229,9 +255,9 @@ export async function mutate(
     if (error) return { error: error.message };
     revalidatePath("/app", "layout");
     if (operation === "send-quote" || operation === "resend-quote") return { mailRequestedAt: new Date().toISOString(), link: `/review/${data}`, mailStatus: await dispatchQuoteMail(db, String(p.id)) };
-    if (["job","document","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment"].includes(operation)) await dispatchWorkerMail();
+    if (["job","job-item","complete-job-work","pick-return-schedule","pick-return-stop","document","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment","cancellation-refund"].includes(operation)) await dispatchWorkerMail();
     if (operation === "extension-send") return {link:`/extension/${data}`};
-    if (operation === "job" && data) return { link: `/completion/${data}` };
+    if ((operation === "job" || operation === "complete-job-work") && data) return { link: `/completion/${data}` };
     if (operation === "customer") destination = `/app/customers/${data}`;
     else if (operation === "request-extension") destination=`/app/job-extensions/${data}`;
     else if (operation === "extension-scope") destination=`/app/job-extensions/${data}`;
@@ -260,14 +286,15 @@ export async function customerAction(
     if(error) return {error:error.message};
     revalidatePath(`/work/${token}`);revalidatePath(`/extension/${token}`);revalidatePath("/app","layout");return {ok:true};
   }
-  if (kind === "payment") {
+  if (kind === "payment" || kind === "pickup-payment") {
+    const pickupFee = kind === "pickup-payment";
     const method = String(form.get("method") || "");
     const requestKey = randomUUID();
     let proofPath: string | null = null;
     const file = form.get("proof");
 
-    if (!["Cash", "Zelle", "Venmo"].includes(method))
-      return { error: "Choose Cash, Zelle or Venmo." };
+    if (pickupFee ? !["Zelle", "Venmo"].includes(method) : !["Cash", "Zelle", "Venmo"].includes(method))
+      return { error: pickupFee ? "Choose Zelle or Venmo." : "Choose Cash, Zelle or Venmo." };
 
     if (method !== "Cash") {
       if (!(file instanceof File) || file.size === 0)
@@ -298,12 +325,19 @@ export async function customerAction(
       if (uploadError) return { error: "Could not upload payment proof." };
     }
 
-    const { error } = await db.rpc("public_submit_payment_request", {
-      p_token: token,
-      p_request: requestKey,
-      p_method: method,
-      p_proof_path: proofPath,
-    });
+    const { error } = pickupFee
+      ? await db.rpc("public_submit_pickup_fee_payment", {
+          p_token: token,
+          p_request: requestKey,
+          p_method: method,
+          p_proof_path: proofPath,
+        })
+      : await db.rpc("public_submit_payment_request", {
+          p_token: token,
+          p_request: requestKey,
+          p_method: method,
+          p_proof_path: proofPath,
+        });
 
     if (error) {
       if (proofPath) {
@@ -320,6 +354,11 @@ export async function customerAction(
     }
 
     await dispatchWorkerMail();
+    if (pickupFee) {
+      revalidatePath(`/pickup/${token}/payment`);
+      revalidatePath("/app", "layout");
+      return { ok: true };
+    }
     revalidatePath(`/completion/${token}`);
     revalidatePath("/app", "layout");
     return { ok: true, link: `/payment/${token}/confirmation` };
