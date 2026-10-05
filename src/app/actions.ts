@@ -309,8 +309,13 @@ export async function customerAction(
     if(error) return {error:error.message};
     revalidatePath(`/work/${token}`);revalidatePath(`/extension/${token}`);revalidatePath("/app","layout");return {ok:true};
   }
-  if (kind === "payment" || kind === "pickup-payment") {
+  if (
+    kind === "payment" ||
+    kind === "pickup-payment" ||
+    kind === "cancellation-payment"
+  ) {
     const pickupFee = kind === "pickup-payment";
+    const cancellationBalance = kind === "cancellation-payment";
     const method = String(form.get("method") || "");
     const requestKey = randomUUID();
     let proofPath: string | null = null;
@@ -334,7 +339,9 @@ export async function customerAction(
       if (!ext) return { error: "Use a PNG, JPG, or WebP screenshot." };
 
       const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const key =
+        process.env.SUPABASE_SECRET_KEY ??
+        process.env.SUPABASE_SERVICE_ROLE_KEY;
       if (!url || !key) return { error: "Payment upload is not configured." };
 
       const admin = createClient(url, key, {
@@ -355,17 +362,26 @@ export async function customerAction(
           p_method: method,
           p_proof_path: proofPath,
         })
-      : await db.rpc("public_submit_payment_request", {
-          p_token: token,
-          p_request: requestKey,
-          p_method: method,
-          p_proof_path: proofPath,
-        });
+      : cancellationBalance
+        ? await db.rpc("public_status_submit_cancellation_payment", {
+            p_token: token,
+            p_request: requestKey,
+            p_method: method,
+            p_proof_path: proofPath,
+          })
+        : await db.rpc("public_submit_payment_request", {
+            p_token: token,
+            p_request: requestKey,
+            p_method: method,
+            p_proof_path: proofPath,
+          });
 
     if (error) {
       if (proofPath) {
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const key =
+        process.env.SUPABASE_SECRET_KEY ??
+        process.env.SUPABASE_SERVICE_ROLE_KEY;
         if (url && key) {
           const admin = createClient(url, key, {
             auth: { persistSession: false, autoRefreshToken: false },
@@ -379,6 +395,11 @@ export async function customerAction(
     await dispatchWorkerMail();
     if (pickupFee) {
       revalidatePath(`/pickup/${token}/payment`);
+      revalidatePath("/app", "layout");
+      return { ok: true };
+    }
+    if (cancellationBalance) {
+      revalidatePath(`/status/${token}`);
       revalidatePath("/app", "layout");
       return { ok: true };
     }
