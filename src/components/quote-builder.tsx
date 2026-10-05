@@ -20,6 +20,7 @@ export function QuoteBuilder({
   initial,
   notes,
   extensionId,
+  getTaggedQuoteId,
 }: {
   customers: { id: string; name: string }[];
   customer?: string;
@@ -27,6 +28,7 @@ export function QuoteBuilder({
   initial?: QuoteItem[];
   notes?: string;
   extensionId?: string;
+  getTaggedQuoteId?: string;
 }) {
   const [items, setItems] = useState<QuoteItem[]>(
     (initial ?? []).filter((i) => !i.adaptation_fee && !i.paint_fee && !i.additional_engraving_fee).map((item) => ({ ...item, marks: item.marks?.map((m) => ({ ...m, paint_fill: m.paint_fill ?? item.paint_fill, paint_details: m.paint_details ?? (item.paint_fill ? item.paint_details : undefined) })) })),
@@ -42,8 +44,18 @@ export function QuoteBuilder({
     instructions: "",
   });
   const dialog = useRef<HTMLDialogElement>(null);
+  const operation = extensionId
+    ? "extension-scope"
+    : getTaggedQuoteId
+      ? "get-tagged-review"
+      : "quote";
+  const back = extensionId
+    ? `/app/job-extensions/${extensionId}`
+    : getTaggedQuoteId
+      ? `/app/quotes/${getTaggedQuoteId}`
+      : "/app/quotes";
   const [state, action, pending] = useActionState(
-    mutate.bind(null, extensionId ? "extension-scope" : "quote", extensionId ? `/app/job-extensions/${extensionId}` : "/app/quotes"),
+    mutate.bind(null, operation, back),
     {},
   );
   function open(index: number | null) {
@@ -88,6 +100,7 @@ export function QuoteBuilder({
     <>
       <form action={action}>
         {extensionId && <input type="hidden" name="id" value={extensionId}/>}
+        {getTaggedQuoteId && <input type="hidden" name="id" value={getTaggedQuoteId}/>}
         <input type="hidden" name="items" value={JSON.stringify(items)} />
         {revises && <input type="hidden" name="revises_id" value={revises} />}
         <label>
@@ -96,7 +109,7 @@ export function QuoteBuilder({
             name="customer_id"
             required
             defaultValue={customer}
-            disabled={!!revises || !!extensionId}
+            disabled={!!revises || !!extensionId || !!getTaggedQuoteId}
           >
             <option value="">Seleccionar cliente…</option>
             {customers.map((c) => (
@@ -161,10 +174,14 @@ export function QuoteBuilder({
         )}
         <button disabled={pending || !items.length}>
           {pending
-            ? "Guardando…"
-            : revises
-              ? "Crear revisión"
-              : extensionId ? "Guardar propuesta de extensión" : "Guardar cotización"}
+            ? "Saving…"
+            : getTaggedQuoteId
+              ? "Complete Request Review"
+              : revises
+                ? "Create Revision"
+                : extensionId
+                  ? "Save Extension Proposal"
+                  : "Save Quote"}
         </button>
       </form>
       <dialog
