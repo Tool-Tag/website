@@ -139,7 +139,9 @@ export async function Quotes({
                   customer={contact.id}
                   getTaggedQuoteId={id}
                   notes={q.notes ?? ""}
-                  initial={items.map((i) => ({
+                  initial={items
+                    .filter((i) => i.pricing?.kind !== "pickup_service_fee")
+                    .map((i) => ({
                     marks: i.marks,
                     paint_details: i.paint_details?.mode
                       ? i.paint_details
