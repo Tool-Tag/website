@@ -120,7 +120,10 @@ export async function Jobs({ id }: { id?: string }) {
 
   const jobItems = [...rawJobItems].sort((a, b) => Number(a.sequence) - Number(b.sequence));
   const pickupReturn = pickupRows[0] ?? null;
-  const activeCancellation = cancellationRows.find((request) => request.status === "Requested") ?? null;
+  const activeCancellation =
+    cancellationRows.find((request) => request.status === "Requested") ?? null;
+  const cancelledRequest =
+    cancellationRows.find((request) => request.status === "Cancelled") ?? null;
 
   const pendingPayment = paymentRequests.find(
     (request) => request.status === "Pending Verification",
@@ -260,7 +263,95 @@ export async function Jobs({ id }: { id?: string }) {
     </>
   ) : null;
 
-  const workTab = (
+  const cancelledWorkTab = (
+    <>
+      <Panel title="Job Cancelled">
+        <p className="notice error">
+          This Job has been cancelled. Production actions are locked.
+        </p>
+        {cancelledRequest && (
+          <div className="grid two">
+            <div>
+              <small>Cancellation stage</small>
+              <p><strong>{cancelledRequest.stage_at_request || "—"}</strong></p>
+            </div>
+            <div>
+              <small>Engraving progress</small>
+              <p>
+                <strong>
+                  {cancelledRequest.items_finished}/{cancelledRequest.items_total} items finished
+                </strong>
+              </p>
+            </div>
+            <div>
+              <small>Cancellation charge</small>
+              <p><strong>{money(cancelledRequest.service_charge_amount)}</strong></p>
+            </div>
+            <div>
+              <small>Refund eligible</small>
+              <p><strong>{money(cancelledRequest.refund_eligible_amount)}</strong></p>
+            </div>
+          </div>
+        )}
+      </Panel>
+
+      {pendingPayment?.purpose === "Cancellation Balance" && (
+        <Panel title="Cancellation payment verification">
+          <p>
+            <strong>{pendingPayment.method}</strong> · {money(pendingPayment.amount)} ·{" "}
+            {paymentStatusLabel(pendingPayment.status)}
+          </p>
+          {pendingProofUrl && (
+            <p>
+              <a href={pendingProofUrl} target="_blank" rel="noreferrer">
+                View payment proof →
+              </a>
+            </p>
+          )}
+          {role === "admin" && (
+            <Form
+              operation="confirm-payment"
+              hidden={{ id: pendingPayment.id }}
+              fields={[]}
+              button="Confirm cancellation payment"
+              back={`/app/jobs/${id}`}
+            />
+          )}
+        </Panel>
+      )}
+
+      {cancelledRequest?.refund_status === "Pending" && (
+        <Panel title="Refund pending">
+          <p>
+            Refund to issue:{" "}
+            <strong>{money(cancelledRequest.refund_eligible_amount)}</strong>
+          </p>
+          <Link className="button" href="/app/refunds">
+            Open Refunds
+          </Link>
+        </Panel>
+      )}
+
+      {pickupReturn?.pickup_status === "Picked Up" && (
+        <Panel title="Return customer items">
+          <p>
+            ToolTag has this customer&apos;s items. Return status:{" "}
+            <strong>{pickupReturn.return_status}</strong>.
+          </p>
+          {pickupReturn.hold_until_paid && (
+            <p className="notice">
+              Return is on hold until the cancellation balance is confirmed.
+            </p>
+          )}
+          <Link className="button" href="/pick-return">
+            Open Pick & Return
+          </Link>
+        </Panel>
+      )}
+    </>
+  );
+
+  const workTab = j.status === "Cancelled" ? cancelledWorkTab : (
     <>
       {stage === "Not Started" && !pickupReturn && (
         <>
