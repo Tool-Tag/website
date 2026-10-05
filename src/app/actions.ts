@@ -218,8 +218,8 @@ export async function mutate(
         args = { p_item: p.item_id, p_action: p.action };
         break;
       case "complete-job-work":
-        name = "complete_job_work";
-        args = { p_job: p.id };
+        name = "complete_job_production";
+        args = { p_id: p.id };
         break;
       case "pick-return-schedule":
         name = "schedule_pick_return";
