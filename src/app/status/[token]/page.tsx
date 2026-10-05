@@ -1,4 +1,6 @@
+import { CancellationBalanceForm } from "@/components/cancellation-balance-form";
 import { StatusCancellation } from "@/components/status-cancellation";
+import { money } from "@/lib/domain/money";
 import { supabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +50,14 @@ const labels: Record<string, { title: string; description: string }> = {
     title: "Delivered",
     description: "Your items have been delivered and delivery evidence has been recorded.",
   },
+  Cancelled: {
+    title: "Cancelled",
+    description: "This ToolTag service has been cancelled.",
+  },
+  "Cancellation Balance": {
+    title: "Cancellation Balance",
+    description: "A cancellation balance must be confirmed before ToolTag can return items already in its possession.",
+  },
   Completed: {
     title: "Completed",
     description: "Your ToolTag Job has been completed.",
@@ -81,6 +91,14 @@ export default async function JobStatusPage({
       </main>
     );
   }
+
+  const cancellationFinance = data.cancelled
+    ? (
+        await db.rpc("public_status_cancellation_finance", {
+          p_token: token,
+        })
+      ).data
+    : null;
 
   const steps = Array.isArray(data.steps)
     ? data.steps
@@ -186,6 +204,61 @@ export default async function JobStatusPage({
           Last updated: {new Date(data.updated_at).toLocaleString("en-US")}
         </p>
       </section>
+
+      {data.cancelled && cancellationFinance && (
+        <>
+          {Number(cancellationFinance.refund_eligible_amount ?? 0) > 0 && (
+            <section className="panel">
+              <p className="status-kicker">Refund</p>
+              <h2>{money(cancellationFinance.refund_eligible_amount)}</h2>
+              {cancellationFinance.refund_status === "Completed" ? (
+                <p className="notice success">
+                  ToolTag has processed this refund. Your bank or payment provider
+                  may require additional time before the funds appear.
+                </p>
+              ) : (
+                <p className="notice">
+                  Refund pending. Approved refunds are generally processed within
+                  5–7 business days after ToolTag confirms the refund.
+                </p>
+              )}
+            </section>
+          )}
+
+          {Number(cancellationFinance.balance_remaining ?? 0) > 0 &&
+            cancellationFinance.payment?.status === "Pending Verification" && (
+              <section className="panel">
+                <p className="status-kicker">Cancellation balance</p>
+                <h2>{money(cancellationFinance.balance_remaining)} pending verification</h2>
+                <p className="notice">
+                  ToolTag received your {cancellationFinance.payment.method} payment
+                  submission. If ToolTag has your items, Return remains on hold until
+                  the payment is verified.
+                </p>
+              </section>
+            )}
+
+          {Number(cancellationFinance.balance_remaining ?? 0) > 0 &&
+            cancellationFinance.payment?.status !== "Pending Verification" && (
+              <CancellationBalanceForm
+                token={token}
+                amount={cancellationFinance.balance_remaining}
+                zelleEmail={cancellationFinance.zelle_email}
+                venmoHandle={cancellationFinance.venmo_handle}
+              />
+            )}
+
+          {Number(cancellationFinance.amount_due ?? 0) > 0 &&
+            Number(cancellationFinance.balance_remaining ?? 0) <= 0 && (
+              <p className="notice success">
+                Cancellation balance paid and confirmed.
+                {pickup?.pickup_status === "Picked Up"
+                  ? " ToolTag can continue the Return process."
+                  : ""}
+              </p>
+            )}
+        </>
+      )}
 
       {!data.cancelled && data.job_status !== "Completed" && (
         <StatusCancellation token={token} />
