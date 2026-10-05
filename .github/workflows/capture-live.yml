@@ -25,6 +25,7 @@ jobs:
           mkdir -p recovered-live
           curl -fL --retry 3 --retry-delay 2 https://tooltag.martinlab.studio/ -o recovered-live/index.html
           curl -fL --retry 3 --retry-delay 2 https://tooltag.martinlab.studio/get-tagged -o recovered-live/get-tagged.html
+          curl -fL --retry 3 --retry-delay 2 "https://tooltag.martinlab.studio/get-tagged/thanks?reference=TT-R-RECOVERY" -o recovered-live/get-tagged-thanks.html
           for path in app.js styles.css favicon.ico; do
             if curl -fL --retry 2 "https://tooltag.martinlab.studio/$path" -o "recovered-live/$path"; then
               echo "Captured $path"
@@ -41,6 +42,7 @@ jobs:
           pages = [
               ("https://tooltag.martinlab.studio/", Path("recovered-live/index.html")),
               ("https://tooltag.martinlab.studio/get-tagged", Path("recovered-live/get-tagged.html")),
+              ("https://tooltag.martinlab.studio/get-tagged/thanks?reference=TT-R-RECOVERY", Path("recovered-live/get-tagged-thanks.html")),
           ]
           refs = set()
           for page_url, page_path in pages:
