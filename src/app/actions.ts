@@ -264,7 +264,7 @@ export async function mutate(
     else if (operation === "quote") destination = `/app/quotes/${data}`;
     else if (operation === "movement" && p.type === "EXPENSE")
       destination = `/app/finance/expenses?created=${data}`;
-    else if (back.startsWith("/app")) destination = back;
+    else if (back.startsWith("/app") || back.startsWith("/pick-return")) destination = back;
   } catch (e) {
     return { error: e instanceof Error ? e.message : "No se pudo guardar" };
   }
