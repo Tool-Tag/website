@@ -98,7 +98,7 @@ export function CancellationAction({
                 {chargePercent > 0 && (
                   <p>
                     Service amount due under the cancellation policy:{" "}
-                    <strong>{chargePercent}%</strong> ($${chargeAmount.toFixed(2)})
+                    <strong>{chargePercent}%</strong> (${chargeAmount.toFixed(2)})
                   </p>
                 )}
 
@@ -112,7 +112,7 @@ export function CancellationAction({
 
                 {pickupFee > 0 && assessment.pickup_fee_refundable && (
                   <p className="notice success">
-                    Pickup fee eligible for refund: $${pickupRefund.toFixed(2)}
+                    Pickup fee eligible for refund: ${pickupRefund.toFixed(2)}
                   </p>
                 )}
 
@@ -124,13 +124,13 @@ export function CancellationAction({
 
                 {refund > 0 && (
                   <p>
-                    Eligible refund: <strong>$${refund.toFixed(2)}</strong>. Approved refunds are generally processed within 5–7 business days after ToolTag confirms the refund.
+                    Eligible refund: <strong>${refund.toFixed(2)}</strong>. Approved refunds are generally processed within 5–7 business days after ToolTag confirms the refund.
                   </p>
                 )}
 
                 {amountDue > 0 && (
                   <p className="notice error">
-                    Outstanding amount due after cancellation: <strong>$${amountDue.toFixed(2)}</strong>.
+                    Outstanding amount due after cancellation: <strong>${amountDue.toFixed(2)}</strong>.
                     Customer-owned items will not be released while an applicable Job balance remains unpaid, except where applicable law requires otherwise.
                   </p>
                 )}
