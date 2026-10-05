@@ -15,6 +15,7 @@ export function Nav({ bottom = false }: { bottom?: boolean }) {
         ["jobs", "Jobs"],
         ["customers", "Customers"],
         ["finance", "Finance"],
+        ["refunds", "Refunds"],
         ["equipment", "Equipment"],
       ];
   return (
