@@ -115,6 +115,7 @@ export async function mutate(
         }).parse(p);
         name = "save_customer";
         break;
+      case "get-tagged-review":
       case "extension-scope":
       case "quote":
         p.items = z
@@ -174,7 +175,18 @@ export async function mutate(
             }
             return { ...item, sort_order: index };
           });
-        name = operation === "extension-scope" ? "save_job_extension" : "create_quote";
+        if (operation === "get-tagged-review") {
+          name = "review_get_tagged_quote";
+          args = {
+            p: {
+              id: p.id,
+              items: p.items,
+              notes: p.notes ?? "",
+            },
+          };
+        } else {
+          name = operation === "extension-scope" ? "save_job_extension" : "create_quote";
+        }
         break;
       case "movement":
         cents(String(p.amount));
@@ -268,6 +280,7 @@ export async function mutate(
     if ((operation === "job" || operation === "complete-job-work") && data) return { link: `/completion/${data}` };
     if (operation === "get-tagged-approve" && data) destination = `/app/quotes/${data}`;
     else if (operation === "get-tagged-reject") destination = "/app/get-tagged";
+    else if (operation === "get-tagged-review") destination = back;
     else if (operation === "customer") destination = `/app/customers/${data}`;
     else if (operation === "request-extension") destination=`/app/job-extensions/${data}`;
     else if (operation === "extension-scope") destination=`/app/job-extensions/${data}`;
