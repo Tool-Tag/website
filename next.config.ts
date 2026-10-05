@@ -22,6 +22,7 @@ const config: NextConfig = {
         ],
       },
       ...[
+        "/get-tagged/:path*",
         "/review/:path*",
         "/accept/:path*",
         "/work/:path*",
