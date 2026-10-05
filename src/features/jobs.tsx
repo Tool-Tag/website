@@ -7,7 +7,7 @@ import { rows, context } from "@/lib/domain/context";
 import { Heading, Panel, Table, Empty, Badge } from "@/components/ui";
 import { QuoteScope } from "@/components/quote-scope";
 import { Form } from "@/components/form";
-import { WorkPreparation } from "@/components/work-preparation";
+import { JobItemWorkflow } from "@/components/job-item-workflow";
 import { money } from "@/lib/domain/money";
 import { jobStatusLabel, paymentStatusLabel, workStageLabel } from "@/lib/domain/status-labels";
 
@@ -109,11 +109,14 @@ export async function Jobs({ id }: { id?: string }) {
   const j = (await rows("jobs", { id }))[0];
   if (!j) return <Empty>Trabajo no encontrado.</Empty>;
 
-  const [docs, sales, paymentRequests] = await Promise.all([
+  const [docs, sales, paymentRequests, jobItems, pickupOrders] = await Promise.all([
     rows("documents", { field: "job_id", value: id }),
     rows("sale_balances", { field: "job_id", value: id }),
     rows("payment_requests", { field: "job_id", value: id, order: "submitted_at" }),
+    rows("job_items", { field: "job_id", value: id, order: "sequence" }),
+    rows("pick_return_orders", { field: "job_id", value: id }),
   ]);
+  const pickupOrder = pickupOrders[0] ?? null;
 
   const pendingPayment = paymentRequests.find(
     (request) => request.status === "Pending Verification",
@@ -133,7 +136,6 @@ export async function Jobs({ id }: { id?: string }) {
   });
 
   const receivingFiles = docs.filter((d) => d.type === "Receiving Evidence");
-  const completedFiles = docs.filter((d) => d.type === "Completed Evidence");
   const stage = j.work_stage ?? "Not Started";
   const receivingEvidence = (
     <Panel title="Evidencia de cómo se recibió">
@@ -168,52 +170,31 @@ export async function Jobs({ id }: { id?: string }) {
     </Panel>
   );
 
-  const completedEvidence = (
-    <Panel title="Evidencia de trabajo terminado">
-      <EvidenceGallery files={completedFiles} />
-      {role === "admin" && (
-        <details>
-          <summary>Administración: vincular archivo existente de Drive</summary>
-          <p className="muted">
-            Carga el archivo directamente en Drive y registra su ID. La integración
-            de subida directa sigue pendiente.
-          </p>
-          <Form
-            operation="document"
-            hidden={{ job_id: id, type: "Completed Evidence" }}
-            back={`/app/jobs/${id}`}
-            fields={[
-              {
-                name: "file_name",
-                label: "Nombre",
-                required: true,
-                value: `${j.code}-Completed-${String(completedFiles.length + 1).padStart(2, "0")}.jpg`,
-              },
-              {
-                name: "drive_file_id",
-                label: "Drive File ID",
-                required: true,
-              },
-            ]}
-          />
-        </details>
-      )}
-    </Panel>
-  );
-
   const workTab = (
     <>
-      {stage === "Not Started" && (
-        <Panel title="Comenzar trabajo">
-          <p className="muted">
-            Inicia el flujo operativo de este Job.
+      {stage === "Not Started" && pickupOrder && (
+        <Panel title="Pickup & Return">
+          <p>
+            Pickup fee: <strong>{money(pickupOrder.fee_amount)}</strong> · {pickupOrder.fee_status}
           </p>
+          <p className="muted">
+            This Job enters production automatically after the items are picked up and Receiving Evidence is recorded.
+          </p>
+          <Link className="button secondary" href="/pick-return">
+            Open Pick & Return
+          </Link>
+        </Panel>
+      )}
+
+      {stage === "Not Started" && !pickupOrder && (
+        <Panel title="Start Job">
+          <p className="muted">Start the operational workflow for this Job.</p>
           <Form
             operation="job"
             hidden={{ id, action: "start" }}
             fields={[]}
             back={`/app/jobs/${id}`}
-            button="Comenzar trabajo"
+            button="Start Job"
           />
         </Panel>
       )}
@@ -221,55 +202,25 @@ export async function Jobs({ id }: { id?: string }) {
       {stage === "Receiving Evidence" && (
         <>
           {receivingEvidence}
-          <Panel title="Siguiente paso">
-            <p className="muted">
-              Cuando la evidencia de recepción esté registrada, continúa a preparación.
-            </p>
-            <Form
-              operation="job"
-              hidden={{ id, action: "receiving-done" }}
-              fields={[]}
-              back={`/app/jobs/${id}`}
-              button="Siguiente"
-            />
-          </Panel>
-        </>
-      )}
-
-      {stage === "Preparing" && (
-        <>
-          <Panel title="Preparando">
-            <p className="muted">
-              Revisa aquí exactamente lo aprobado antes de comenzar el grabado.
-            </p>
-            <WorkPreparation items={scope} />
-          </Panel>
           <Form
             operation="job"
-            hidden={{ id, action: "preparation-done" }}
+            hidden={{ id, action: "receiving-done" }}
             fields={[]}
             back={`/app/jobs/${id}`}
-            button="Siguiente"
+            button="Next"
           />
         </>
       )}
 
-      {["Final Evidence", "Final Details"].includes(stage) && (
-        <>
-          {completedEvidence}
-          <Panel title="Terminar trabajo">
-            <p className="muted">
-              Al marcar Terminado se enviará al cliente la notificación con el enlace seguro para aceptar la entrega.
-            </p>
-            <Form
-              operation="job"
-              hidden={{ id, action: "finished" }}
-              fields={[]}
-              back={`/app/jobs/${id}`}
-              button="Terminado"
-            />
-          </Panel>
-        </>
+      {["Preparing", "Engraving", "Final Evidence", "Final Details", "Delivery In Progress"].includes(stage) && (
+        <JobItemWorkflow
+          jobId={id}
+          jobCode={j.code}
+          items={jobItems}
+          files={docs}
+          role={role}
+          pickupReturn={Boolean(pickupOrder)}
+        />
       )}
 
       {stage === "Awaiting Delivery Acceptance" && (
