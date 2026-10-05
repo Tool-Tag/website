@@ -6,15 +6,16 @@ export function Nav({ bottom = false }: { bottom?: boolean }) {
   const links = bottom
     ? [
         ["finance-hub", "Finance Hub"],
-        ["settings", "Configuración"],
+        ["settings", "Settings"],
       ]
     : [
         ["", "Dashboard"],
-        ["quotes", "Cotizaciones"],
-        ["jobs", "Trabajos"],
-        ["customers", "Clientes"],
-        ["finance", "Finanzas"],
-        ["equipment", "Equipo"],
+        ["get-tagged", "Get Tagged Requests"],
+        ["quotes", "Quotes"],
+        ["jobs", "Jobs"],
+        ["customers", "Customers"],
+        ["finance", "Finance"],
+        ["equipment", "Equipment"],
       ];
   return (
     <nav>
