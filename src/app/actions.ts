@@ -11,7 +11,7 @@ import { z } from "zod";
 import { createHash, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { loginFailure } from "@/lib/domain/auth-errors";
-export type ActionState = { error?: string; ok?: boolean; link?: string; mailStatus?: string; mailRequestedAt?: string };
+export type ActionState = { error?: string; ok?: boolean; link?: string; mailStatus?: string; mailRequestedAt?: string; data?: any };
 export async function login(
   _: ActionState,
   form: FormData,
@@ -115,6 +115,7 @@ export async function mutate(
         }).parse(p);
         name = "save_customer";
         break;
+      case "get-tagged-review":
       case "extension-scope":
       case "quote":
         p.items = z
@@ -174,7 +175,18 @@ export async function mutate(
             }
             return { ...item, sort_order: index };
           });
-        name = operation === "extension-scope" ? "save_job_extension" : "create_quote";
+        if (operation === "get-tagged-review") {
+          name = "review_get_tagged_quote";
+          args = {
+            p: {
+              id: p.id,
+              items: p.items,
+              notes: p.notes ?? "",
+            },
+          };
+        } else {
+          name = operation === "extension-scope" ? "save_job_extension" : "create_quote";
+        }
         break;
       case "movement":
         cents(String(p.amount));
@@ -197,6 +209,14 @@ export async function mutate(
         name = "resend_quote";
         args = { p_id: p.id };
         break;
+      case "get-tagged-approve":
+        name = "approve_get_tagged";
+        args = { p_id: p.id, p_customer: p.customer_id ?? null };
+        break;
+      case "get-tagged-reject":
+        name = "reject_get_tagged";
+        args = { p_id: p.id, p_reason: p.reason ?? null };
+        break;
       case "send-quote":
         name = form.get("resend") === "true" ? "resend_quote" : "send_quote_to";
         args = form.get("resend") === "true" ? { p_id: p.id } : { p_id: p.id, p_recipient: String(form.get("recipient") || "").trim(), p_regenerate: form.get("regenerate") === "on" };
@@ -204,6 +224,32 @@ export async function mutate(
       case "job":
         name = "advance_job";
         args = { p_id: p.id, p_action: p.action };
+        break;
+      case "job-item":
+        name = "advance_job_item";
+        args = { p_item: p.item_id, p_action: p.action };
+        break;
+      case "complete-job-work":
+        name = "complete_job_production";
+        args = { p_id: p.id };
+        break;
+      case "pick-return-schedule":
+        name = "schedule_pick_return";
+        args = {
+          p_job: p.job_id,
+          p_leg: p.leg,
+          p_window_start: p.window_start,
+          p_window_end: p.window_end,
+          p_eta: p.eta ?? null,
+        };
+        break;
+      case "pick-return-stop":
+        name = "advance_pick_return_stop";
+        args = { p_stop: p.stop_id, p_action: p.action };
+        break;
+      case "cancellation-refund":
+        name = "confirm_cancellation_refund";
+        args = { p_request: p.request_id, p_method: p.method, p_reference: p.reference ?? null };
         break;
       case "notified":
         name = "confirm_completion_notified";
@@ -229,16 +275,19 @@ export async function mutate(
     if (error) return { error: error.message };
     revalidatePath("/app", "layout");
     if (operation === "send-quote" || operation === "resend-quote") return { mailRequestedAt: new Date().toISOString(), link: `/review/${data}`, mailStatus: await dispatchQuoteMail(db, String(p.id)) };
-    if (["job","document","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment"].includes(operation)) await dispatchWorkerMail();
+    if (["job","job-item","complete-job-work","pick-return-schedule","pick-return-stop","document","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment","cancellation-refund"].includes(operation)) await dispatchWorkerMail();
     if (operation === "extension-send") return {link:`/extension/${data}`};
-    if (operation === "job" && data) return { link: `/completion/${data}` };
-    if (operation === "customer") destination = `/app/customers/${data}`;
+    if ((operation === "job" || operation === "complete-job-work") && data) return { link: `/completion/${data}` };
+    if (operation === "get-tagged-approve" && data) destination = `/app/quotes/${data}`;
+    else if (operation === "get-tagged-reject") destination = "/app/get-tagged";
+    else if (operation === "get-tagged-review") destination = back;
+    else if (operation === "customer") destination = `/app/customers/${data}`;
     else if (operation === "request-extension") destination=`/app/job-extensions/${data}`;
     else if (operation === "extension-scope") destination=`/app/job-extensions/${data}`;
     else if (operation === "quote") destination = `/app/quotes/${data}`;
     else if (operation === "movement" && p.type === "EXPENSE")
       destination = `/app/finance/expenses?created=${data}`;
-    else if (back.startsWith("/app")) destination = back;
+    else if (back.startsWith("/app") || back.startsWith("/pick-return")) destination = back;
   } catch (e) {
     return { error: e instanceof Error ? e.message : "No se pudo guardar" };
   }
@@ -260,14 +309,20 @@ export async function customerAction(
     if(error) return {error:error.message};
     revalidatePath(`/work/${token}`);revalidatePath(`/extension/${token}`);revalidatePath("/app","layout");return {ok:true};
   }
-  if (kind === "payment") {
+  if (
+    kind === "payment" ||
+    kind === "pickup-payment" ||
+    kind === "cancellation-payment"
+  ) {
+    const pickupFee = kind === "pickup-payment";
+    const cancellationBalance = kind === "cancellation-payment";
     const method = String(form.get("method") || "");
     const requestKey = randomUUID();
     let proofPath: string | null = null;
     const file = form.get("proof");
 
-    if (!["Cash", "Zelle", "Venmo"].includes(method))
-      return { error: "Choose Cash, Zelle or Venmo." };
+    if (pickupFee ? !["Zelle", "Venmo"].includes(method) : !["Cash", "Zelle", "Venmo"].includes(method))
+      return { error: pickupFee ? "Choose Zelle or Venmo." : "Choose Cash, Zelle or Venmo." };
 
     if (method !== "Cash") {
       if (!(file instanceof File) || file.size === 0)
@@ -284,7 +339,9 @@ export async function customerAction(
       if (!ext) return { error: "Use a PNG, JPG, or WebP screenshot." };
 
       const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const key =
+        process.env.SUPABASE_SECRET_KEY ??
+        process.env.SUPABASE_SERVICE_ROLE_KEY;
       if (!url || !key) return { error: "Payment upload is not configured." };
 
       const admin = createClient(url, key, {
@@ -298,17 +355,33 @@ export async function customerAction(
       if (uploadError) return { error: "Could not upload payment proof." };
     }
 
-    const { error } = await db.rpc("public_submit_payment_request", {
-      p_token: token,
-      p_request: requestKey,
-      p_method: method,
-      p_proof_path: proofPath,
-    });
+    const { error } = pickupFee
+      ? await db.rpc("public_submit_pickup_fee_payment", {
+          p_token: token,
+          p_request: requestKey,
+          p_method: method,
+          p_proof_path: proofPath,
+        })
+      : cancellationBalance
+        ? await db.rpc("public_status_submit_cancellation_payment", {
+            p_token: token,
+            p_request: requestKey,
+            p_method: method,
+            p_proof_path: proofPath,
+          })
+        : await db.rpc("public_submit_payment_request", {
+            p_token: token,
+            p_request: requestKey,
+            p_method: method,
+            p_proof_path: proofPath,
+          });
 
     if (error) {
       if (proofPath) {
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const key =
+        process.env.SUPABASE_SECRET_KEY ??
+        process.env.SUPABASE_SERVICE_ROLE_KEY;
         if (url && key) {
           const admin = createClient(url, key, {
             auth: { persistSession: false, autoRefreshToken: false },
@@ -320,6 +393,16 @@ export async function customerAction(
     }
 
     await dispatchWorkerMail();
+    if (pickupFee) {
+      revalidatePath(`/pickup/${token}/payment`);
+      revalidatePath("/app", "layout");
+      return { ok: true };
+    }
+    if (cancellationBalance) {
+      revalidatePath(`/status/${token}`);
+      revalidatePath("/app", "layout");
+      return { ok: true };
+    }
     revalidatePath(`/completion/${token}`);
     revalidatePath("/app", "layout");
     return { ok: true, link: `/payment/${token}/confirmation` };
