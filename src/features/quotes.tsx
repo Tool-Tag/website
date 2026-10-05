@@ -79,6 +79,12 @@ export async function Quotes({
     const latestMail = quoteMail.data?.[0];
     const items = await rows("quote_items", { field: "quote_id", value: id });
     const jobs = await rows("jobs", { field: "flow_id", value: q.flow_id });
+    const needsIntakeReview =
+      q.source === "public_get_tagged" &&
+      q.status === "Draft" &&
+      !q.intake_reviewed_at;
+    const intake = q.intake_details ?? {};
+    const service = intake.service ?? {};
     return (
       <>
         <Heading title={q.code} subtitle={`Versión ${q.revision}`}>
@@ -90,28 +96,100 @@ export async function Quotes({
             Crear revisión
           </Link>
         </Heading>
-        <Panel title="Artículos aprobables">
-          <QuoteScope items={items} />
-          <h2 style={{ marginTop: 20 }}>
-            Total:{" "}
-            {money(
-              quoteTotal(
-                items.map((i) => ({
-                  quantity: i.quantity,
-                  unit_price: String(i.unit_price),
-                })),
-              ),
+        {needsIntakeReview ? (
+          <>
+            <Panel title="Review Get Tagged Request">
+              <div className="grid two">
+                <div>
+                  <small>Customer</small>
+                  <p><strong>{contact?.name ?? "—"}</strong></p>
+                  <p className="muted">
+                    {contact?.email ?? "—"} · {contact?.phone ?? "—"}
+                  </p>
+                </div>
+                <div>
+                  <small>Service</small>
+                  <p><strong>{service.method ?? "Not selected"}</strong></p>
+                  {service.address && <p className="muted">{service.address}</p>}
+                </div>
+              </div>
+
+              {service.method === "Pickup" && (
+                <div className="notice">
+                  Pickup & Return · Agreement v{service.agreement_version ?? 2} ·
+                  Pickup Service Fee ${Number(service.pickup_fee ?? 10).toFixed(2)}
+                  <br />
+                  The Agreement version shown to the customer with this Request is
+                  frozen on the Quote when you approve the Request.
+                </div>
+              )}
+
+              <p className="muted">
+                Review every item and mark, set the base service price for each
+                production item, and adjust notes if needed. Automatic engraving,
+                paint-fill, logo-preparation, and Pickup fees are recalculated when
+                you complete this review.
+              </p>
+            </Panel>
+
+            {contact ? (
+              <Panel title="Price & Review">
+                <QuoteBuilder
+                  customers={[{ id: contact.id, name: contact.name }]}
+                  customer={contact.id}
+                  getTaggedQuoteId={id}
+                  notes={q.notes ?? ""}
+                  initial={items.map((i) => ({
+                    marks: i.marks,
+                    paint_details: i.paint_details?.mode
+                      ? i.paint_details
+                      : undefined,
+                    adaptation_fee: i.adaptation_fee,
+                    paint_fee: i.paint_fee,
+                    additional_engraving_fee: i.additional_engraving_fee,
+                    article: i.article,
+                    quantity: i.quantity,
+                    engraving_type: i.engraving_type,
+                    engraving_text: i.engraving_text ?? "",
+                    width_mm: String(i.width_mm ?? ""),
+                    height_mm: String(i.height_mm ?? ""),
+                    paint_fill: i.paint_fill,
+                    colors: i.colors,
+                    unit_price: String(i.unit_price),
+                    notes: i.notes ?? "",
+                  }))}
+                />
+              </Panel>
+            ) : (
+              <p className="notice error">
+                Customer record is missing. Resolve the Request before pricing.
+              </p>
             )}
-          </h2>
-          <p>{q.notes}</p>
-        </Panel>
-        {["Draft", "Sent", "Viewed"].includes(q.status) && (
-          <Panel title="Compartir con el cliente">
+          </>
+        ) : (
+          <Panel title="Quote Scope">
+            <QuoteScope items={items} />
+            <h2 style={{ marginTop: 20 }}>
+              Total:{" "}
+              {money(
+                quoteTotal(
+                  items.map((i) => ({
+                    quantity: i.quantity,
+                    unit_price: String(i.unit_price),
+                  })),
+                ),
+              )}
+            </h2>
+            <p>{q.notes}</p>
+          </Panel>
+        )}
+
+        {!needsIntakeReview && ["Draft", "Sent", "Viewed"].includes(q.status) && (
+          <Panel title="Share with Customer">
             <p className="muted">
-              Envía al cliente un enlace privado para revisar la cotización y
-              aceptar el Agreement. El enlace será válido por 7 días desde el
-              primer envío. El destinatario elegido queda fijado para esta versión.
-              También puedes copiar el enlace y ver el correo preparado.
+              Send the customer a private link to review the Quote and Agreement.
+              The link is valid for 7 days from the first send. The selected
+              recipient is locked for this revision.
             </p>
             <SendQuote id={id} sent={Boolean(q.sent_at)} lastRequestedAt={latestMail?.mail_attempted_at || latestMail?.created_at || q.sent_at} email={delivery?.recipient || contact?.email} companyEmail={delivery?.recipient ? undefined : contact?.company_email} />
           </Panel>
