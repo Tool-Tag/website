@@ -2,7 +2,7 @@ import Link from "next/link";
 import { context } from "@/lib/domain/context";
 import { Form } from "@/components/form";
 import { EvidenceGallery } from "@/components/evidence-gallery";
-import { EvidenceUpload } from "@/components/evidence-upload";
+import { EvidenceCapture } from "@/components/evidence-capture";
 import { Badge, Panel, Empty } from "@/components/ui";
 import { money } from "@/lib/domain/money";
 
@@ -220,16 +220,13 @@ export default async function PickReturnPage() {
                       {role === "admin" && (
                         <details open={!evidence.length}>
                           <summary>{isPickup ? "Add Pickup Receiving Evidence" : "Add Return Delivery Evidence"}</summary>
-                          <EvidenceUpload
+                          <EvidenceCapture
                             config={{
                               jobId: job.id,
                               pickReturnStopId: stop.id,
                               type: isPickup ? "Receiving Evidence" : "Delivery Evidence",
                               defaultVisibility: isPickup ? "internal" : "customer",
-                              photoOnly: true,
                             }}
-                            button="Upload Photo"
-                            accept="image/*"
                           />
                         </details>
                       )}
