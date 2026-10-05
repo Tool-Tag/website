@@ -1,4 +1,5 @@
 import { EvidenceGallery } from "@/components/evidence-gallery";
+import { EvidenceCapture } from "@/components/evidence-capture";
 import { EvidenceUpload } from "@/components/evidence-upload";
 import { JobLifecycle } from "@/components/job-lifecycle";
 import { JobTabs } from "@/components/job-tabs";
@@ -169,15 +170,12 @@ export async function Jobs({ id }: { id?: string }) {
       {role === "admin" && (
         <details open={!receivingFiles.length}>
           <summary>Add Receiving Evidence</summary>
-          <EvidenceUpload
+          <EvidenceCapture
             config={{
               jobId: id,
               type: "Receiving Evidence",
               defaultVisibility: "internal",
-              photoOnly: true,
             }}
-            button="Upload Photo"
-            accept="image/*"
           />
         </details>
       )}
@@ -207,16 +205,13 @@ export async function Jobs({ id }: { id?: string }) {
             {role === "admin" && currentItem.stage === "Engraving" && (
               <details open={!itemEvidence.length}>
                 <summary>Add Completed Evidence for this item</summary>
-                <EvidenceUpload
+                <EvidenceCapture
                   config={{
                     jobId: id,
                     jobItemId: currentItem.id,
                     type: "Production Evidence",
                     defaultVisibility: "customer",
-                    photoOnly: true,
                   }}
-                  button="Upload Photo"
-                  accept="image/*"
                 />
               </details>
             )}
