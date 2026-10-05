@@ -205,6 +205,18 @@ export async function mutate(
         name = "advance_job";
         args = { p_id: p.id, p_action: p.action };
         break;
+      case "job-item":
+        name = "advance_job_item";
+        args = { p_item: p.id, p_action: p.action };
+        break;
+      case "complete-production":
+        name = "complete_job_production";
+        args = { p_id: p.id };
+        break;
+      case "pick-return-stop":
+        name = "advance_pick_return_stop";
+        args = { p_stop: p.id, p_action: p.action };
+        break;
       case "notified":
         name = "confirm_completion_notified";
         args = { p_id: p.id };
@@ -229,9 +241,9 @@ export async function mutate(
     if (error) return { error: error.message };
     revalidatePath("/app", "layout");
     if (operation === "send-quote" || operation === "resend-quote") return { mailRequestedAt: new Date().toISOString(), link: `/review/${data}`, mailStatus: await dispatchQuoteMail(db, String(p.id)) };
-    if (["job","document","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment"].includes(operation)) await dispatchWorkerMail();
+    if (["job","job-item","complete-production","pick-return-stop","document","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment"].includes(operation)) await dispatchWorkerMail();
     if (operation === "extension-send") return {link:`/extension/${data}`};
-    if (operation === "job" && data) return { link: `/completion/${data}` };
+    if ((operation === "job" || operation === "complete-production") && data) return { link: `/completion/${data}` };
     if (operation === "customer") destination = `/app/customers/${data}`;
     else if (operation === "request-extension") destination=`/app/job-extensions/${data}`;
     else if (operation === "extension-scope") destination=`/app/job-extensions/${data}`;
