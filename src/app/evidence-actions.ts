@@ -54,8 +54,11 @@ export async function registerEvidenceAction(
       return { error: "Choose a file first." };
     }
 
-    if (file.size > 25 * 1024 * 1024) {
-      return { error: "Use a file 25 MB or smaller." };
+    if (file.size > 3.5 * 1024 * 1024) {
+      return {
+        error:
+          "Use a file 3.5 MB or smaller for this temporary metadata-only phase. Larger direct uploads will be enabled with Drive.",
+      };
     }
 
     if (config.photoOnly && !file.type.startsWith("image/")) {
