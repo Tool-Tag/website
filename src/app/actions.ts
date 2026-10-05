@@ -197,6 +197,14 @@ export async function mutate(
         name = "resend_quote";
         args = { p_id: p.id };
         break;
+      case "get-tagged-approve":
+        name = "approve_get_tagged";
+        args = { p_id: p.id, p_customer: p.customer_id ?? null };
+        break;
+      case "get-tagged-reject":
+        name = "reject_get_tagged";
+        args = { p_id: p.id, p_reason: p.reason ?? null };
+        break;
       case "send-quote":
         name = form.get("resend") === "true" ? "resend_quote" : "send_quote_to";
         args = form.get("resend") === "true" ? { p_id: p.id } : { p_id: p.id, p_recipient: String(form.get("recipient") || "").trim(), p_regenerate: form.get("regenerate") === "on" };
@@ -258,7 +266,9 @@ export async function mutate(
     if (["job","job-item","complete-job-work","pick-return-schedule","pick-return-stop","document","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment","cancellation-refund"].includes(operation)) await dispatchWorkerMail();
     if (operation === "extension-send") return {link:`/extension/${data}`};
     if ((operation === "job" || operation === "complete-job-work") && data) return { link: `/completion/${data}` };
-    if (operation === "customer") destination = `/app/customers/${data}`;
+    if (operation === "get-tagged-approve" && data) destination = `/app/quotes/${data}`;
+    else if (operation === "get-tagged-reject") destination = "/app/get-tagged";
+    else if (operation === "customer") destination = `/app/customers/${data}`;
     else if (operation === "request-extension") destination=`/app/job-extensions/${data}`;
     else if (operation === "extension-scope") destination=`/app/job-extensions/${data}`;
     else if (operation === "quote") destination = `/app/quotes/${data}`;
