@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { CancellationLookupForm } from "@/components/cancellation-lookup-form";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +15,7 @@ export default function CancelServicePage() {
       <CancellationLookupForm />
 
       <p className="muted">
-        Need help instead? <Link href="/contact">Contact ToolTag Support</Link>.
+        If you still need help after verifying your information, contact ToolTag Support.
       </p>
     </main>
   );
