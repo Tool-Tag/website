@@ -1,4 +1,5 @@
 import { CancellationBalanceForm } from "@/components/cancellation-balance-form";
+import { EvidenceGallery } from "@/components/evidence-gallery";
 import { StatusCancellation } from "@/components/status-cancellation";
 import { money } from "@/lib/domain/money";
 import { supabase } from "@/lib/supabase/server";
@@ -99,6 +100,14 @@ export default async function JobStatusPage({
         })
       ).data
     : null;
+
+  const { data: customerDocuments } = await db.rpc("public_job_documents", {
+    p_token: token,
+  });
+
+  const visibleDocuments = Array.isArray(customerDocuments)
+    ? customerDocuments
+    : [];
 
   const steps = Array.isArray(data.steps)
     ? data.steps
@@ -204,6 +213,22 @@ export default async function JobStatusPage({
           Last updated: {new Date(data.updated_at).toLocaleString("en-US")}
         </p>
       </section>
+
+      {visibleDocuments.length > 0 && (
+        <section className="panel">
+          <p className="status-kicker">Documents & Evidence</p>
+          <h2>Your ToolTag files</h2>
+          <p className="muted">
+            Only records marked customer-visible are shown here. Storage provider
+            details and raw storage links are never exposed.
+          </p>
+          <EvidenceGallery
+            files={visibleDocuments}
+            publicView
+            viewerBase={`/status/${token}/documents`}
+          />
+        </section>
+      )}
 
       {data.cancelled && cancellationFinance && (
         <>
