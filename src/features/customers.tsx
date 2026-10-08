@@ -191,7 +191,7 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
         )}
       </Panel>
       {searchResults?.length > 0 && (
-        <Panel title="Registros relacionados">
+        <Panel title="Related Records">
           {searchResults.map(
             (r: { id: string; label: string; path: string; kind: string }) => (
               <p key={r.id}>
