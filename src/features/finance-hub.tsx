@@ -14,36 +14,35 @@ export async function FinanceHub() {
     <>
       <Heading
         title="Finance Hub"
-        subtitle="Una cuenta bancaria física. Asignaciones separadas por unidad."
+        subtitle="One physical bank account. Separate allocations by business unit."
       />
       <div className="grid">
         <Panel title="BOFT System">
           {settings[0]?.boft_url ? (
             <a className="button secondary" href={settings[0].boft_url}>
-              Abrir BOFT ↗
+              Open BOFT ↗
             </a>
           ) : (
             <p className="muted">Configura el enlace en Settings.</p>
           )}
           <p className="muted" style={{ marginTop: 14 }}>
-            BOFT sigue en su sistema actual. Sus datos históricos aún no están
-            migrados.
+            BOFT remains in its current system. Its historical data has not been migrated yet.
           </p>
         </Panel>
         <Panel title="ToolTag Finance">
           <Link className="button" href="/app/finance">
-            Abrir ToolTag →
+            Open ToolTag →
           </Link>
         </Panel>
         <Metric
-          label="BOFT Business Checking · saldo físico"
-          value={bank?.reconciled_balance ?? "Pendiente de conciliación"}
+          label="BOFT Business Checking · physical balance"
+          value={bank?.reconciled_balance ?? "Pending reconciliation"}
           currency={bank?.reconciled_balance != null}
-          help="Se muestra una sola vez. No se conoce el saldo real del banco hasta conciliarlo."
+          help="Shown only once. The actual bank balance is not known until reconciliation."
         />
       </div>
-      <Panel title="Asignación y resultados por unidad">
-        <Table headers={["Unidad", "Cuenta operativa", "Resultado registrado"]}>
+      <Panel title="Allocation & Results by Unit">
+        <Table headers={["Unit", "Operating Account", "Recorded Result"]}>
           {summaries.map((s) => (
             <tr key={s.unit_id}>
               <td>{s.code}</td>
@@ -56,13 +55,12 @@ export async function FinanceHub() {
           ))}
         </Table>
         <p className="muted">
-          Los ceros de BOFT representan ausencia de movimientos migrados, no el
-          estado real de BOFT.
+          BOFT zeros mean no transactions have been migrated; they do not represent BOFT's actual status.
         </p>
       </Panel>
-      <Panel title="Movimientos recientes">
+      <Panel title="Recent Transactions">
         {tx.length ? (
-          <Table headers={["Unidad", "Fecha", "Descripción", "Importe"]}>
+          <Table headers={["Unit", "Date", "Description", "Amount"]}>
             {tx.map((t) => (
               <tr key={t.id}>
                 <td>{summaries.find((s) => s.unit_id === t.unit_id)?.code}</td>
