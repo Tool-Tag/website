@@ -16,7 +16,7 @@ export function Form({
   operation,
   fields,
   hidden = {},
-  button = "Guardar",
+  button = "Save",
   back = "/app",
   children,
 }: {
@@ -88,13 +88,13 @@ export function Form({
       )}
       {state.link && (
         <div className="notice success wide">
-          Enlace preparado. Consulta el registro de notificaciones para conocer el estado del correo.
+          Link prepared. Check the notification log for email status.
           <br />
           <a href={state.link} target="_blank" rel="noreferrer">
-            Abrir vista del cliente ↗
+            Open Customer View ↗
           </a>
           <input
-            aria-label="Enlace del cliente"
+            aria-label="Customer Link"
             readOnly
             value={
               typeof window !== "undefined"
