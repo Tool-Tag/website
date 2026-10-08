@@ -14,7 +14,7 @@ export async function FinanceHub() {
     <>
       <Heading
         title="Finance Hub"
-        subtitle="Una cuenta bancaria física. Asignaciones separadas por unidad."
+        subtitle="One physical bank account. Separate allocations by business unit."
       />
       <div className="grid">
         <Panel title="BOFT System">
@@ -26,7 +26,7 @@ export async function FinanceHub() {
             <p className="muted">Configura el enlace en Settings.</p>
           )}
           <p className="muted" style={{ marginTop: 14 }}>
-            BOFT sigue en su sistema actual. Sus datos históricos aún no están
+            BOFT remains in its current system. Its historical data is not yet
             migrados.
           </p>
         </Panel>
@@ -36,14 +36,14 @@ export async function FinanceHub() {
           </Link>
         </Panel>
         <Metric
-          label="BOFT Business Checking · saldo físico"
-          value={bank?.reconciled_balance ?? "Pendiente de conciliación"}
+          label="BOFT Business Checking · physical balance"
+          value={bank?.reconciled_balance ?? "Pending Reconciliation"}
           currency={bank?.reconciled_balance != null}
-          help="Se muestra una sola vez. No se conoce el saldo real del banco hasta conciliarlo."
+          help="Shown only once. The actual bank balance is not known until reconciliation."
         />
       </div>
-      <Panel title="Asignación y resultados por unidad">
-        <Table headers={["Unidad", "Cuenta operativa", "Resultado registrado"]}>
+      <Panel title="Allocation and Results by Unit">
+        <Table headers={["Unit", "Operating Account", "Recorded Result"]}>
           {summaries.map((s) => (
             <tr key={s.unit_id}>
               <td>{s.code}</td>
@@ -62,7 +62,7 @@ export async function FinanceHub() {
       </Panel>
       <Panel title="Movimientos recientes">
         {tx.length ? (
-          <Table headers={["Unidad", "Fecha", "Descripción", "Importe"]}>
+          <Table headers={["Unit", "Date", "Description", "Amount"]}>
             {tx.map((t) => (
               <tr key={t.id}>
                 <td>{summaries.find((s) => s.unit_id === t.unit_id)?.code}</td>
