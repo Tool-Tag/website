@@ -250,7 +250,7 @@ export function QuoteBuilder({
                   className="secondary"
                   onClick={() => setConfirming(false)}
                 >
-                  Volver a editar
+                  Back to Edit
                 </button>
                 <button>Confirm & Save</button>
               </div>
@@ -332,8 +332,8 @@ export function QuoteBuilder({
               {draft.engraving_type !== "Fee" && (
                 <>
                   <p>
-                    {draft.marks?.length ?? 0} grabado(s) por artículo. Agrega
-                    uno por cada ubicación.
+                    {draft.marks?.length ?? 0} engraving(s) per item. Add
+                    one for each location.
                   </p>
                   {draft.marks?.map((m, i) => (
                     <fieldset className="item" key={i}>
@@ -404,8 +404,8 @@ export function QuoteBuilder({
                             </label>
                           )}
                           <small>
-                            Usa el mismo enlace para repetir un diseño sin
-                            cobrar otra adaptación.
+                            Use the same link to repeat a design without
+                            charging another adaptation fee.
                           </small>
                         </>
                       )}
