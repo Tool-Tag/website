@@ -3,8 +3,8 @@ export const quoteStatusLabel = (status: string) =>
     Draft: "Borrador",
     Sent: "Enviada",
     Viewed: "Vista",
-    Accepted: "Aceptada",
-    "Agreement Pending": "Pendiente de acuerdo",
+    Accepted: "Accepted",
+    "Agreement Pending": "Agreement Pending",
     Declined: "Rechazada",
     Expired: "Vencida",
     Revised: "Revisada",
@@ -12,40 +12,40 @@ export const quoteStatusLabel = (status: string) =>
 
 export const jobStatusLabel = (status: string) =>
   ({
-    "Pending Agreement": "Pendiente de acuerdo",
+    "Pending Agreement": "Agreement Pending",
     Authorized: "Autorizado",
-    "Receiving Documentation": "Documentando recepción",
+    "Receiving Documentation": "Documenting Receiving",
     "In Process": "En proceso",
     "Ready for Delivery": "Listo para entrega",
-    "Delivered – Pending Customer Acceptance": "Esperando aceptación",
-    Completed: "Completado",
-    Cancelled: "Cancelado",
-    "Issue / Review": "Incidencia / revisión",
+    "Delivered – Pending Customer Acceptance": "Awaiting Acceptance",
+    Completed: "Completed",
+    Cancelled: "Cancelled",
+    "Issue / Review": "Issue / Review",
   })[status] ?? status;
 
 export const workStageLabel = (stage: string) =>
   ({
     "Not Started": "Sin iniciar",
-    "Receiving Evidence": "Evidencia de recepción",
+    "Receiving Evidence": "Receiving Evidence",
     Preparing: "Preparation",
     Engraving: "Engraving",
     "Final Evidence": "Engraving",
     "Final Details": "Final Details",
     "Delivery In Progress": "Delivery In Progress",
     "Cancellation Requested / Production Hold": "Cancellation Requested / Production Hold",
-    "Awaiting Delivery Acceptance": "Esperando aceptación",
-    "Issue Review": "Incidencia / revisión",
-    Payment: "Pago pendiente",
-    "Payment Verification": "Verificando pago",
-    Closed: "Completado",
+    "Awaiting Delivery Acceptance": "Awaiting Acceptance",
+    "Issue Review": "Issue / Review",
+    Payment: "Payment Pending",
+    "Payment Verification": "Verifying Payment",
+    Closed: "Completed",
   })[stage] ?? stage;
 
 export const paymentStatusLabel = (status: string) =>
   ({
-    "Pending Verification": "Pendiente de verificación",
+    "Pending Verification": "Pending Verification",
     Confirmed: "Confirmado",
     Rejected: "Rechazado",
-    Cancelled: "Cancelado",
+    Cancelled: "Cancelled",
   })[status] ?? status;
 
 export const extensionStatusLabel = (status: string) =>
@@ -54,6 +54,6 @@ export const extensionStatusLabel = (status: string) =>
     Draft: "Borrador",
     Sent: "Enviada",
     Approved: "Aprobada",
-    Completed: "Completada",
-    Cancelled: "Cancelada",
+    Completed: "Completed",
+    Cancelled: "Cancelled",
   })[status] ?? status;
