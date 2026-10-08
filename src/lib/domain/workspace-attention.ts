@@ -23,7 +23,7 @@ export async function workspaceAttention(
       db.rpc("get_tagged_attention"),
       db
         .from("quotes")
-        .select("id,status")
+        .select("id,status,source,intake_reviewed_at")
         .eq("unit_id", unit)
         .in("status", ["Draft", "Sent", "Viewed", "Agreement Pending", "Accepted"]),
       db
@@ -45,10 +45,14 @@ export async function workspaceAttention(
     );
 
     const openQuotes = (quotes.data ?? []).filter((quote) => {
-      if (quote.status === "Accepted") {
-        return !jobQuoteIds.has(quote.id);
-      }
-      return !jobQuoteIds.has(quote.id);
+      if (jobQuoteIds.has(quote.id)) return false;
+
+      const stillInRequestReview =
+        quote.source === "public_get_tagged" &&
+        quote.status === "Draft" &&
+        !quote.intake_reviewed_at;
+
+      return !stillInRequestReview;
     });
 
     const openJobs = jobRows.filter(
