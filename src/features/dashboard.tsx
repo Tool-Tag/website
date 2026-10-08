@@ -66,8 +66,8 @@ export async function Dashboard() {
         </Panel>
         <Panel title="Customers">
           <p className="muted">
-            Empieza por la persona. Sus cotizaciones, trabajos y pagos quedan
-            relacionados.
+            Start with the customer. Their Quotes, Jobs, and payments stay
+            connected.
           </p>
           <div className="actions">
             <Link className="button secondary" href="/app/customers">
@@ -82,13 +82,13 @@ export async function Dashboard() {
       <Panel title="Sales & Collections">
         <div className="grid">
           <Metric label="Sales This Month" value={stats?.sales_month} />
-          <Metric label="Cobrado este mes" value={stats?.collected_month} />
-          <Metric label="Por cobrar" value={stats?.balance_due} />
+          <Metric label="Collected This Month" value={stats?.collected_month} />
+          <Metric label="Balance Due" value={stats?.balance_due} />
         </div>
       </Panel>
-      <Panel title="Actividad reciente">
+      <Panel title="Recent Activity">
         {activity.length ? (
-          <Table headers={["Registro", "Cambio", "Fecha"]}>
+          <Table headers={["Record", "Change", "Date"]}>
             {activity.map((a) => (
               <tr key={a.id}>
                 <td>
@@ -96,7 +96,7 @@ export async function Dashboard() {
                 </td>
                 <td>{a.changed_fields}</td>
                 <td>
-                  {new Date(a.created_at).toLocaleString("es-US", {
+                  {new Date(a.created_at).toLocaleString("en-US", {
                     timeZone: "America/Denver",
                   })}
                 </td>
