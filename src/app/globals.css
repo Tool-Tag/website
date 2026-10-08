@@ -1269,3 +1269,55 @@ textarea:focus-visible {
     grid-column: auto;
   }
 }
+
+
+/* Workspace attention badges */
+.workspace-nav-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workspace-nav-link > span:first-child {
+  min-width: 0;
+}
+
+.workspace-nav-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid #6d4f19;
+  border-radius: 999px;
+  background: #241b0d;
+  color: #f0d59b;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.workspace-nav-link[aria-current="page"] .workspace-nav-count {
+  border-color: #755b27;
+  background: #2a2112;
+  color: #ffe0a3;
+}
+
+.status-help-panel .status-cancel {
+  margin-bottom: 0;
+}
+
+.status-help-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+@media (max-width: 850px) {
+  .workspace-nav-link {
+    gap: 8px;
+  }
+}
