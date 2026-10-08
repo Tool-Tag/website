@@ -32,20 +32,20 @@ export default async function EmailPreview({
   if (!data.accepted && data.recipient) mail.to = data.recipient;
   return (
     <>
-      <h1>Vista previa del correo</h1>
-      <p>Esta vista previa no envía correos. Consulta el estado de entrega en Ajustes.</p>
+      <h1>Email Preview</h1>
+      <p>This preview does not send email. Check delivery status in Settings.</p>
       <p>
         De: {mail.from} · Para: {mail.to} · Responder a: {mail.replyTo}
       </p>
       <h2>{mail.subject}</h2>
       <iframe
-        title="Correo HTML"
+        title="HTML Email"
         sandbox=""
         srcDoc={mail.html}
         style={{ width: "100%", height: 650, border: 0 }}
       />
       <details>
-        <summary>Versión de texto</summary>
+        <summary>Text Version</summary>
         <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
           {mail.text}
         </pre>
