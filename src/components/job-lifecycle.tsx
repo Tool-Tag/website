@@ -112,8 +112,8 @@ export async function JobLifecycle({
               {money(t.balance_due)}
             </p>
             <p className="muted">
-              Cada extensión aprobada tiene su componente de venta y sus cobros. Aquí se
-              consolidan sin duplicar ingresos.
+              Each approved extension has its own sale component and collections. Here they are
+              consolidated without duplicating revenue.
             </p>
             {extensions
               .filter((x) => x.sale_id)
