@@ -104,14 +104,14 @@ export function QuoteBuilder({
         <input type="hidden" name="items" value={JSON.stringify(items)} />
         {revises && <input type="hidden" name="revises_id" value={revises} />}
         <label>
-          Cliente
+          Customer
           <select
             name="customer_id"
             required
             defaultValue={customer}
             disabled={!!revises || !!extensionId || !!getTaggedQuoteId}
           >
-            <option value="">Seleccionar cliente…</option>
+            <option value="">Select customer…</option>
             {customers.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -120,8 +120,7 @@ export function QuoteBuilder({
           </select>
         </label>
         <p className="muted">
-          Precio manual por artículo. Adaptación para Falcon: $3 por imagen/logo
-          diferente, una sola vez por cotización. Primer grabado incluido; cada adicional cuesta $5 por pieza. Pintura: $2 extra por pieza coloreada.
+          Manual price per item. Falcon adaptation: $3 per unique image/logo, charged once per Quote. First engraving included; each additional engraving is $5 per item. Paint fill is $2 extra per painted item.
         </p>
         <div className="actions">
           <button
@@ -129,7 +128,7 @@ export function QuoteBuilder({
             className="secondary"
             onClick={() => open(null)}
           >
-            Agregar artículo
+            Add Item
           </button>
         </div>
         {items.map((item, i) => (
@@ -141,14 +140,14 @@ export function QuoteBuilder({
                 className="secondary"
                 onClick={() => open(i)}
               >
-                Editar artículo
+                Edit Item
               </button>
               <button
                 type="button"
                 className="secondary"
                 onClick={() => setItems((old) => old.filter((_, n) => n !== i))}
               >
-                Quitar artículo
+                Remove Item
               </button>
             </div>
           </section>
@@ -156,7 +155,7 @@ export function QuoteBuilder({
 
         {designs.length > 0 && (
           <p>
-            Adaptación para Falcon: {designs.length} diseño(s) × $3 ={" "}
+            Falcon adaptation: {designs.length} design(s) × $3 ={" "}
             {money(String(designs.length * 3))}
           </p>
         )}
@@ -164,7 +163,7 @@ export function QuoteBuilder({
         {additionalEngravings(items)>0 && <p>Grabados adicionales: {additionalEngravings(items)} × $5 = {money(String(additionalEngravings(items)*5))}</p>}
         <h3>Total: {money(total)}</h3>
         <label style={{ margin: "20px 0" }}>
-          Notas generales
+          General Notes
           <textarea name="notes" defaultValue={notes} />
         </label>
         {state.error && (
@@ -228,20 +227,20 @@ export function QuoteBuilder({
         >
           <div className="actions">
             <h2 id="article-title">
-              {editing === null ? "Agregar artículo" : "Editar artículo"}
+              {editing === null ? "Add Item" : "Edit Item"}
             </h2>
             <button
               type="button"
               className="secondary"
-              aria-label="Cerrar"
+              aria-label="Close"
               onClick={() => dialog.current?.close()}
             >
-              Cerrar
+              Close
             </button>
           </div>
           {confirming ? (
             <>
-              <h3>Confirma el trabajo antes de guardar</h3>
+              <h3>Confirm the work before saving</h3>
               <QuoteScope items={[draft]} />
               {additionalEngravings([draft])>0 && <p>Grabados adicionales: {money(String(additionalEngravings([draft])*5))}</p>}
               {paintedQuantity([draft]) > 0 && <p>Pintura: {draft.quantity} pieza(s) × $2 = {money(String(draft.quantity * 2))} adicionales.</p>}
@@ -253,14 +252,14 @@ export function QuoteBuilder({
                 >
                   Volver a editar
                 </button>
-                <button>Confirmar y guardar</button>
+                <button>Confirm & Save</button>
               </div>
             </>
           ) : (
             <>
               <div className="formgrid">
                 <label>
-                  Artículo / modelo
+                  Item / model
                   <input
                     autoFocus
                     required
@@ -269,7 +268,7 @@ export function QuoteBuilder({
                   />
                 </label>
                 <label>
-                  Cantidad
+                  Quantity
                   <input
                     type="number"
                     min="1"
@@ -280,7 +279,7 @@ export function QuoteBuilder({
                   />
                 </label>
                 <label>
-                  Precio unitario (USD)
+                  Unit price (USD)
                   <input
                     type="number"
                     min="0"
@@ -352,7 +351,7 @@ export function QuoteBuilder({
                         </select>
                       </label>
                       <label>
-                        Ubicación del grabado
+                        Engraving location
                         <input
                           required
                           value={m.location ?? ""}
@@ -375,7 +374,7 @@ export function QuoteBuilder({
                       ) : (
                         <>
                           <label>
-                            Descripción del logo
+                            Logo description
                             <input
                               value={m.description ?? ""}
                               onChange={(e) =>
@@ -386,7 +385,7 @@ export function QuoteBuilder({
                           <QuoteImageInput value={m.url} onChange={(url) => mark(i, { url })} />
                           {designs.length > 0 && (
                             <label>
-                              Reutilizar un diseño
+                              Reuse a design
                               <select
                                 value=""
                                 onChange={(e) =>
@@ -394,11 +393,11 @@ export function QuoteBuilder({
                                 }
                               >
                                 <option value="">
-                                  Seleccionar diseño existente…
+                                  Select existing design…
                                 </option>
                                 {designs.map((url, n) => (
                                   <option key={url} value={url}>
-                                    Diseño {n + 1}: {url}
+                                    Design {n + 1}: {url}
                                   </option>
                                 ))}
                               </select>
@@ -454,12 +453,12 @@ export function QuoteBuilder({
                       }))
                     }
                   >
-                    Agregar otra marca / grabado
+                    Add another mark / engraving
                   </button>
                 </>
               )}
               <label style={{ margin: "16px 0" }}>
-                Notas
+                Notes
                 <textarea
                   value={draft.notes}
                   onChange={(e) => update("notes", e.target.value)}
@@ -473,7 +472,7 @@ export function QuoteBuilder({
                 >
                   Cancelar
                 </button>
-                <button>Guardar artículo</button>
+                <button>Save Item</button>
               </div>
             </>
           )}
@@ -509,7 +508,7 @@ export function QuoteBuilder({
           </label>
           {paint.mode === "single" ? (
             <label>
-              ¿Qué color?
+              What color?
               <input
                 required
                 value={paint.color}
@@ -538,7 +537,7 @@ export function QuoteBuilder({
             >
               Cancelar
             </button>
-            <button>Guardar pintura</button>
+            <button>Save Paint</button>
           </div>
         </form>
       </dialog>
