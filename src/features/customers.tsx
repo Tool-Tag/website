@@ -9,9 +9,9 @@ export const customerFields: Field[] = [
   { name: "email", label: "Email", type: "email", required: true },
   { name: "address", label: "Address", required: true },
   { name: "company_name", label: "Company (optional)" },
-  { name: "company_phone", label: "Phone de empresa" },
+  { name: "company_phone", label: "Company phone" },
   { name: "company_email", label: "Company email", type: "email" },
-  { name: "company_address", label: "Address de empresa" },
+  { name: "company_address", label: "Company address" },
 ];
 export async function Customers({ id, q }: { id?: string; q?: string }) {
   if (id === "new")
