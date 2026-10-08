@@ -12,13 +12,13 @@ export async function Settings() {
   return (
     <>
       <Heading
-        title="Configuración"
+        title="Settings"
         subtitle="ToolTag · Bandits of the Framing LLC"
       />
-      <Panel title="Acuerdos / políticas">
+      <Panel title="Agreements / Policies">
         <p className="notice">
-          No se ha inventado texto legal. Publica únicamente el texto aprobado.
-          Cada versión queda preservada; las aceptaciones anteriores conservan
+          No legal text is invented here. Publish only approved text.
+          Each version is preserved; previous acceptances retain
           su contenido.
         </p>
         {policies.map((p) => (
@@ -30,35 +30,35 @@ export async function Settings() {
           </details>
         ))}
         <details>
-          <summary>Publicar una nueva versión aprobada</summary>
+          <summary>Publish a New Approved Version</summary>
           <Form
             operation="publish-policy"
             fields={[
-              { name: "title", label: "Título", required: true },
+              { name: "title", label: "Title", required: true },
               {
                 name: "content",
-                label: "Texto exacto aprobado (inglés)",
+                label: "Exact approved text (English)",
                 type: "textarea",
                 required: true,
                 wide: true,
               },
             ]}
             back="/app/settings"
-            button="Publicar versión"
+            button="Publish Version"
           />
         </details>
       </Panel>
       <div className="grid two">
         <Panel title="Reglas vigentes">
-          <p>Cotización: 7 días · Recordatorio: 2 días antes.</p>
-          <p>Revisión de devolución: 14 días.</p>
-          <p>Aceptación de entrega: 3 días después de notificar.</p>
-          <p>Cierre mensual: día 1, mes anterior.</p>
-          <p>Pagos: Cash, Zelle, Venmo.</p>
+          <p>Quote: 7 days · Reminder: 2 days before expiration.</p>
+          <p>Refund review: 14 days.</p>
+          <p>Delivery acceptance: 3 days after notification.</p>
+          <p>Monthly close: day 1 for the previous month.</p>
+          <p>Payments: Cash, Zelle, Venmo.</p>
         </Panel>
         <Panel title="Documentos / Drive">
           <p className="muted">
-            Integración de subida pendiente. Puedes vincular archivos reales
+            Upload integration pending. You can link real files
             existentes por su Drive File ID.
           </p>
           <Form
@@ -66,7 +66,7 @@ export async function Settings() {
             fields={[
               {
                 name: "drive_root_id",
-                label: "Carpeta raíz de ToolTag Customers",
+                label: "ToolTag Customers root folder",
                 value: s?.drive_root_id ?? "",
               },
               {
@@ -82,7 +82,7 @@ export async function Settings() {
               },
               {
                 name: "annual_vehicle_method",
-                label: "Método del reporte anual de vehículo",
+                label: "Annual vehicle report method",
                 value: s?.annual_vehicle_method ?? "Fuel",
                 options: [
                   { value: "Fuel", label: "Fuel" },
@@ -91,7 +91,7 @@ export async function Settings() {
               },
               {
                 name: "mileage_rate",
-                label: "Tarifa por milla para análisis (opcional)",
+                label: "Mileage rate for analysis (optional)",
                 value: s?.mileage_rate ?? "",
                 type: "number",
               },
@@ -100,22 +100,22 @@ export async function Settings() {
           />
         </Panel>
       </div>
-      <Panel title="Categorías">
-        <Table headers={["Nombre", "Tipo", "Estado"]}>
+      <Panel title="Categories">
+        <Table headers={["Name", "Type", "Status"]}>
           {categories.map((c) => (
             <tr key={c.id}>
               <td>{c.name}</td>
               <td>{c.kind}</td>
-              <td>{c.active ? "Activa" : "Archivada"}</td>
+              <td>{c.active ? "Active" : "Archived"}</td>
             </tr>
           ))}
         </Table>
         <details>
-          <summary>Agregar categoría</summary>
+          <summary>Add Category</summary>
           <Form
             operation="category"
             fields={[
-              { name: "name", label: "Nombre", required: true },
+              { name: "name", label: "Name", required: true },
               {
                 name: "kind",
                 label: "Tipo",
@@ -130,12 +130,12 @@ export async function Settings() {
           />
         </details>
       </Panel>
-      <Panel title="Avisos pendientes de integración">
+      <Panel title="Notifications Pending Integration">
         <p className="muted">
-          Estos registros no significan que el cliente recibió un email o SMS.
+          These records do not mean the customer received an email or SMS.
         </p>
         {notifications.length ? (
-          <Table headers={["Evento", "Estado", "Programado"]}>
+          <Table headers={["Event", "Status", "Scheduled"]}>
             {notifications.map((n) => (
               <tr key={n.id}>
                 <td>{n.event}</td>
