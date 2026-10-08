@@ -1,4 +1,6 @@
 import { EvidenceGallery } from "@/components/evidence-gallery";
+import { EvidenceCapture } from "@/components/evidence-capture";
+import { EvidenceUpload } from "@/components/evidence-upload";
 import { JobLifecycle } from "@/components/job-lifecycle";
 import { JobTabs } from "@/components/job-tabs";
 import { AcceptedDocuments } from "@/components/accepted-documents";
@@ -148,40 +150,32 @@ export async function Jobs({ id }: { id?: string }) {
   const finishedItems = jobItems.filter((item) => item.stage === "Finished").length;
   const itemEvidence = currentItem
     ? docs.filter(
-        (d) => d.type === "Finished Evidence" && d.job_item_id === currentItem.id,
+        (d) =>
+          ["Production Evidence", "Finished Evidence", "Completed Evidence"].includes(d.type) &&
+          d.job_item_id === currentItem.id,
       )
     : [];
+  const deliveryFiles = docs.filter((d) => d.type === "Delivery Evidence");
+  const issueFiles = docs.filter((d) =>
+    ["Issue / Review Evidence", "Cancellation Evidence", "Refund Review Evidence"].includes(d.type),
+  );
   const currentScope = currentItem?.scope_snapshot
     ? [{ ...currentItem.scope_snapshot, quantity: 1 }]
     : [];
   const allItemsFinished = jobItems.length > 0 && finishedItems === jobItems.length;
 
   const receivingEvidence = (
-    <Panel title="Receiving evidence">
+    <Panel title="Receiving Evidence">
       <EvidenceGallery files={receivingFiles} />
       {role === "admin" && (
-        <details>
-          <summary>Admin: link an existing Drive file</summary>
-          <p className="muted">
-            Upload the file to Drive and register its file ID. Direct uploads are still pending.
-          </p>
-          <Form
-            operation="document"
-            hidden={{ job_id: id, type: "Receiving Evidence" }}
-            back={`/app/jobs/${id}`}
-            fields={[
-              {
-                name: "file_name",
-                label: "Name",
-                required: true,
-                value: `${j.code}-Receiving-${String(receivingFiles.length + 1).padStart(2, "0")}.jpg`,
-              },
-              {
-                name: "drive_file_id",
-                label: "Drive File ID",
-                required: true,
-              },
-            ]}
+        <details open={!receivingFiles.length}>
+          <summary>Add Receiving Evidence</summary>
+          <EvidenceCapture
+            config={{
+              jobId: id,
+              type: "Receiving Evidence",
+              defaultVisibility: "internal",
+            }}
           />
         </details>
       )}
@@ -190,13 +184,13 @@ export async function Jobs({ id }: { id?: string }) {
 
   const currentItemPanel = currentItem ? (
     <>
-      <Panel title={`Item ${currentItem.sequence} of ${jobItems.length} · ${currentItem.article}`}>
+      <Panel title={`${currentItem.display_label || `P${String(currentItem.sequence).padStart(3, "0")} · ${currentItem.article}`} · Item ${currentItem.sequence} of ${jobItems.length}`}>
         <p className="muted">
           {finishedItems}/{jobItems.length} items finished
         </p>
         {currentItem.stage === "Preparation" && (
           <>
-            <p className="muted">Review the approved scope for this item before engraving.</p>
+            <p className="muted">Review the approved scope for this physical item before engraving.</p>
             <WorkPreparation items={currentScope as any} />
           </>
         )}
@@ -205,33 +199,19 @@ export async function Jobs({ id }: { id?: string }) {
           <>
             <p>
               <strong>Stage:</strong>{" "}
-              {currentItem.stage === "Finished Evidence" ? "Finished evidence" : "Engraving"}
+              {currentItem.stage === "Finished Evidence" ? "Completed Evidence" : "Engraving"}
             </p>
             <EvidenceGallery files={itemEvidence} />
-            {role === "admin" && (
+            {role === "admin" && currentItem.stage === "Engraving" && (
               <details open={!itemEvidence.length}>
-                <summary>Finished evidence for this item</summary>
-                <Form
-                  operation="document"
-                  hidden={{
-                    job_id: id,
-                    job_item_id: currentItem.id,
-                    type: "Finished Evidence",
+                <summary>Add Completed Evidence for this item</summary>
+                <EvidenceCapture
+                  config={{
+                    jobId: id,
+                    jobItemId: currentItem.id,
+                    type: "Production Evidence",
+                    defaultVisibility: "customer",
                   }}
-                  back={`/app/jobs/${id}`}
-                  fields={[
-                    {
-                      name: "file_name",
-                      label: "Name",
-                      required: true,
-                      value: `${j.code}-Item-${String(currentItem.sequence).padStart(2, "0")}-Finished-${String(itemEvidence.length + 1).padStart(2, "0")}.jpg`,
-                    },
-                    {
-                      name: "drive_file_id",
-                      label: "Drive File ID",
-                      required: true,
-                    },
-                  ]}
                 />
               </details>
             )}
@@ -398,6 +378,17 @@ export async function Jobs({ id }: { id?: string }) {
       {["Preparing", "Engraving", "Final Evidence", "Final Details"].includes(stage) &&
         currentItemPanel}
 
+      {stage === "Cancellation Requested / Production Hold" && (
+        <Panel title="Cancellation Requested / Production Hold">
+          <p className="notice error">
+            Production is locked. Existing item progress and evidence have been preserved.
+          </p>
+          <p className="muted">
+            No item can advance until the cancellation request is resolved.
+          </p>
+        </Panel>
+      )}
+
       {["Preparing", "Engraving", "Final Evidence", "Final Details"].includes(stage) &&
         allItemsFinished &&
         !pickupReturn && (
@@ -515,6 +506,63 @@ export async function Jobs({ id }: { id?: string }) {
     </>
   );
 
+  const evidenceTab = (
+    <>
+      <Panel title="Receiving Evidence">
+        <EvidenceGallery files={receivingFiles} />
+      </Panel>
+
+      <Panel title="Production Evidence by Physical Item">
+        {jobItems.length ? (
+          <div className="stack">
+            {jobItems.map((item) => {
+              const files = docs.filter(
+                (d) =>
+                  ["Production Evidence", "Finished Evidence", "Completed Evidence"].includes(d.type) &&
+                  d.job_item_id === item.id,
+              );
+              return (
+                <div className="item" key={item.id}>
+                  <div className="pick-return-row">
+                    <div>
+                      <strong>{item.display_label || `P${String(item.sequence).padStart(3, "0")} · ${item.article}`}</strong>
+                      <p className="muted">{item.stage}</p>
+                    </div>
+                    <Badge>{files.length} file{files.length === 1 ? "" : "s"}</Badge>
+                  </div>
+                  <EvidenceGallery files={files} />
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <Empty>No physical Job Items are available.</Empty>
+        )}
+      </Panel>
+
+      <Panel title="Delivery Evidence">
+        <EvidenceGallery files={deliveryFiles} />
+      </Panel>
+
+      <Panel title="Issue / Review Evidence">
+        <EvidenceGallery files={issueFiles} />
+        {role === "admin" && (
+          <details>
+            <summary>Add Issue / Review Evidence</summary>
+            <EvidenceUpload
+              config={{
+                jobId: id,
+                type: "Issue / Review Evidence",
+                defaultVisibility: "internal",
+              }}
+              button="Upload File"
+            />
+          </details>
+        )}
+      </Panel>
+    </>
+  );
+
   const deliveryTab = (
     <>
       <AcceptedDocuments jobId={id} />
@@ -545,6 +593,7 @@ export async function Jobs({ id }: { id?: string }) {
           { id: "work", label: "Trabajo", content: workTab },
           { id: "details", label: "Detalles", content: detailsTab },
           { id: "commercial", label: "Comercial", content: commercialTab },
+          { id: "evidence", label: "Evidence", content: evidenceTab },
           { id: "delivery", label: "Entrega", content: deliveryTab },
           { id: "activity", label: "Actividad", content: activityTab },
         ]}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { context } from "@/lib/domain/context";
 import { Form } from "@/components/form";
 import { EvidenceGallery } from "@/components/evidence-gallery";
+import { EvidenceCapture } from "@/components/evidence-capture";
 import { Badge, Panel, Empty } from "@/components/ui";
 import { money } from "@/lib/domain/money";
 
@@ -218,29 +219,14 @@ export default async function PickReturnPage() {
                       <EvidenceGallery files={evidence} />
                       {role === "admin" && (
                         <details open={!evidence.length}>
-                          <summary>Link evidence from Drive</summary>
-                          <Form
-                            operation="document"
-                            hidden={{
-                              job_id: job.id,
-                              pick_return_stop_id: stop.id,
-                              type: evidenceType,
+                          <summary>{isPickup ? "Add Pickup Receiving Evidence" : "Add Return Delivery Evidence"}</summary>
+                          <EvidenceCapture
+                            config={{
+                              jobId: job.id,
+                              pickReturnStopId: stop.id,
+                              type: isPickup ? "Receiving Evidence" : "Delivery Evidence",
+                              defaultVisibility: isPickup ? "internal" : "customer",
                             }}
-                            back="/pick-return"
-                            fields={[
-                              {
-                                name: "file_name",
-                                label: "Name",
-                                required: true,
-                                value: `${job.code}-${isPickup ? "Pickup-Receiving" : "Return-Delivery"}-${String(evidence.length + 1).padStart(2, "0")}.jpg`,
-                              },
-                              {
-                                name: "drive_file_id",
-                                label: "Drive File ID",
-                                required: true,
-                              },
-                            ]}
-                            button="Add Evidence"
                           />
                         </details>
                       )}

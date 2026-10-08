@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { CancellationBalanceForm } from "@/components/cancellation-balance-form";
+import { EvidenceGallery } from "@/components/evidence-gallery";
 import { StatusCancellation } from "@/components/status-cancellation";
 import { money } from "@/lib/domain/money";
 import { supabase } from "@/lib/supabase/server";
@@ -99,6 +101,14 @@ export default async function JobStatusPage({
         })
       ).data
     : null;
+
+  const { data: customerDocuments } = await db.rpc("public_job_documents", {
+    p_token: token,
+  });
+
+  const visibleDocuments = Array.isArray(customerDocuments)
+    ? customerDocuments
+    : [];
 
   const steps = Array.isArray(data.steps)
     ? data.steps
@@ -205,6 +215,39 @@ export default async function JobStatusPage({
         </p>
       </section>
 
+      <section className="panel status-help-panel">
+        <p className="status-kicker">Help With</p>
+        <h2>This Service</h2>
+        <p className="muted">
+          Need help with this ToolTag service? Use the options below without
+          leaving your Job Status page.
+        </p>
+        <div className="status-help-actions">
+          {!data.cancelled && data.job_status !== "Completed" && (
+            <StatusCancellation token={token} />
+          )}
+          <Link className="button secondary" href="/help">
+            Help Center
+          </Link>
+        </div>
+      </section>
+
+      {visibleDocuments.length > 0 && (
+        <section className="panel">
+          <p className="status-kicker">Documents & Evidence</p>
+          <h2>Your ToolTag files</h2>
+          <p className="muted">
+            Only records marked customer-visible are shown here. Storage provider
+            details and raw storage links are never exposed.
+          </p>
+          <EvidenceGallery
+            files={visibleDocuments}
+            publicView
+            viewerBase={`/status/${token}/documents`}
+          />
+        </section>
+      )}
+
       {data.cancelled && cancellationFinance && (
         <>
           {Number(cancellationFinance.refund_eligible_amount ?? 0) > 0 && (
@@ -258,10 +301,6 @@ export default async function JobStatusPage({
               </p>
             )}
         </>
-      )}
-
-      {!data.cancelled && data.job_status !== "Completed" && (
-        <StatusCancellation token={token} />
       )}
 
       <p className="muted">

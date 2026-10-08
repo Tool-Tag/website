@@ -1,6 +1,7 @@
 "use server";
 
 import { createHash } from "node:crypto";
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase/server";
@@ -98,6 +99,7 @@ export async function secureCancellationAction(
 
   if (kind !== "job-assess") {
     await dispatchWorkerMail();
+    revalidatePath("/app", "layout");
   }
 
   return { ok: kind !== "job-assess", data: result.data };
