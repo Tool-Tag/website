@@ -15,6 +15,6 @@ export function loginFailure(error: AuthFailure) {
   if (error.code && messages[error.code]) {
     return { reference: error.code, message: messages[error.code] };
   }
-  if (error.status === 429) return { reference: 'AUTH_RATE_LIMIT', message: 'Hay demasiados intentos. Espera unos minutos antes de volver a entrar. Referencia: AUTH_RATE_LIMIT.' };
+  if (error.status === 429) return { reference: 'AUTH_RATE_LIMIT', message: 'Too many attempts. Wait a few minutes before trying again. Reference: AUTH_RATE_LIMIT.' };
   return { reference: 'AUTH_UNAVAILABLE', message: 'The Supabase connection could not be completed. Reference: AUTH_UNAVAILABLE.' };
 }
