@@ -20,10 +20,10 @@ export async function Dashboard() {
     <>
       <Heading
         title="Todo bajo control."
-        subtitle="Clientes, trabajo y finanzas en un solo lugar."
+        subtitle="Customers, work, and finances in one place."
       >
         <Link className="button" href="/app/quotes/new">
-          + Nueva cotización
+          + New Quote
         </Link>
         <Link className="button secondary" href="/app/finance">
           ToolTag Finance
@@ -34,22 +34,22 @@ export async function Dashboard() {
           label="Trabajos activos"
           currency={false}
           value={stats?.active_jobs ?? 0}
-          help={`${stats?.ready_jobs ?? 0} listos para entregar · ${stats?.issue_jobs ?? 0} en revisión`}
+          help={`${stats?.ready_jobs ?? 0} ready for delivery · ${stats?.issue_jobs ?? 0} under review`}
         />
         <Metric
           label="Cotizaciones pendientes"
           currency={false}
           value={stats?.pending_quotes ?? 0}
-          help={`${stats?.accepted_quotes ?? 0} aceptadas`}
+          help={`${stats?.accepted_quotes ?? 0} accepted`}
         />
         <Metric
           label="Main Account"
           value={s?.operating_balance}
-          help="Saldo atribuido a ToolTag; no es todo el saldo del banco."
+          help="Balance attributed to ToolTag; this is not the full bank balance."
         />
       </div>
       <div className="grid two">
-        <Panel title="Requiere atención">
+        <Panel title="Requires Attention">
           {review.length ? (
             review.slice(0, 8).map((r, i) => (
               <p key={i}>
@@ -71,10 +71,10 @@ export async function Dashboard() {
           </p>
           <div className="actions">
             <Link className="button secondary" href="/app/customers">
-              Buscar cliente
+              Find Customer
             </Link>
             <Link className="button secondary" href="/app/customers/new">
-              + Nuevo cliente
+              + New Customer
             </Link>
           </div>
         </Panel>
