@@ -4,12 +4,14 @@ import { context } from "@/lib/domain/context";
 import { isConfigured } from "@/lib/supabase/server";
 import { Nav } from "@/components/nav";
 import { logout } from "@/app/actions";
+import { workspaceAttention } from "@/lib/domain/workspace-attention";
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const ctx = isConfigured() ? await context() : null;
+  const attention = ctx ? await workspaceAttention(ctx.db, ctx.unit) : undefined;
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -19,7 +21,7 @@ export default async function AppLayout({
             WORKSPACE
           </small>
         </Link>
-        <Nav />
+        <Nav attention={attention} />
         <div className="sidebar-bottom">
           <Nav bottom />
           <p>
