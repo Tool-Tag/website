@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CancellationBalanceForm } from "@/components/cancellation-balance-form";
 import { EvidenceGallery } from "@/components/evidence-gallery";
 import { StatusCancellation } from "@/components/status-cancellation";
@@ -214,6 +215,23 @@ export default async function JobStatusPage({
         </p>
       </section>
 
+      <section className="panel status-help-panel">
+        <p className="status-kicker">Help With</p>
+        <h2>This Service</h2>
+        <p className="muted">
+          Need help with this ToolTag service? Use the options below without
+          leaving your Job Status page.
+        </p>
+        <div className="status-help-actions">
+          {!data.cancelled && data.job_status !== "Completed" && (
+            <StatusCancellation token={token} />
+          )}
+          <Link className="button secondary" href="/help">
+            Help Center
+          </Link>
+        </div>
+      </section>
+
       {visibleDocuments.length > 0 && (
         <section className="panel">
           <p className="status-kicker">Documents & Evidence</p>
@@ -283,10 +301,6 @@ export default async function JobStatusPage({
               </p>
             )}
         </>
-      )}
-
-      {!data.cancelled && data.job_status !== "Completed" && (
-        <StatusCancellation token={token} />
       )}
 
       <p className="muted">
