@@ -6,16 +6,16 @@ import { renderQuoteMail } from "./quote-mail";
 import { renderJobReceipt } from "./receipt-mail";
 import { mailSender } from "./mail-routing";
 export async function dispatchQuoteMail(db: SupabaseClient, quoteId?: string) {
-  if (!mailEnabled()) return "Correo pendiente: configura Google Workspace. Puedes copiar el enlace.";
+  if (!mailEnabled()) return "Email pending: configure Google Workspace. You can copy the link.";
   const origin = process.env.TOOLTAG_PUBLIC_URL;
-  if (!origin || !/^https:\/\//.test(origin)) return "Correo pendiente: falta la dirección pública segura del sitio.";
+  if (!origin || !/^https:\/\//.test(origin)) return "Email pending: the secure public site address is missing.";
   const testRecipient = process.env.TOOLTAG_MAIL_MODE === "test-delivery" ? process.env.TOOLTAG_MAIL_TEST_RECIPIENT : null;
-  if (testRecipient === "" || testRecipient === undefined) return "Correo pendiente: configura el destinatario de prueba.";
+  if (testRecipient === "" || testRecipient === undefined) return "Email pending: configure the test recipient.";
   let sent = 0;
   try {
     for (let i = 0; i < 5; i++) {
       const {data: event, error} = await db.rpc("claim_mail_for_mode", {p_quote: quoteId || null, p_test_recipient: testRecipient,p_mode:process.env.TOOLTAG_MAIL_MODE});
-      if (error) return "Correo pendiente: no se pudo consultar la cola.";
+      if (error) return "Email pending: could not read the queue.";
       if (!event) break;
       let providerId: string | null = null, failure: string | null = null;
       try {
@@ -44,12 +44,12 @@ export async function dispatchQuoteMail(db: SupabaseClient, quoteId?: string) {
         providerId = (await new GmailTransport().deliver(message, event.dedupe_key)).providerId;
       } catch (error) { failure = error instanceof MailFailure ? error.code : "MAIL_RENDER_FAILED"; }
       const {data: recorded, error: recordError} = await db.rpc("finish_quote_mail", {p_id:event.id,p_claim:event.mail_claim,p_provider_id:providerId,p_error:failure});
-      if (recordError || !recorded) return "Revisa el registro de envío antes de reintentar; el resultado quedó pendiente de confirmar.";
-      if (failure) return `No se pudo confirmar el correo (${failure}). Puedes copiar el enlace.`;
+      if (recordError || !recorded) return "Review the delivery log before retrying; the result is still pending confirmation.";
+      if (failure) return `Could not confirm the email (${failure}). You can copy the link.`;
       sent++;
     }
-    return sent ? "Gmail aceptó el correo para entrega." : "Sin correos nuevos para enviar. Revisa el registro de notificaciones.";
-  } catch { return "Correo pendiente. Puedes copiar el enlace."; }
+    return sent ? "Gmail accepted the email for delivery." : "No new emails to send. Check the notification log.";
+  } catch { return "Email pending. You can copy the link."; }
 }
 export async function dispatchWorkerMail() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
