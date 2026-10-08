@@ -27,7 +27,7 @@ export default async function Login({
         </div>
       )}
       <p style={{ marginTop: 24 }}>
-        <Link href="/">← Volver a ToolTag</Link>
+        <Link href="/">← Back to ToolTag</Link>
       </p>
     </main>
   );
