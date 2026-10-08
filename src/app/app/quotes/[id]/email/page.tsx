@@ -14,8 +14,8 @@ export default async function EmailPreview({
   if (error || !data?.token)
     return (
       <p>
-        Envía la cotización para preparar el enlace y la vista previa del
-        correo.
+        Send the Quote to prepare the link and email preview for the
+        email.
       </p>
     );
   const h = await headers();
