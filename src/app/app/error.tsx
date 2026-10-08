@@ -2,10 +2,9 @@
 export default function ErrorPage({ reset }: { reset: () => void }) {
   return (
     <section className="panel">
-      <h1>No se pudo cargar esta sección</h1>
+      <h1>This section could not be loaded</h1>
       <p>
-        Comprueba la conexión, las migraciones y el acceso de tu cuenta. No se
-        mostrarán datos inventados.
+        Check the connection, migrations, and your account access. No fabricated data will be shown.
       </p>
       <button onClick={reset}>Reintentar</button>
     </section>
