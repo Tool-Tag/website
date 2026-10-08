@@ -88,8 +88,8 @@ export async function Finance({
           <dl>
             <dt>Operating Balance</dt>
             <dd>
-              Fondos atribuidos a ToolTag según movimientos. No representa todo
-              el saldo bancario compartido.
+              Funds allocated to ToolTag based on recorded transactions. This does not represent the full
+              shared bank balance.
             </dd>
             <dt>Net Profit</dt>
             <dd>
@@ -97,8 +97,8 @@ export async function Finance({
             </dd>
             <dt>Equipment Investment</dt>
             <dd>
-              Compras de equipo menos devoluciones correspondientes. Las
-              donaciones son informativas.
+              Equipment purchases minus related returns. Donations
+              are informational only.
             </dd>
             <dt>Owner Injection</dt>
             <dd>Owner contributions. They increase cash, not profit.</dd>
@@ -108,19 +108,19 @@ export async function Finance({
             </dd>
             <dt>Available Balance</dt>
             <dd>
-              Operating Balance menos Owner Reimbursement Due. Esta V1 no
+              Operating Balance minus Owner Reimbursement Due. This V1 does not
               includes additional accounts payable.
             </dd>
             <dt>Investment Recovery / Net Position</dt>
             <dd>
               Accumulated profit minus net equipment investment. This is an operational measure, not a tax return or a promise of recovery
-              del capital.
+              of capital.
             </dd>
           </dl>
           <p>
-            La revisión de comprobantes aplica la regla interna aprobada:
-            requerido desde $75 y siempre en hospedaje. Se permite guardar y
-            revisar faltantes.
+            Receipt review follows the approved internal rule:
+            required at $75 and above and always for lodging. Missing receipts may be saved and
+            reviewed.
           </p>
         </Panel>
       </>
@@ -155,7 +155,7 @@ export async function Finance({
             fields={[
               {
                 name: "transaction_date",
-                label: "Fecha",
+                label: "Date",
                 type: "date",
                 value: t.transaction_date,
               },
@@ -173,11 +173,11 @@ export async function Finance({
                   label: value,
                 })),
               },
-              { name: "reason", label: "Motivo del cambio", required: true },
+              { name: "reason", label: "Reason for change", required: true },
             ]}
           />
           <p className="muted">
-            Las correcciones de importes se registran mediante devoluciones o
+            Amount corrections are recorded through refunds or
             revisions while preserving history.
           </p>
         </Panel>
@@ -210,11 +210,11 @@ export async function Finance({
               },
               {
                 name: "drive_file_id",
-                label: "ID del archivo existente en Drive",
+                label: "Existing Drive file ID",
                 required: true,
               },
             ]}
-            button="Vincular comprobante"
+            button="Link Receipt"
           />
         </Panel>
       </>
@@ -313,10 +313,10 @@ export async function Finance({
             <Table
               headers={[
                 "Expense",
-                "Importe",
-                "Pagado por",
-                "Por reembolsar",
-                "Comprobante",
+                "Amount",
+                "Paid By",
+                "Reimbursement Due",
+                "Receipt",
               ]}
             >
               {expenses.map((e) => (
@@ -344,17 +344,17 @@ export async function Finance({
           )}
         </Panel>
         <details>
-          <summary>Registrar viaje / millas</summary>
+          <summary>Record Trip / Mileage</summary>
           <Form
             operation="mileage"
             fields={[
-              { name: "date", label: "Fecha", type: "date", required: true },
+              { name: "date", label: "Date", type: "date", required: true },
               { name: "purpose", label: "Purpose", required: true },
-              { name: "origin", label: "Origen", required: true },
-              { name: "destination", label: "Destino", required: true },
+              { name: "origin", label: "Origin", required: true },
+              { name: "destination", label: "Destination", required: true },
               {
                 name: "miles",
-                label: "Millas",
+                label: "Miles",
                 type: "number",
                 required: true,
               },
