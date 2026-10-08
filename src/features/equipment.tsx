@@ -13,12 +13,12 @@ export async function Equipment({ expense }: { expense?: string }) {
     <>
       <Heading
         title="Equipo"
-        subtitle="La compra vive en Finanzas; aquí se administra el equipo vinculado."
+        subtitle="The purchase remains in Finance; linked equipment is managed here."
       />
       <Panel>
         {assets.length ? (
           <Table
-            headers={["Equipo", "Origen", "Valor / costo", "Compra", "Estado"]}
+            headers={["Equipment", "Origin", "Value / Cost", "Purchase", "Status"]}
           >
             {assets.map((a) => (
               <tr key={a.id}>
