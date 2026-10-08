@@ -595,7 +595,7 @@ export async function Jobs({ id }: { id?: string }) {
           { id: "commercial", label: "Comercial", content: commercialTab },
           { id: "evidence", label: "Evidence", content: evidenceTab },
           { id: "delivery", label: "Entrega", content: deliveryTab },
-          { id: "activity", label: "Actividad", content: activityTab },
+          { id: "activity", label: "Activity", content: activityTab },
         ]}
       />
     </>
