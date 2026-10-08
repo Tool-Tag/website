@@ -12,21 +12,21 @@ export function AssetForm({
 }) {
   const [origin, setOrigin] = useState("Purchased");
   const fields: Field[] = [
-    { name: "name", label: "Nombre del equipo", required: true },
+    { name: "name", label: "Equipment name", required: true },
     {
       name: "category_id",
-      label: "Categoría de equipo",
+      label: "Equipment category",
       options: categories,
       required: true,
     },
-    { name: "serial_number", label: "Número de serie" },
-    { name: "warranty_expiration", label: "Fin de garantía", type: "date" },
-    { name: "notes", label: "Notas", type: "textarea", wide: true },
+    { name: "serial_number", label: "Serial number" },
+    { name: "warranty_expiration", label: "Warranty expiration", type: "date" },
+    { name: "notes", label: "Notes", type: "textarea", wide: true },
   ];
   if (origin === "Purchased")
     fields.unshift({
       name: "source_expense_id",
-      label: "Compra de equipo sin vincular",
+      label: "Unlinked equipment purchase",
       options: expenses,
       required: true,
       value: expense,
@@ -35,14 +35,14 @@ export function AssetForm({
     fields.push(
       {
         name: "estimated_value",
-        label: "Valor estimado (informativo)",
+        label: "Estimated value (informational)",
         type: "number",
         required: true,
       },
-      { name: "donated_by", label: "Donado por", required: true },
+      { name: "donated_by", label: "Donated by", required: true },
       {
         name: "received_date",
-        label: "Fecha de recepción",
+        label: "Received date",
         type: "date",
         required: true,
       },
@@ -50,7 +50,7 @@ export function AssetForm({
   return (
     <>
       <label style={{ marginBottom: 18 }}>
-        Origen
+        Origin
         <select value={origin} onChange={(e) => setOrigin(e.target.value)}>
           <option>Purchased</option>
           <option>Donated</option>
