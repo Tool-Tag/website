@@ -29,8 +29,8 @@ export async function Quotes({
     return (
       <>
         <Heading
-          title={revise ? "Revisar cotización" : "Nueva cotización"}
-          subtitle="Cada revisión conserva lo que el cliente aprobó anteriormente."
+          title={revise ? "Revise Quote" : "New Quote"}
+          subtitle="Each revision preserves what the customer previously approved."
         />
         <Panel>
           {customers.length ? (
@@ -61,7 +61,7 @@ export async function Quotes({
             />
           ) : (
             <Empty>
-              <Link href="/app/customers/new">Primero agrega un cliente →</Link>
+              <Link href="/app/customers/new">Add a customer first →</Link>
             </Empty>
           )}
         </Panel>
@@ -70,7 +70,7 @@ export async function Quotes({
   }
   if (id) {
     const q = (await rows("quotes", { id }))[0];
-    if (!q) return <Empty>Cotización no encontrada.</Empty>;
+    if (!q) return <Empty>Quote not found.</Empty>;
     const flow = (await rows("commercial_flows", { id: q.flow_id }))[0];
     const contact = flow ? (await rows("customers", { id: flow.customer_id }))[0] : null;
     const {db}=await context();
@@ -87,13 +87,13 @@ export async function Quotes({
     const service = intake.service ?? {};
     return (
       <>
-        <Heading title={q.code} subtitle={`Versión ${q.revision}`}>
+        <Heading title={q.code} subtitle={`Version ${q.revision}`}>
           <Badge>{quoteStatusLabel(q.status)}</Badge>
           <Link
             className="button secondary"
             href={`/app/quotes/new?revise=${q.id}`}
           >
-            Crear revisión
+            Create Revision
           </Link>
         </Heading>
         {needsIntakeReview ? (
@@ -200,7 +200,7 @@ export async function Quotes({
         {q.status === "Accepted" && (
           <p>
             <Link href={`/app/quotes/${id}/email`}>
-              Vista previa de la confirmación
+              Confirmation Preview
             </Link>
           </p>
         )}
@@ -243,11 +243,11 @@ export async function Quotes({
   ) => (
     <Panel>
       {quotes.length ? (
-        <Table headers={["Cotización", "Versión", "Estado", "Vigencia"]}>
+        <Table headers={["Quote", "Versión", "Status", "Validity"]}>
           {quotes.map((q) => {
             const displayStatus =
               completedLabel && q.status === "Accepted" && hasClosedJob(q.id)
-                ? "Completada"
+                ? "Completed"
                 : quoteStatusLabel(q.status);
 
             return (
@@ -263,7 +263,7 @@ export async function Quotes({
                   {q.expires_at
                     ? new Date(q.expires_at).toLocaleDateString("es-US")
                     : q.status === "Draft"
-                      ? "Sin enviar"
+                      ? "Not Sent"
                       : "—"}
                 </td>
               </tr>
@@ -280,10 +280,10 @@ export async function Quotes({
     <>
       <Heading
         title="Cotizaciones"
-        subtitle="Organizadas según la etapa comercial."
+        subtitle="Organized by commercial stage."
       >
         <Link className="button" href="/app/quotes/new">
-          + Nueva cotización
+          + New Quote
         </Link>
       </Heading>
 
@@ -298,26 +298,26 @@ export async function Quotes({
           },
           {
             id: "drafts",
-            label: "Borradores",
+            label: "Drafts",
             count: draftQuotes.length,
-            content: quoteTable(draftQuotes, "No hay borradores."),
+            content: quoteTable(draftQuotes, "No Draft Quotes."),
           },
           {
             id: "accepted",
-            label: "Aceptadas",
+            label: "Accepted",
             count: acceptedQuotes.length,
             content: quoteTable(
               acceptedQuotes,
-              "No hay cotizaciones aceptadas.",
+              "No accepted Quotes.",
             ),
           },
           {
             id: "history",
-            label: "Historial",
+            label: "History",
             count: historyQuotes.length,
             content: quoteTable(
               historyQuotes,
-              "No hay cotizaciones en historial.",
+              "No Quotes in history.",
               true,
             ),
           },
