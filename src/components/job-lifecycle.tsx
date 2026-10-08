@@ -47,7 +47,7 @@ export async function JobLifecycle({
 
   if (section === "customer") {
     return lifecycle?.customer ? (
-      <Panel title="Cliente">
+      <Panel title="Customer">
         <p>
           {lifecycle.customer.name} · {lifecycle.customer.email}
         </p>
@@ -73,7 +73,7 @@ export async function JobLifecycle({
 
     return (
       <>
-        <Panel title="Extensiones del trabajo">
+        <Panel title="Job Extensions">
           {extensions.map((x) => (
             <p key={x.id}>
               <Link href={`/app/job-extensions/${x.id}`}>{x.code}</Link> · {extensionStatusLabel(x.status)} ·{" "}
@@ -83,19 +83,19 @@ export async function JobLifecycle({
           {!extensions.length && <p>Sin ampliaciones.</p>}
           {role === "admin" && (
             <details>
-              <summary>Agregar solicitud de trabajo adicional</summary>
+              <summary>Add Additional Work Request</summary>
               <Form
                 operation="request-extension"
                 hidden={{ job_id: id, request_key: randomUUID() }}
                 fields={[
                   {
                     name: "request",
-                    label: "Trabajo solicitado",
+                    label: "Requested Work",
                     type: "textarea",
                     required: true,
                   },
                 ]}
-                button="Crear extensión"
+                button="Create Extension"
                 back={`/app/jobs/${id}`}
               />
             </details>
@@ -104,15 +104,15 @@ export async function JobLifecycle({
 
         {t && (
           <Panel title="Total y pagos">
-            <p>Cotización base: {money(t.base_amount)}</p>
+            <p>Base Quote: {money(t.base_amount)}</p>
             <p>Extensiones aprobadas: {money(t.extensions_amount)}</p>
             <h3>Total: {money(t.grand_total)}</h3>
             <p>
-              Cobrado: {money(t.collected)} · Reembolsado: {money(t.refunded)} · Saldo:{" "}
+              Collected: {money(t.collected)} · Refunded: {money(t.refunded)} · Balance:{" "}
               {money(t.balance_due)}
             </p>
             <p className="muted">
-              Cada extensión aprobada tiene su componente de venta y sus cobros. Aquí se
+              Each approved extension has its own sale component and collections. This section
               consolidan sin duplicar ingresos.
             </p>
             {extensions
@@ -127,7 +127,7 @@ export async function JobLifecycle({
           </Panel>
         )}
 
-        <Panel title="Pagos del cliente">
+        <Panel title="Customer Payments">
           {paymentRequests.length ? (
             paymentRequests.map((request) => (
               <div className="item" key={request.id}>
@@ -161,18 +161,18 @@ export async function JobLifecycle({
                     operation="confirm-payment"
                     hidden={{ id: request.id }}
                     fields={[]}
-                    button="Confirmar pago recibido"
+                    button="Confirm Payment Received"
                     back={`/app/jobs/${id}`}
                   />
                 )}
               </div>
             ))
           ) : (
-            <p>Sin pagos enviados por el cliente.</p>
+            <p>No customer payments submitted.</p>
           )}
         </Panel>
 
-        <Panel title="Recibos del trabajo">
+        <Panel title="Job Receipts">
           {receipts.map((r) => (
             <p key={r.id}>
               <Link href={`/app/job-receipts/${r.id}`}>
@@ -186,7 +186,7 @@ export async function JobLifecycle({
               operation="generate-receipt"
               hidden={{ job_id: id }}
               fields={[]}
-              button="Generar y enviar resumen de pagos"
+              button="Generate and Send Payment Summary"
               back={`/app/jobs/${id}`}
             />
           )}
@@ -197,33 +197,33 @@ export async function JobLifecycle({
 
   if (section === "delivery") {
     return (
-      <Panel title="Revisión del cliente y entrega">
+      <Panel title="Customer Review and Delivery">
         <p>
           Respuesta:{" "}
           {lifecycle?.review?.response === "ready"
             ? "Listo para entrega"
             : lifecycle?.review?.response === "additional"
-              ? "Solicitó trabajo adicional"
-              : "Pendiente"}
+              ? "Requested additional work"
+              : "Pending"}
         </p>
         {lifecycle?.review?.customer_request && <p>{lifecycle.review.customer_request}</p>}
         <p>
-          Correo de revisión: {lifecycle?.review?.notified_at || "Pendiente"}
+          Review email: {lifecycle?.review?.notified_at || "Pending"}
           <br />
-          Primera visita: {lifecycle?.review?.viewed_at || "Pendiente"}
+          First visit: {lifecycle?.review?.viewed_at || "Pending"}
           <br />
-          Respuesta: {lifecycle?.review?.response_at || "Pendiente"}
+          Response: {lifecycle?.review?.response_at || "Pending"}
         </p>
         {lifecycle?.review_path && (
           <Link href={lifecycle.review_path} target="_blank" rel="noreferrer">
-            Abrir revisión privada
+            Open Private Review
           </Link>
         )}
         <p>
           Recepción confirmada:{" "}
           {ack[0]
             ? new Date(ack[0].acknowledged_at).toLocaleString("es-US")
-            : "Sin confirmación explícita"}
+            : "No explicit confirmation"}
         </p>
       </Panel>
     );
