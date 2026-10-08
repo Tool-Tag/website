@@ -36,7 +36,7 @@ export async function Jobs({ id }: { id?: string }) {
     const jobTable = (jobs: typeof list, empty: string) => (
       <Panel>
         {jobs.length ? (
-          <Table headers={["Trabajo", "Etapa", "Estado", "Creado"]}>
+          <Table headers={["Job", "Stage", "Status", "Created"]}>
             {jobs.map((j) => (
               <tr key={j.id}>
                 <td>
@@ -61,8 +61,8 @@ export async function Jobs({ id }: { id?: string }) {
     return (
       <>
         <Heading
-          title="Trabajos"
-          subtitle="Organizados según su etapa operativa."
+          title="Jobs"
+          subtitle="Organized by operational stage."
         />
         <JobTabs
           defaultTab="active"
@@ -75,29 +75,29 @@ export async function Jobs({ id }: { id?: string }) {
             },
             {
               id: "review",
-              label: "Revisión",
+              label: "Review",
               count: reviewJobs.length,
-              content: jobTable(reviewJobs, "No hay trabajos en revisión."),
+              content: jobTable(reviewJobs, "No Jobs under review."),
             },
             {
               id: "payments",
               label: "Pagos",
               count: paymentJobs.length,
-              content: jobTable(paymentJobs, "No hay trabajos pendientes de pago."),
+              content: jobTable(paymentJobs, "No Jobs awaiting payment."),
             },
             {
               id: "completed",
-              label: "Completados",
+              label: "Completed",
               count: completedJobs.length,
-              content: jobTable(completedJobs, "No hay trabajos completados."),
+              content: jobTable(completedJobs, "No completed Jobs."),
             },
             ...(cancelledJobs.length
               ? [
                   {
                     id: "cancelled",
-                    label: "Cancelados",
+                    label: "Cancelled",
                     count: cancelledJobs.length,
-                    content: jobTable(cancelledJobs, "No hay trabajos cancelados."),
+                    content: jobTable(cancelledJobs, "No cancelled Jobs."),
                   },
                 ]
               : []),
@@ -109,7 +109,7 @@ export async function Jobs({ id }: { id?: string }) {
 
   const { role, db } = await context();
   const j = (await rows("jobs", { id }))[0];
-  if (!j) return <Empty>Trabajo no encontrado.</Empty>;
+  if (!j) return <Empty>Job no encontrado.</Empty>;
 
   const [docs, sales, paymentRequests, rawJobItems, pickupRows, cancellationRows] = await Promise.all([
     rows("documents", { field: "job_id", value: id }),
@@ -481,7 +481,7 @@ export async function Jobs({ id }: { id?: string }) {
   const detailsTab = (
     <>
       <JobLifecycle id={id} section="customer" />
-      <Panel title="Trabajo aprobado">
+      <Panel title="Job aprobado">
         <QuoteScope items={scope} />
       </Panel>
     </>
@@ -583,14 +583,14 @@ export async function Jobs({ id }: { id?: string }) {
         }
       >
         <Link className="button secondary" href={`/app/quotes/${j.quote_id}`}>
-          Cotización aprobada
+          Accepted Quote
         </Link>
       </Heading>
 
       <JobTabs
         defaultTab="work"
         tabs={[
-          { id: "work", label: "Trabajo", content: workTab },
+          { id: "work", label: "Job", content: workTab },
           { id: "details", label: "Detalles", content: detailsTab },
           { id: "commercial", label: "Comercial", content: commercialTab },
           { id: "evidence", label: "Evidence", content: evidenceTab },
