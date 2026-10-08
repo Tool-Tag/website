@@ -4,7 +4,7 @@ import { mutate } from "@/app/actions";
 export function SendQuote({ id, email, companyEmail, sent = false, lastRequestedAt }: { id: string; email?: string; companyEmail?: string; sent?: boolean; lastRequestedAt?: string }) {
   const recipients = [
     { label: "Correo personal", email: email?.trim() || "" },
-    { label: "Correo de compañía", email: companyEmail?.trim() || "" },
+    { label: "Company email", email: companyEmail?.trim() || "" },
   ].filter((entry, index, all) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(entry.email) && all.findIndex((other) => other.email.toLowerCase() === entry.email.toLowerCase()) === index);
   const [state, action, pending] = useActionState(
     mutate.bind(null, sent ? "resend-quote" : "send-quote", `/app/quotes/${id}`),
@@ -26,7 +26,7 @@ export function SendQuote({ id, email, companyEmail, sent = false, lastRequested
         <input type="hidden" name="resend" value={isResend ? "true" : "false"} />
         {recipients.length > 1 ? (
           <label>
-            ¿A cuál correo quieres enviar la cotización?
+            Which email should receive the Quote?
             <select name="recipient" required defaultValue="" disabled={pending}>
               <option value="" disabled>Selecciona un correo…</option>
               {recipients.map((entry) => <option key={entry.email} value={entry.email}>{entry.label}: {entry.email}</option>)}
@@ -35,17 +35,17 @@ export function SendQuote({ id, email, companyEmail, sent = false, lastRequested
         ) : (
           <>
             <input type="hidden" name="recipient" value={recipients[0]?.email || ""} />
-            <p>{recipients.length ? `Enviar a: ${recipients[0].email}` : "Agrega un correo al cliente antes de enviar."}</p>
+            <p>{recipients.length ? `Send to: ${recipients[0].email}` : "Add a customer email before sending."}</p>
           </>
         )}
         <button disabled={pending || !recipients.length || seconds > 0}>
-          {pending ? "Preparando…" : seconds > 0 ? `Reenviar en ${seconds}s` : isResend ? "Reenviar cotización" : "Enviar cotización"}
+          {pending ? "Preparing…" : seconds > 0 ? `Resend in ${seconds}s` : isResend ? "Resend Quote" : "Send Quote"}
         </button>
         {!isResend && <label className="checkbox">
           <input type="checkbox" name="regenerate" />
           Regenerar enlace e invalidar el anterior
         </label>}
-        {isResend && <p className="muted">El reenvío conserva el destinatario, el enlace y su fecha de vencimiento.</p>}
+        {isResend && <p className="muted">Resending keeps the same recipient, link, and expiration date.</p>}
         {state.error && (
           <p role="alert" className="notice error">
             {state.error}
@@ -54,7 +54,7 @@ export function SendQuote({ id, email, companyEmail, sent = false, lastRequested
         {state.link && (
           <div className="notice">
             <p>
-              {state.mailStatus || "Cotización lista. Puedes copiar el enlace para compartirlo."}
+              {state.mailStatus || "Quote ready. You can copy the link to share it."}
             </p>
             <input
               aria-label="Enlace privado"
@@ -80,7 +80,7 @@ export function SendQuote({ id, email, companyEmail, sent = false, lastRequested
                 {copied ? "Copiado" : "Copiar enlace"}
               </button>
               <a href={state.link} target="_blank" rel="noreferrer">
-                Ver página del cliente
+                View customer page
               </a>
             </div>
           </div>
