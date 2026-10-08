@@ -235,8 +235,8 @@ export async function Finance({
           <Badge>{s.status}</Badge>
           <div className="grid">
             <Metric label="Sale" value={s.amount} />
-            <Metric label="Cobrado" value={s.collected} />
-            <Metric label="Por cobrar" value={s.balance_due} />
+            <Metric label="Collected" value={s.collected} />
+            <Metric label="Balance Due" value={s.balance_due} />
           </div>
           {s.job_id && (
             <Link href={`/app/jobs/${s.job_id}`}>Open Job →</Link>
