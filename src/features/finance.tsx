@@ -48,7 +48,7 @@ export async function Movement({
         .filter((s) => Number(s.balance_due) > 0)
         .map((s) => ({
           value: s.transaction_id,
-          label: `${s.code} · ${money(s.balance_due)} pendiente`,
+          label: `${s.code} · ${money(s.balance_due)} pending`,
         }))}
       expenses={options("EXPENSE")}
       collections={options("COLLECTION")}
@@ -73,10 +73,10 @@ export async function Finance({
     <>
       <Heading
         title="ToolTag Finance"
-        subtitle="Ventas, efectivo y aportaciones, cada uno en su lugar."
+        subtitle="Sales, cash, and owner contributions, each in its proper place."
       >
         <Link className="button" href="/app/finance/transactions/new">
-          + Registrar movimiento
+          + Record Transaction
         </Link>
       </Heading>
       <FinanceTabs />
@@ -86,7 +86,7 @@ export async function Finance({
     return (
       <>
         {heading}
-        <Panel title="Qué significa cada número">
+        <Panel title="What Each Number Means">
           <dl>
             <dt>Operating Balance</dt>
             <dd>
@@ -95,7 +95,7 @@ export async function Finance({
             </dd>
             <dt>Net Profit</dt>
             <dd>
-              Ventas menos devoluciones de clientes y gastos operativos netos.
+              Sales menos devoluciones de clientes y gastos operativos netos.
               Cobrar una venta no vuelve a generar ingreso. Equipo se muestra
               por separado; no calculamos depreciación.
             </dd>
@@ -105,10 +105,10 @@ export async function Finance({
               donaciones son informativas.
             </dd>
             <dt>Owner Injection</dt>
-            <dd>Aportaciones del dueño. Aumentan efectivo, no utilidad.</dd>
+            <dd>Owner contributions. They increase cash, not profit.</dd>
             <dt>Owner Reimbursement Due</dt>
             <dd>
-              Gastos pagados por el dueño que aún no se le han reembolsado.
+              Expenses paid by the owner that have not yet been reimbursed.
             </dd>
             <dt>Available Balance</dt>
             <dd>
@@ -134,7 +134,7 @@ export async function Finance({
     return (
       <>
         {heading}
-        <Panel title="Nuevo movimiento">
+        <Panel title="New Transaction">
           <Movement />
         </Panel>
       </>
@@ -160,25 +160,25 @@ export async function Finance({
             fields={[
               {
                 name: "transaction_date",
-                label: "Fecha",
+                label: "Date",
                 type: "date",
                 value: t.transaction_date,
               },
               {
                 name: "description",
-                label: "Descripción",
+                label: "Description",
                 value: t.description,
               },
               {
                 name: "status",
-                label: "Estado",
+                label: "Status",
                 value: t.status,
                 options: ["Active", "Archived", "Voided"].map((value) => ({
                   value,
                   label: value,
                 })),
               },
-              { name: "reason", label: "Motivo del cambio", required: true },
+              { name: "reason", label: "Reason for Change", required: true },
             ]}
           />
           <p className="muted">
@@ -186,50 +186,50 @@ export async function Finance({
             revisiones, conservando el historial.
           </p>
         </Panel>
-        <Panel title="Comprobantes / recibos">
+        <Panel title="Receipts / Supporting Documents">
           {docs.map((d) => (
             <details key={d.id}>
               <summary>
-                {d.type === "Payment Receipt" ? "Recibo de pago" : d.file_name}
+                {d.type === "Payment Receipt" ? "Payment Receipt" : d.file_name}
               </summary>
               {d.drive_file_id ? (
                 <a
                   href={`https://drive.google.com/file/d/${encodeURIComponent(d.drive_file_id)}/view`}
                 >
-                  Abrir Drive ↗
+                  Open Drive ↗
                 </a>
               ) : d.content_snapshot ? (
                 <div className="panel">
                   <h3>
                     {d.content_snapshot.balance_remaining === 0
-                      ? "Paid · Recibo final"
-                      : "Recibo de pago"}
+                      ? "Paid · Final Receipt"
+                      : "Payment Receipt"}
                   </h3>
                   <p>
-                    Venta:{" "}
-                    {d.content_snapshot.sale_code ?? "Cobro sin vincular"}
+                    Sale:{" "}
+                    {d.content_snapshot.sale_code ?? "Unlinked Collection"}
                   </p>
                   <p>
-                    Recibido: {money(d.content_snapshot.amount)} ·{" "}
+                    Received: {money(d.content_snapshot.amount)} ·{" "}
                     {d.content_snapshot.payment_method} ·{" "}
                     {d.content_snapshot.date}
                   </p>
-                  <p>Total de venta: {money(d.content_snapshot.sale_total)}</p>
+                  <p>Sale Total: {money(d.content_snapshot.sale_total)}</p>
                   <p>
-                    Pagado hasta este recibo:{" "}
+                    Paid Through This Receipt:{" "}
                     {money(d.content_snapshot.paid_to_date)}
                   </p>
                   <p>
-                    Saldo pendiente:{" "}
+                    Saldo pending:{" "}
                     {money(d.content_snapshot.balance_remaining)}
                   </p>
                   <small>
-                    Comprobante guardado. Copia por email y archivo en Drive
-                    pendientes de integración.
+                    Receipt guardado. Copia por email y archivo en Drive
+                    pendings de integración.
                   </small>
                 </div>
               ) : (
-                <p className="muted">Documento pendiente.</p>
+                <p className="muted">Documento pending.</p>
               )}
             </details>
           ))}
@@ -240,16 +240,16 @@ export async function Finance({
             fields={[
               {
                 name: "file_name",
-                label: "Nombre del archivo",
+                label: "File Name",
                 required: true,
               },
               {
                 name: "drive_file_id",
-                label: "ID del archivo existente en Drive",
+                label: "Existing Drive File ID",
                 required: true,
               },
             ]}
-            button="Vincular comprobante"
+            button="Link Receipt"
           />
         </Panel>
       </>
@@ -269,26 +269,26 @@ export async function Finance({
         <Panel title={s.code}>
           <Badge>{s.status}</Badge>
           <div className="grid">
-            <Metric label="Venta" value={s.amount} />
-            <Metric label="Cobrado" value={s.collected} />
-            <Metric label="Por cobrar" value={s.balance_due} />
+            <Metric label="Sale" value={s.amount} />
+            <Metric label="Collected" value={s.collected} />
+            <Metric label="Balance Due" value={s.balance_due} />
           </div>
           {s.job_id && (
-            <Link href={`/app/jobs/${s.job_id}`}>Abrir trabajo →</Link>
+            <Link href={`/app/jobs/${s.job_id}`}>Open Job →</Link>
           )}
         </Panel>
         {Number(s.balance_due) > 0 && (
-          <Panel title="Registrar cobro">
+          <Panel title="Record Collection">
             <Movement saleId={id} type="COLLECTION" />
           </Panel>
         )}
-        <Panel title="Pagos y recibos">
+        <Panel title="Payments & Receipts">
           {tx
             .filter((t) => paymentIds.has(t.id))
             .map((t) => (
               <p key={t.id}>
                 <Link href={`/app/finance/transactions/${t.id}`}>
-                  {t.transaction_date} · {money(t.amount)} · Ver recibo →
+                  {t.transaction_date} · {money(t.amount)} · View Receipt →
                 </Link>
               </p>
             ))}
@@ -304,7 +304,7 @@ export async function Finance({
         <Panel>
           {sales.length ? (
             <Table
-              headers={["Venta", "Total", "Cobrado", "Pendiente", "Estado"]}
+              headers={["Sale", "Total", "Collected", "Pending", "Status"]}
             >
               {sales.map((s) => (
                 <tr key={s.transaction_id}>
@@ -323,7 +323,7 @@ export async function Finance({
               ))}
             </Table>
           ) : (
-            <Empty>Las ventas se crean al aceptar cotización y términos.</Empty>
+            <Empty>Sales are created when the Quote and terms are accepted.</Empty>
           )}
         </Panel>
       </>
@@ -337,21 +337,21 @@ export async function Finance({
         {heading}
         {saved?.is_equipment && !saved.linked_asset_id && (
           <div className="notice success">
-            Compra guardada.{" "}
+            Purchase saved.{" "}
             <Link href={`/app/equipment?expense=${created}`}>
-              Crear el equipo vinculado →
+              Create Linked Equipment →
             </Link>
           </div>
         )}
-        <Panel title="Gastos">
+        <Panel title="Expenses">
           {expenses.length ? (
             <Table
               headers={[
-                "Gasto",
-                "Importe",
-                "Pagado por",
-                "Por reembolsar",
-                "Comprobante",
+                "Expense",
+                "Amount",
+                "Paid By",
+                "Reimbursement Due",
+                "Receipt",
               ]}
             >
               {expenses.map((e) => (
@@ -379,21 +379,21 @@ export async function Finance({
           )}
         </Panel>
         <details>
-          <summary>Registrar viaje / millas</summary>
+          <summary>Record Trip / Mileage</summary>
           <Form
             operation="mileage"
             fields={[
-              { name: "date", label: "Fecha", type: "date", required: true },
-              { name: "purpose", label: "Propósito", required: true },
-              { name: "origin", label: "Origen", required: true },
-              { name: "destination", label: "Destino", required: true },
+              { name: "date", label: "Date", type: "date", required: true },
+              { name: "purpose", label: "Purpose", required: true },
+              { name: "origin", label: "Origin", required: true },
+              { name: "destination", label: "Destination", required: true },
               {
                 name: "miles",
-                label: "Millas",
+                label: "Miles",
                 type: "number",
                 required: true,
               },
-              { name: "notes", label: "Notas" },
+              { name: "notes", label: "Notes" },
             ]}
             back="/app/finance/expenses"
           />
@@ -406,7 +406,7 @@ export async function Finance({
     return (
       <>
         {heading}
-        <Panel title="Revisión">
+        <Panel title="Review">
           {list.length ? (
             list.map((r, i) => (
               <p key={i}>
@@ -433,10 +433,10 @@ export async function Finance({
     return (
       <>
         {heading}
-        <Panel title="Cerrar mes">
+        <Panel title="Close Month">
           <p className="muted">
             Guarda una versión con cifras y advertencias. Las versiones
-            anteriores se conservan. Revisa primero los pendientes.
+            anteriores se conservan. Revisa primero los pendings.
           </p>
           <Form
             operation="close"
@@ -444,46 +444,46 @@ export async function Finance({
             fields={[
               {
                 name: "month",
-                label: "Primer día del mes a cerrar",
+                label: "First Day of Month to Close",
                 type: "date",
                 value: previous.toISOString().slice(0, 10),
                 required: true,
               },
             ]}
-            button="Cerrar mes ahora"
+            button="Close Month ahora"
           />
         </Panel>
-        <Panel title="Vehículo · análisis anual">
+        <Panel title="Vehicle · Annual Analysis">
           <p>
-            Método seleccionado: {vehicle?.selected_method ?? "Fuel"} ·{" "}
+            Selected Method: {vehicle?.selected_method ?? "Fuel"} ·{" "}
             {vehicle?.year}
           </p>
           <p>
-            Historial Fuel: {money(vehicle?.fuel_history)} · Millas registradas:{" "}
+            Fuel History: {money(vehicle?.fuel_history)} · Miles registradas:{" "}
             {vehicle?.miles_history ?? 0}
           </p>
           <p>
-            Importe considerado:{" "}
+            Amount considerado:{" "}
             {vehicle?.selected_amount == null
-              ? "Define la tarifa por milla en Configuración"
+              ? "Set the mileage rate in Settings"
               : money(vehicle.selected_amount)}
           </p>
           <small>
-            Se considera solo un método. Ambos historiales se conservan.
+            Only one method is used. Both histories are preserved.
           </small>
         </Panel>
-        <Panel title="Historial de cierres">
+        <Panel title="Close History">
           {closes.map((c) => (
             <details key={c.id}>
               <summary>
                 {c.month} · v{c.version} · {c.status}
               </summary>
               <p>
-                Ingresos: {money(c.snapshot.revenue)} · Gastos:{" "}
-                {money(c.snapshot.expenses)} · Equipo:{" "}
+                Revenue: {money(c.snapshot.revenue)} · Expenses:{" "}
+                {money(c.snapshot.expenses)} · Equipment:{" "}
                 {money(c.snapshot.equipment)}
               </p>
-              <p>Advertencias al cierre: {c.warnings.length}</p>
+              <p>Close Warnings: {c.warnings.length}</p>
             </details>
           ))}
           {!closes.length && <Empty />}
@@ -499,7 +499,7 @@ export async function Finance({
         <Panel>
           {tx.length ? (
             <Table
-              headers={["Fecha", "Movimiento", "Tipo", "Importe", "Estado"]}
+              headers={["Date", "Transaction", "Type", "Amount", "Status"]}
             >
               {tx.map((t) => (
                 <tr key={t.id}>
@@ -544,14 +544,14 @@ export async function Finance({
             value={s?.[k]}
             help={
               k === "available_balance"
-                ? "Fondos atribuidos menos gastos pendientes de reembolsar al dueño."
+                ? "Fondos atribuidos menos gastos pendings de reembolsar al dueño."
                 : undefined
             }
           />
         ))}
       </div>
       <Panel>
-        <Link href="/app/finance/about">Cómo se calcula cada número →</Link>
+        <Link href="/app/finance/about">How Each Number Is Calculated →</Link>
       </Panel>
     </>
   );
