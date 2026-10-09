@@ -10,7 +10,7 @@ export default async function Login({
   return (
     <main className="auth">
       <p className="eyebrow">ToolTag Workspace</p>
-      <h1>Tu espacio de trabajo.</h1>
+      <h1>Your Workspace.</h1>
       <p className="muted">Acceso privado para las cuentas autorizadas.</p>
       {p.notice && (
         <p className="notice">
@@ -22,12 +22,12 @@ export default async function Login({
         <LoginForm />
       ) : (
         <div className="notice">
-          Falta configurar la conexión a Supabase.{" "}
-          <Link href="/app">Ver estructura de la aplicación →</Link>
+          The Supabase connection is not configured.{" "}
+          <Link href="/app">View Application Structure →</Link>
         </div>
       )}
       <p style={{ marginTop: 24 }}>
-        <Link href="/">← Volver a ToolTag</Link>
+        <Link href="/">← Back to ToolTag</Link>
       </p>
     </main>
   );
