@@ -8,9 +8,9 @@ export const customerFields: Field[] = [
   { name: "phone", label: "Phone", type: "tel", required: true },
   { name: "email", label: "Email", type: "email", required: true },
   { name: "address", label: "Address", required: true },
-  { name: "company_name", label: "Empresa (opcional)" },
+  { name: "company_name", label: "Company (optional)" },
   { name: "company_phone", label: "Company Phone" },
-  { name: "company_email", label: "Email de empresa", type: "email" },
+  { name: "company_email", label: "Company Email", type: "email" },
   { name: "company_address", label: "Company Address" },
 ];
 export async function Customers({ id, q }: { id?: string; q?: string }) {
@@ -53,10 +53,10 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
         </Heading>
         <div className="grid">
           <Metric currency={false} label="Jobs" value={jobs.length} />
-          <Metric label="Ventas acumuladas" value={stats?.lifetime_sales} />
+          <Metric label="Lifetime Sales" value={stats?.lifetime_sales} />
           <Metric label="Outstanding Balance" value={stats?.outstanding} />
         </div>
-        <Panel title="Contacto">
+        <Panel title="Contact">
           <p>
             {customer.email} · {customer.phone}
           </p>
@@ -68,7 +68,7 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
             </p>
           )}
           <details>
-            <summary>Editar datos</summary>
+            <summary>Edit Details</summary>
             <Form
               operation="customer"
               hidden={{ id }}
@@ -111,7 +111,7 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
           ))}
           {!sales.length && <Empty />}
         </Panel>
-        <Panel title="Documentos">
+        <Panel title="Documents">
           {docs.map((d) => (
             <p key={d.id}>
               {d.drive_file_id ? (
@@ -162,9 +162,9 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
             name="q"
             defaultValue={q}
             placeholder="Name, phone, email, or identifier"
-            aria-label="Buscar"
+            aria-label="Search"
           />
-          <button>Buscar</button>
+          <button>Search</button>
         </form>
       </Panel>
       <Panel>
