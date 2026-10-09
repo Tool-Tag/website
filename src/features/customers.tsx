@@ -5,21 +5,21 @@ import { Form, type Field } from "@/components/form";
 import { money } from "@/lib/domain/money";
 export const customerFields: Field[] = [
   { name: "name", label: "Nombre de la persona", required: true },
-  { name: "phone", label: "Teléfono", type: "tel", required: true },
+  { name: "phone", label: "Phone", type: "tel", required: true },
   { name: "email", label: "Email", type: "email", required: true },
-  { name: "address", label: "Dirección", required: true },
+  { name: "address", label: "Address", required: true },
   { name: "company_name", label: "Empresa (opcional)" },
-  { name: "company_phone", label: "Teléfono de empresa" },
+  { name: "company_phone", label: "Company Phone" },
   { name: "company_email", label: "Email de empresa", type: "email" },
-  { name: "company_address", label: "Dirección de empresa" },
+  { name: "company_address", label: "Company Address" },
 ];
 export async function Customers({ id, q }: { id?: string; q?: string }) {
   if (id === "new")
     return (
       <>
         <Heading
-          title="Nuevo cliente"
-          subtitle="Revisaremos coincidencias por teléfono y email antes de guardar."
+          title="New Customer"
+          subtitle="We will check for matches by phone and email before saving."
         />
         <Panel>
           <Form operation="customer" fields={customerFields} />
@@ -28,7 +28,7 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
     );
   if (id) {
     const customer = (await rows("customers", { id }))[0];
-    if (!customer) return <Empty>Cliente no encontrado.</Empty>;
+    if (!customer) return <Empty>Customer not found.</Empty>;
     const flows = await rows("commercial_flows", {
       field: "customer_id",
       value: id,
@@ -48,11 +48,11 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
       <>
         <Heading title={customer.name} subtitle={customer.code}>
           <Link className="button" href={`/app/quotes/new?customer=${id}`}>
-            + Nueva cotización
+            + New Quote
           </Link>
         </Heading>
         <div className="grid">
-          <Metric currency={false} label="Trabajos" value={jobs.length} />
+          <Metric currency={false} label="Jobs" value={jobs.length} />
           <Metric label="Ventas acumuladas" value={stats?.lifetime_sales} />
           <Metric label="Saldo pendiente" value={stats?.outstanding} />
         </div>
@@ -80,7 +80,7 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
           </details>
         </Panel>
         <div className="grid two">
-          <Panel title="Cotizaciones">
+          <Panel title="Quotes">
             {quotes.map((q) => (
               <p key={q.id}>
                 <Link href={`/app/quotes/${q.id}`}>
@@ -90,7 +90,7 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
             ))}
             {!quotes.length && <Empty />}
           </Panel>
-          <Panel title="Trabajos">
+          <Panel title="Jobs">
             {jobs.map((j) => (
               <p key={j.id}>
                 <Link href={`/app/jobs/${j.id}`}>
@@ -101,7 +101,7 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
             {!jobs.length && <Empty />}
           </Panel>
         </div>
-        <Panel title="Ventas y pagos">
+        <Panel title="Sales & Payments">
           {sales.map((s) => (
             <p key={s.transaction_id}>
               <Link href={`/app/finance/sales/${s.transaction_id}`}>
@@ -148,11 +148,11 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
   return (
     <>
       <Heading
-        title="Clientes"
-        subtitle="Personas, historial y documentos relacionados."
+        title="Customers"
+        subtitle="People, history, and related documents."
       >
         <Link className="button" href="/app/customers/new">
-          + Nuevo cliente
+          + New Customer
         </Link>
       </Heading>
       <Panel>
@@ -161,7 +161,7 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
             style={{ maxWidth: 420 }}
             name="q"
             defaultValue={q}
-            placeholder="Nombre, teléfono, email o identificador"
+            placeholder="Name, phone, email, or identifier"
             aria-label="Buscar"
           />
           <button>Buscar</button>
@@ -169,7 +169,7 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
       </Panel>
       <Panel>
         {filtered.length ? (
-          <Table headers={["Cliente", "Contacto", "Empresa"]}>
+          <Table headers={["Customer", "Contact", "Company"]}>
             {filtered.map((c) => (
               <tr key={c.id}>
                 <td>
@@ -187,7 +187,7 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
             ))}
           </Table>
         ) : (
-          <Empty>No hay coincidencias.</Empty>
+          <Empty>No matches found.</Empty>
         )}
       </Panel>
       {searchResults?.length > 0 && (
