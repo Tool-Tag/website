@@ -45,7 +45,7 @@ export async function Dashboard() {
         <Metric
           label="Main Account"
           value={s?.operating_balance}
-          help="Saldo atribuido a ToolTag; no es todo el saldo del banco."
+          help="Balance attributed to ToolTag; it is not the entire bank balance."
         />
       </div>
       <div className="grid two">
@@ -60,7 +60,7 @@ export async function Dashboard() {
             <Empty>
               {ready
                 ? "All Clear — nothing pending."
-                : "Conecta Supabase para cargar tus pendientes."}
+                : "Connect Supabase to load items requiring attention."}
             </Empty>
           )}
         </Panel>
@@ -79,14 +79,14 @@ export async function Dashboard() {
           </div>
         </Panel>
       </div>
-      <Panel title="Ventas y cobros">
+      <Panel title="Sales & Collections">
         <div className="grid">
-          <Metric label="Ventas del mes" value={stats?.sales_month} />
-          <Metric label="Cobrado este mes" value={stats?.collected_month} />
-          <Metric label="Por cobrar" value={stats?.balance_due} />
+          <Metric label="Sales This Month" value={stats?.sales_month} />
+          <Metric label="Collected This Month" value={stats?.collected_month} />
+          <Metric label="Outstanding Balance" value={stats?.balance_due} />
         </div>
       </Panel>
-      <Panel title="Actividad reciente">
+      <Panel title="Recent Activity">
         {activity.length ? (
           <Table headers={["Record", "Change", "Date"]}>
             {activity.map((a) => (
@@ -96,7 +96,7 @@ export async function Dashboard() {
                 </td>
                 <td>{a.changed_fields}</td>
                 <td>
-                  {new Date(a.created_at).toLocaleString("es-US", {
+                  {new Date(a.created_at).toLocaleString("en-US", {
                     timeZone: "America/Denver",
                   })}
                 </td>
