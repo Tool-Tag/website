@@ -30,57 +30,57 @@ export function MovementForm({
   const [paidBy, setPaidBy] = useState("Business");
   const today = new Date().toLocaleDateString("en-CA");
   const fields: Field[] = [
-    { name: "amount", label: "Importe (USD)", type: "number", required: true },
+    { name: "amount", label: "Amount (USD)", type: "number", required: true },
     {
       name: "transaction_date",
-      label: "Fecha del movimiento",
+      label: "Transaction Date",
       type: "date",
       value: today,
       required: true,
     },
     {
       name: "account_id",
-      label: "Cuenta atribuida",
+      label: "Assigned Account",
       options: accounts,
       required: true,
       value: accounts[0]?.value,
     },
-    { name: "description", label: "Descripción / propósito", required: true },
+    { name: "description", label: "Description / Purpose", required: true },
   ];
   if (type === "EXPENSE")
     fields.push(
       {
         name: "category_id",
-        label: "Categoría",
+        label: "Category",
         options: categories,
         required: true,
       },
       {
         name: "vendor",
-        label: "Proveedor — elegir o escribir uno nuevo",
+        label: "Vendor — choose or enter a new one",
         required: true,
         suggestions: vendors,
       },
       {
         name: "lodging",
-        label: "¿Hospedaje?",
+        label: "Lodging?",
         value: "false",
         options: [
           { value: "false", label: "No" },
-          { value: "true", label: "Sí: comprobante siempre requerido" },
+          { value: "true", label: "Yes: receipt always required" },
         ],
       },
     );
   if (type === "COLLECTION" && !saleId)
     fields.push({
       name: "sale_id",
-      label: "Venta (vacío = cobro sin vincular para revisión)",
+      label: "Sale (blank = unlinked collection for review)",
       options: sales,
     });
   if (type === "COLLECTION")
     fields.push({
       name: "payment_method",
-      label: "Método de pago",
+      label: "Payment Method",
       required: true,
       options: ["Cash", "Zelle", "Venmo"].map((value) => ({
         value,
@@ -90,23 +90,23 @@ export function MovementForm({
   if (type === "REFUND")
     fields.push({
       name: "original_id",
-      label: "Cobro o gasto original",
+      label: "Original Collection or Expense",
       required: true,
       options: [...collections, ...expenses],
     });
   if (type === "INTER_UNIT_TRANSFER")
     fields.push({
       name: "destination_account_id",
-      label: "Cuenta de destino BOFT",
+      label: "Destination BOFT Account",
       options: destinationAccounts,
       required: true,
     });
   fields.push(
-    { name: "reference", label: "Referencia (opcional)" },
+    { name: "reference", label: "Reference (optional)" },
     {
       name: "reason",
-      label: "Motivo de excepción / cambio en mes cerrado",
-      help: "Obligatorio si el período está cerrado o el reembolso supera la ventana de 14 días.",
+      label: "Exception Reason / Closed-Month Change",
+      help: "Required if the period is closed or the refund exceeds the 14-day window.",
       wide: true,
     },
   );
@@ -114,19 +114,19 @@ export function MovementForm({
     <>
       <div className="formgrid" style={{ marginBottom: 20 }}>
         <label>
-          Tipo
+          Type
           <select
             value={type}
             disabled={!!saleId}
             onChange={(e) => setType(e.target.value)}
           >
             {[
-              ["EXPENSE", "Gasto"],
-              ["COLLECTION", "Cobro"],
-              ["OWNER_INJECTION", "Aportación del dueño"],
-              ["OWNER_DRAW", "Retiro / reembolso al dueño"],
-              ["INTER_UNIT_TRANSFER", "Transferencia interna a BOFT"],
-              ["REFUND", "Devolución"],
+              ["EXPENSE", "Expense"],
+              ["COLLECTION", "Collection"],
+              ["OWNER_INJECTION", "Owner Injection"],
+              ["OWNER_DRAW", "Owner Draw / Reimbursement"],
+              ["INTER_UNIT_TRANSFER", "Internal Transfer to BOFT"],
+              ["REFUND", "Refund"],
             ].map(([v, l]) => (
               <option value={v} key={v}>
                 {l}
@@ -136,16 +136,16 @@ export function MovementForm({
         </label>
         {type === "EXPENSE" && (
           <label>
-            Pagado por
+            Paid By
             <select value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
               <option value="Business">ToolTag / Main Account</option>
-              <option value="Owner">Dueño — genera saldo por reembolsar</option>
+              <option value="Owner">Owner — creates reimbursement due</option>
             </select>
           </label>
         )}
         {type === "OWNER_DRAW" && (
           <label>
-            Subtipo
+            Subtype
             <select
               value={subtype}
               onChange={(e) => setSubtype(e.target.value)}
@@ -173,7 +173,7 @@ export function MovementForm({
         back={
           saleId ? `/app/finance/sales/${saleId}` : "/app/finance/transactions"
         }
-        button="Registrar movimiento"
+        button="Record Transaction"
       />
     </>
   );
