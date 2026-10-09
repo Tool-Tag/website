@@ -43,7 +43,7 @@ export async function FinanceHub() {
         />
       </div>
       <Panel title="Allocation & Results by Unit">
-        <Table headers={["Unidad", "Cuenta operativa", "Resultado registrado"]}>
+        <Table headers={["Unit", "Operating Account", "Recorded Result"]}>
           {summaries.map((s) => (
             <tr key={s.unit_id}>
               <td>{s.code}</td>
