@@ -67,10 +67,33 @@ export async function requestCancellationAccess(
   }
 }
 
+export type CancellationAssessmentPayload = {
+  job_code?: string;
+  status_path?: string;
+  progress?: {
+    finished?: number;
+    total?: number;
+    started?: number;
+  };
+  pickup_return?: {
+    terms_version?: string | number;
+  };
+  assessment?: {
+    rule?: string;
+    service_charge_percent?: string | number;
+    service_charge_amount?: unknown;
+    pickup_fee_amount?: unknown;
+    pickup_fee_refundable?: boolean;
+    refund_eligible_amount?: unknown;
+    amount_due?: unknown;
+    allowed?: boolean;
+  };
+};
+
 export type SecureCancelState = {
   error?: string;
   ok?: boolean;
-  data?: any;
+  data?: CancellationAssessmentPayload;
 };
 
 export async function secureCancellationAction(
@@ -80,6 +103,8 @@ export async function secureCancellationAction(
   _state: SecureCancelState,
   _form: FormData,
 ): Promise<SecureCancelState> {
+  void _state;
+  void _form;
   const db = await supabase();
 
   const result =

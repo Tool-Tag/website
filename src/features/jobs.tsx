@@ -12,6 +12,7 @@ import { Form } from "@/components/form";
 import { WorkPreparation } from "@/components/work-preparation";
 import { money } from "@/lib/domain/money";
 import { jobStatusLabel, paymentStatusLabel, workStageLabel } from "@/lib/domain/status-labels";
+import type { QuoteItem } from "@/lib/domain/quote-items";
 
 export async function Jobs({ id }: { id?: string }) {
   if (!id) {
@@ -36,7 +37,7 @@ export async function Jobs({ id }: { id?: string }) {
     const jobTable = (jobs: typeof list, empty: string) => (
       <Panel>
         {jobs.length ? (
-          <Table headers={["Trabajo", "Etapa", "Estado", "Creado"]}>
+          <Table headers={["Job", "Stage", "Status", "Created"]}>
             {jobs.map((j) => (
               <tr key={j.id}>
                 <td>
@@ -48,7 +49,7 @@ export async function Jobs({ id }: { id?: string }) {
                 <td>
                   <Badge>{jobStatusLabel(j.status)}</Badge>
                 </td>
-                <td>{new Date(j.created_at).toLocaleDateString("es-US")}</td>
+                <td>{new Date(j.created_at).toLocaleDateString("en-US")}</td>
               </tr>
             ))}
           </Table>
@@ -61,43 +62,43 @@ export async function Jobs({ id }: { id?: string }) {
     return (
       <>
         <Heading
-          title="Trabajos"
-          subtitle="Organizados según su etapa operativa."
+          title="Jobs"
+          subtitle="Organized by operational stage."
         />
         <JobTabs
           defaultTab="active"
           tabs={[
             {
               id: "active",
-              label: "Activos",
+              label: "Active",
               count: activeJobs.length,
-              content: jobTable(activeJobs, "No hay trabajos activos."),
+              content: jobTable(activeJobs, "No active Jobs."),
             },
             {
               id: "review",
-              label: "Revisión",
+              label: "Review",
               count: reviewJobs.length,
-              content: jobTable(reviewJobs, "No hay trabajos en revisión."),
+              content: jobTable(reviewJobs, "No Jobs in review."),
             },
             {
               id: "payments",
-              label: "Pagos",
+              label: "Payments",
               count: paymentJobs.length,
-              content: jobTable(paymentJobs, "No hay trabajos pendientes de pago."),
+              content: jobTable(paymentJobs, "No Jobs pending payment."),
             },
             {
               id: "completed",
-              label: "Completados",
+              label: "Completed",
               count: completedJobs.length,
-              content: jobTable(completedJobs, "No hay trabajos completados."),
+              content: jobTable(completedJobs, "No completed Jobs."),
             },
             ...(cancelledJobs.length
               ? [
                   {
                     id: "cancelled",
-                    label: "Cancelados",
+                    label: "Cancelled",
                     count: cancelledJobs.length,
-                    content: jobTable(cancelledJobs, "No hay trabajos cancelados."),
+                    content: jobTable(cancelledJobs, "No cancelled Jobs."),
                   },
                 ]
               : []),
@@ -109,7 +110,7 @@ export async function Jobs({ id }: { id?: string }) {
 
   const { role, db } = await context();
   const j = (await rows("jobs", { id }))[0];
-  if (!j) return <Empty>Trabajo no encontrado.</Empty>;
+  if (!j) return <Empty>Job not found.</Empty>;
 
   const [docs, sales, paymentRequests, rawJobItems, pickupRows, cancellationRows] = await Promise.all([
     rows("documents", { field: "job_id", value: id }),
@@ -191,7 +192,7 @@ export async function Jobs({ id }: { id?: string }) {
         {currentItem.stage === "Preparation" && (
           <>
             <p className="muted">Review the approved scope for this physical item before engraving.</p>
-            <WorkPreparation items={currentScope as any} />
+            <WorkPreparation items={currentScope as QuoteItem[]} />
           </>
         )}
 
@@ -481,7 +482,7 @@ export async function Jobs({ id }: { id?: string }) {
   const detailsTab = (
     <>
       <JobLifecycle id={id} section="customer" />
-      <Panel title="Trabajo aprobado">
+      <Panel title="Approved Work">
         <QuoteScope items={scope} />
       </Panel>
     </>
@@ -490,7 +491,7 @@ export async function Jobs({ id }: { id?: string }) {
   const commercialTab = (
     <>
       <JobLifecycle id={id} section="commercial" />
-      <Panel title="Venta y cobros">
+      <Panel title="Sales & Collections">
         {sales.length ? (
           sales.map((s) => (
             <p key={s.transaction_id}>
@@ -500,7 +501,7 @@ export async function Jobs({ id }: { id?: string }) {
             </p>
           ))
         ) : (
-          <p>Sin ventas registradas.</p>
+          <p>No sales recorded.</p>
         )}
       </Panel>
     </>
@@ -583,19 +584,19 @@ export async function Jobs({ id }: { id?: string }) {
         }
       >
         <Link className="button secondary" href={`/app/quotes/${j.quote_id}`}>
-          Cotización aprobada
+          Approved Quote
         </Link>
       </Heading>
 
       <JobTabs
         defaultTab="work"
         tabs={[
-          { id: "work", label: "Trabajo", content: workTab },
-          { id: "details", label: "Detalles", content: detailsTab },
-          { id: "commercial", label: "Comercial", content: commercialTab },
+          { id: "work", label: "Work", content: workTab },
+          { id: "details", label: "Details", content: detailsTab },
+          { id: "commercial", label: "Commercial", content: commercialTab },
           { id: "evidence", label: "Evidence", content: evidenceTab },
-          { id: "delivery", label: "Entrega", content: deliveryTab },
-          { id: "activity", label: "Actividad", content: activityTab },
+          { id: "delivery", label: "Delivery", content: deliveryTab },
+          { id: "activity", label: "Activity", content: activityTab },
         ]}
       />
     </>

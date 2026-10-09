@@ -12,13 +12,13 @@ export async function Equipment({ expense }: { expense?: string }) {
   return (
     <>
       <Heading
-        title="Equipo"
-        subtitle="La compra vive en Finanzas; aquí se administra el equipo vinculado."
+        title="Equipment"
+        subtitle="The purchase lives in Finance; linked equipment is managed here."
       />
       <Panel>
         {assets.length ? (
           <Table
-            headers={["Equipo", "Origen", "Valor / costo", "Compra", "Estado"]}
+            headers={["Equipment", "Source", "Value / Cost", "Purchase", "Status"]}
           >
             {assets.map((a) => (
               <tr key={a.id}>
@@ -54,7 +54,7 @@ export async function Equipment({ expense }: { expense?: string }) {
           <Empty />
         )}
       </Panel>
-      <Panel title="Registrar equipo">
+      <Panel title="Register Equipment">
         <AssetForm
           categories={categories
             .filter((c) => c.kind === "asset")

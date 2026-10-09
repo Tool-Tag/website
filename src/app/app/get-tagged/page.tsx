@@ -4,6 +4,16 @@ import { Heading, Panel, Empty, Badge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
+type GetTaggedAttentionRow = {
+  id: string;
+  reference: string;
+  name: string;
+  service_method?: string | null;
+  created_at: string;
+  request_status: string;
+  matching: string;
+};
+
 export default async function GetTaggedRequestsPage() {
   const { db } = await context();
   const { data, error } = await db.rpc("get_tagged_attention");
@@ -17,7 +27,7 @@ export default async function GetTaggedRequestsPage() {
     );
   }
 
-  const requests = Array.isArray(data) ? data : [];
+  const requests = (Array.isArray(data) ? data : []) as GetTaggedAttentionRow[];
 
   return (
     <>
@@ -28,7 +38,7 @@ export default async function GetTaggedRequestsPage() {
 
       {requests.length ? (
         <div className="stack">
-          {requests.map((request: any) => (
+          {requests.map((request) => (
             <Panel key={request.id}>
               <div className="pick-return-row">
                 <div>

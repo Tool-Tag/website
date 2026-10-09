@@ -63,7 +63,7 @@ function app(saved = null, blocked = false) {
 test('seven supplied records, exact values and blank machine/date; seeds only on first visit', () => {
   const a=app(); assert.deepEqual(a.rows(),backup.rows); assert.equal(a.writes(),1);
   const b=app(a.stored()); assert.equal(b.writes(),0); assert.deepEqual(b.rows(),backup.rows);
-  assert.equal(a.$('#count').textContent,'7 de 7 pruebas');
+  assert.equal(a.$('#count').textContent,'7 of 7 tests');
 });
 test('existing records and an intentionally empty table are preserved', () => {
   for(const rows of [[],[{...backup.rows[0],id:'user',notes:'My saved result'}]]) {
@@ -78,10 +78,10 @@ test('corrupt or inaccessible storage does not get overwritten', () => {
   }
 });
 test('search and status filter combine and expose empty results', () => {
-  const a=app(); a.$('#search').value='plástico'; a.event('#search','input');
-  assert.equal(a.$('#count').textContent,'5 de 7 pruebas');
+  const a=app(); a.$('#search').value='plastic'; a.event('#search','input');
+  assert.equal(a.$('#count').textContent,'5 of 7 tests');
   a.$('#filter').value='Validado'; a.event('#filter','change');
-  assert.equal(a.$('#count').textContent,'1 de 7 pruebas');
+  assert.equal(a.$('#count').textContent,'1 of 7 tests');
   a.$('#search').value='no match'; a.event('#search','input');
   assert.equal(a.$('#table-wrap').hidden,true); assert.equal(a.$('#empty').hidden,false);
 });

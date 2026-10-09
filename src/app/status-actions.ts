@@ -11,6 +11,8 @@ export async function statusCancellationAction(
   _state: ActionState,
   _form: FormData,
 ): Promise<ActionState> {
+  void _state;
+  void _form;
   const db = await supabase();
   const result =
     mode === "assess"

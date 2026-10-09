@@ -7,10 +7,10 @@ import { money } from "@/lib/domain/money";
 export const ACCEPTED_TEST_RECIPIENT = "quotes@tooltag.martinlab.studio";
 export async function processAcceptedDocument(db: SupabaseClient, id: string) {
   const {data: document, error: readError} = await db.from("accepted_documents").select("*").eq("id", id).single();
-  if (readError || !document) return "No se pudo cargar el documento aceptado.";
+  if (readError || !document) return "The accepted document could not be loaded.";
   const d = document as AcceptedDocument;
   const {data: claimed, error: claimError} = await db.rpc("claim_accepted_pdf", {p_id: id});
-  if (claimError) return "No se pudo preparar el PDF.";
+  if (claimError) return "The PDF could not be prepared.";
   if (claimed) {
     let bytes: Buffer;
     try {
@@ -19,23 +19,23 @@ export async function processAcceptedDocument(db: SupabaseClient, id: string) {
       if (bytes.length > 4000000) throw new Error("PDF size limit exceeded");
     } catch {
       await db.rpc("finish_accepted_pdf", {p_id: id, p_claim: claimed.claim, p_error: "PDF_GENERATION_FAILED"});
-      return "La aceptación sigue válida. Falló la generación del PDF; puedes reintentar.";
+      return "The acceptance remains valid. PDF generation failed; you can retry.";
     }
     const {data: saved, error} = await db.rpc("finish_accepted_pdf", {p_id:id, p_claim:claimed.claim, p_pdf:bytes.toString("base64")});
-    if (error || !saved) return "No se confirmó el guardado del PDF. Revisa su estado antes de reintentar.";
+    if (error || !saved) return "The PDF save could not be confirmed. Review its status before retrying.";
   }
   const mode = process.env.TOOLTAG_MAIL_MODE;
-  if (!mailEnabled() || !["live","test-delivery"].includes(mode || "")) return "PDF preparado. El correo aún no está habilitado.";
-  if (mode === "test-delivery" && process.env.TOOLTAG_MAIL_TEST_RECIPIENT?.toLowerCase() !== ACCEPTED_TEST_RECIPIENT) return "Configura el destinatario de prueba de los Agreements.";
+  if (!mailEnabled() || !["live","test-delivery"].includes(mode || "")) return "PDF prepared. Email delivery is not enabled yet.";
+  if (mode === "test-delivery" && process.env.TOOLTAG_MAIL_TEST_RECIPIENT?.toLowerCase() !== ACCEPTED_TEST_RECIPIENT) return "Configure the Agreement test recipient.";
   const {data: artifact, error: fileError} = await db.rpc("accepted_pdf_file", {p_id:id});
-  if (fileError || !artifact) return "PDF pendiente de generación. La aceptación permanece válida.";
+  if (fileError || !artifact) return "PDF generation is pending. The acceptance remains valid.";
   // Load the stored bytes once and reuse the same buffer for both independent copies.
   const pdf = Buffer.from(artifact.pdf, "base64");
-  if (createHash("sha256").update(pdf).digest("hex") !== artifact.sha256) return "No se pudo verificar la integridad del PDF.";
+  if (createHash("sha256").update(pdf).digest("hex") !== artifact.sha256) return "The PDF integrity could not be verified.";
   let delivered = 0;
   for (const copy of ["customer", "internal"] as const) {
     const {data:event, error} = await db.rpc("claim_document_copy", {p_id:id,p_copy:copy,p_mode:mode});
-    if (error) return "No se pudo preparar la copia del correo.";
+    if (error) return "The email copy could not be prepared.";
     if (!event) continue;
     let provider: string | null = null, failure: string | null = null;
     try {
@@ -49,10 +49,10 @@ export async function processAcceptedDocument(db: SupabaseClient, id: string) {
       provider = (await new GmailTransport().deliver(message,event.dedupe_key)).providerId;
     } catch (error) { failure = error instanceof MailFailure ? error.code : "ACCEPTED_MAIL_FAILED"; }
     const {data: finished, error: finishError} = await db.rpc("finish_quote_mail", {p_id:event.id,p_claim:event.mail_claim,p_provider_id:provider,p_error:failure});
-    if (finishError || !finished) return "El resultado de correo requiere revisión antes de reintentar.";
+    if (finishError || !finished) return "The email result requires review before retrying.";
     if (provider) delivered++;
   }
-  return delivered ? `${delivered} copia(s) aceptada(s) por Gmail para sus destinatarios.` : "Consulta el estado de cada copia. El PDF y el folio se conservan.";
+  return delivered ? `${delivered} copy/copies accepted by Gmail for delivery.` : "Review each copy status. The PDF and acceptance folio are preserved.";
 }
 export async function processAcceptedQueue(db: SupabaseClient) {
   const {data, error} = await db.rpc("pending_accepted_documents");

@@ -5,6 +5,29 @@ import { Form } from "@/components/form";
 
 export const dynamic = "force-dynamic";
 
+type RequestedMark = {
+  type?: string;
+  location?: string;
+  text?: string;
+  description?: string;
+};
+
+type RequestedItem = {
+  article?: string;
+  brand?: string;
+  model?: string;
+  quantity?: number;
+  marks?: RequestedMark[];
+  notes?: string;
+};
+
+type CustomerCandidate = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+};
+
 export default async function GetTaggedRequestDetail({
   params,
 }: {
@@ -21,12 +44,14 @@ export default async function GetTaggedRequestDetail({
   const details = request.details ?? {};
   const contact = details.contact ?? {};
   const service = details.service ?? {};
-  const items = Array.isArray(details.items)
+  const items = (Array.isArray(details.items)
     ? details.items
     : Array.isArray(details.quote_items)
       ? details.quote_items
-      : [];
-  const candidates = Array.isArray(request.candidates) ? request.candidates : [];
+      : []) as RequestedItem[];
+  const candidates = (
+    Array.isArray(request.candidates) ? request.candidates : []
+  ) as CustomerCandidate[];
 
   return (
     <>
@@ -54,7 +79,7 @@ export default async function GetTaggedRequestDetail({
 
       <Panel title="Requested items">
         <div className="stack">
-          {items.map((item: any, index: number) => (
+          {items.map((item, index) => (
             <div className="item" key={index}>
               <div className="pick-return-row">
                 <div>
@@ -67,7 +92,7 @@ export default async function GetTaggedRequestDetail({
               </div>
               {Array.isArray(item.marks) && item.marks.length > 0 && (
                 <div className="stack">
-                  {item.marks.map((mark: any, markIndex: number) => (
+                  {item.marks.map((mark, markIndex) => (
                     <div key={markIndex}>
                       <strong>{mark.type}</strong> · {mark.location || "Location not provided"}
                       {mark.text && <p>{mark.text}</p>}
@@ -104,7 +129,7 @@ export default async function GetTaggedRequestDetail({
                         name: "customer_id",
                         label: "Existing Customer",
                         required: true,
-                        options: candidates.map((candidate: any) => ({
+                        options: candidates.map((candidate) => ({
                           value: candidate.id,
                           label: `${candidate.name} · ${candidate.email} · ${candidate.phone}`,
                         })),

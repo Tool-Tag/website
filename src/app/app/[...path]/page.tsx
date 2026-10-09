@@ -35,7 +35,7 @@ export default async function AppPage({
       <>
         <Heading title={path[0]} />
         <Panel>
-          Conecta Supabase y aplica las migraciones para activar esta sección.
+          Connect Supabase and apply the migrations to enable this section.
         </Panel>
       </>
     );
