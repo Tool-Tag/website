@@ -59,17 +59,17 @@ export async function Settings() {
         </details>
       </Panel>
       <div className="grid two">
-        <Panel title="Reglas vigentes">
+        <Panel title="Current Rules">
           <p>Quote: 7 days · Reminder: 2 days before expiration.</p>
           <p>Refund review: 14 days.</p>
           <p>Delivery acceptance: 3 days after notification.</p>
           <p>Monthly close: day 1, previous month.</p>
           <p>Payments: Cash, Zelle, Venmo.</p>
         </Panel>
-        <Panel title="Documentos / Drive">
+        <Panel title="Documents / Drive">
           <p className="muted">
             Upload integration pending. You can link real files
-            existentes por su Drive File ID.
+            that already exist by their Drive File ID.
           </p>
           <Form
             operation="settings"
@@ -81,12 +81,12 @@ export async function Settings() {
               },
               {
                 name: "timezone",
-                label: "Zona horaria",
+                label: "Time Zone",
                 value: s?.timezone ?? "America/Denver",
               },
               {
                 name: "boft_url",
-                label: "URL del BOFT System",
+                label: "BOFT System URL",
                 type: "url",
                 value: s?.boft_url ?? "",
               },
@@ -122,7 +122,7 @@ export async function Settings() {
                   hidden={{ id: c.id, active: String(!c.active) }}
                   fields={[]}
                   back="/app/settings"
-                  button={c.active ? "Archivar" : "Reactivar"}
+                  button={c.active ? "Archive" : "Reactivate"}
                 />
               </td>
             </tr>
@@ -136,7 +136,7 @@ export async function Settings() {
               { name: "name", label: "Name", required: true },
               {
                 name: "kind",
-                label: "Tipo",
+                label: "Type",
                 required: true,
                 options: ["income", "expense", "asset"].map((value) => ({
                   value,
@@ -148,18 +148,18 @@ export async function Settings() {
           />
         </details>
       </Panel>
-      <Panel title="Registro de notificaciones">
+      <Panel title="Notification Log">
         <p className="muted">
           Sent means Gmail accepted the email for delivery; it does not confirm that the customer read it. Failed or unconfirmed deliveries require review before resending.
         </p>
-        {role==="admin" && <details><summary>Retry a Specific Notification</summary><Form operation="retry-notification" fields={[{name:"id",label:"Notification ID",required:true}]} button="Authorize Retry" back="/app/settings"><label className="checkbox"><input type="checkbox" name="reconciled" required/>Revisé el destinatario y Enviados en Gmail; autorizo este envío real sin duplicarlo.</label></Form></details>}
+        {role==="admin" && <details><summary>Retry a Specific Notification</summary><Form operation="retry-notification" fields={[{name:"id",label:"Notification ID",required:true}]} button="Authorize Retry" back="/app/settings"><label className="checkbox"><input type="checkbox" name="reconciled" required/>I reviewed the recipient and Gmail Sent folder; I authorize this real resend without duplicating it.</label></Form></details>}
         {notifications.length ? (
           <Table headers={["Event", "Status", "Scheduled", "Delivery"]}>
             {notifications.map((n) => (
               <tr key={n.id}>
                 <td>{n.event}<small style={{display:"block"}}>{n.id}</small></td>
                 <td>{n.status}</td>
-                <td>{new Date(n.due_at).toLocaleString("es-US")}</td>
+                <td>{new Date(n.due_at).toLocaleString("en-US")}</td>
                 <td>{n.mail_error || n.provider_id || "Pending"}</td>
               </tr>
             ))}
