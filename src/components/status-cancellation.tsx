@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { statusCancellationAction } from "@/app/status-actions";
+import type { CancellationAssessmentPayload } from "@/app/help/cancel/actions";
 
 function money(value: unknown) {
   const amount = Number(value ?? 0);
@@ -37,7 +38,7 @@ export function StatusCancellation({ token }: { token: string }) {
     }
   }, [confirmState.ok, router]);
 
-  const payload = assessmentState.data as any;
+  const payload = assessmentState.data as CancellationAssessmentPayload | undefined;
   const assessment = payload?.assessment;
   const progress = payload?.progress;
   const pickup = payload?.pickup_return;

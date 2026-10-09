@@ -11,7 +11,7 @@ import { z } from "zod";
 import { createHash, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { loginFailure } from "@/lib/domain/auth-errors";
-export type ActionState = { error?: string; ok?: boolean; link?: string; mailStatus?: string; mailRequestedAt?: string; data?: any };
+export type ActionState = { error?: string; ok?: boolean; link?: string; mailStatus?: string; mailRequestedAt?: string; data?: unknown };
 export async function login(
   _: ActionState,
   form: FormData,

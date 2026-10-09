@@ -29,11 +29,14 @@ export function WorkPreparation({ items }: { items: QuoteItem[] }) {
                 ) : (
                   <div className="work-image-block">
                     {mark.url ? (
-                      <img
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
                         className="work-image-preview"
                         src={mark.url}
-                        alt={mark.description || `Logo for ${item.article}`}
-                      />
+                          alt={mark.description || `Logo for ${item.article}`}
+                        />
+                      </>
                     ) : null}
                     {mark.description && <p>{mark.description}</p>}
                     {mark.url && (

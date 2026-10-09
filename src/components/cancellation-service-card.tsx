@@ -3,10 +3,24 @@
 import { useActionState, useEffect, useRef } from "react";
 import {
   secureCancellationAction,
+  type CancellationAssessmentPayload,
   type SecureCancelState,
 } from "@/app/help/cancel/actions";
 
 const initial: SecureCancelState = {};
+
+export type CancellationServiceSummary = {
+  id: string;
+  kind: "Quote" | "Job" | string;
+  code: string;
+  status?: string;
+  work_stage?: string | null;
+  amount?: unknown;
+  progress?: {
+    finished?: number;
+    total?: number;
+  };
+};
 
 function currency(value: unknown) {
   const n = Number(value ?? 0);
@@ -21,7 +35,7 @@ export function CancellationServiceCard({
   service,
 }: {
   token: string;
-  service: any;
+  service: CancellationServiceSummary;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const kind = service.kind === "Quote" ? "Quote" : "Job";
@@ -73,7 +87,7 @@ export function CancellationServiceCard({
     );
   }
 
-  const payload = assessmentState.data as any;
+  const payload = assessmentState.data as CancellationAssessmentPayload | undefined;
   const assessment = payload?.assessment;
   const progress = payload?.progress;
   const pickup = payload?.pickup_return;

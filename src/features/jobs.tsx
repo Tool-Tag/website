@@ -12,6 +12,7 @@ import { Form } from "@/components/form";
 import { WorkPreparation } from "@/components/work-preparation";
 import { money } from "@/lib/domain/money";
 import { jobStatusLabel, paymentStatusLabel, workStageLabel } from "@/lib/domain/status-labels";
+import type { QuoteItem } from "@/lib/domain/quote-items";
 
 export async function Jobs({ id }: { id?: string }) {
   if (!id) {
@@ -69,7 +70,7 @@ export async function Jobs({ id }: { id?: string }) {
           tabs={[
             {
               id: "active",
-              label: "Activos",
+              label: "Active",
               count: activeJobs.length,
               content: jobTable(activeJobs, "No active Jobs."),
             },
@@ -87,7 +88,7 @@ export async function Jobs({ id }: { id?: string }) {
             },
             {
               id: "completed",
-              label: "Completados",
+              label: "Completed",
               count: completedJobs.length,
               content: jobTable(completedJobs, "No completed Jobs."),
             },
@@ -191,7 +192,7 @@ export async function Jobs({ id }: { id?: string }) {
         {currentItem.stage === "Preparation" && (
           <>
             <p className="muted">Review the approved scope for this physical item before engraving.</p>
-            <WorkPreparation items={currentScope as any} />
+            <WorkPreparation items={currentScope as QuoteItem[]} />
           </>
         )}
 

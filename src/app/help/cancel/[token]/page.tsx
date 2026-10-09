@@ -1,4 +1,4 @@
-import { CancellationServiceCard } from "@/components/cancellation-service-card";
+import { CancellationServiceCard, type CancellationServiceSummary } from "@/components/cancellation-service-card";
 import { supabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export default async function CancellationDetailsPage({
     );
   }
 
-  const services = Array.isArray(data.services) ? data.services : [];
+  const services = (Array.isArray(data.services) ? data.services : []) as CancellationServiceSummary[];
 
   return (
     <main className="public">
@@ -42,7 +42,7 @@ export default async function CancellationDetailsPage({
 
       {services.length ? (
         <div className="stack">
-          {services.map((service: any) => (
+          {services.map((service) => (
             <CancellationServiceCard
               key={String(service.kind) + String(service.id)}
               token={token}
