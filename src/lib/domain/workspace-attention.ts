@@ -7,6 +7,10 @@ export type WorkspaceAttention = {
   refunds: number;
 };
 
+type GetTaggedAttentionRow = {
+  quote_id?: string | null;
+};
+
 const ZERO: WorkspaceAttention = {
   getTagged: 0,
   quotes: 0,
@@ -37,6 +41,15 @@ export async function workspaceAttention(
         .eq("refund_status", "Pending"),
     ]);
 
+    const requestRows: GetTaggedAttentionRow[] = Array.isArray(requests.data)
+      ? requests.data
+      : [];
+    const requestReviewQuoteIds = new Set(
+      requestRows
+        .map((request) => request.quote_id)
+        .filter((quoteId): quoteId is string => Boolean(quoteId)),
+    );
+
     const jobRows = jobs.data ?? [];
     const jobQuoteIds = new Set(
       jobRows
@@ -50,15 +63,14 @@ export async function workspaceAttention(
       const stillInRequestReview =
         quote.source === "public_get_tagged" &&
         quote.status === "Draft" &&
-        !quote.intake_reviewed_at;
+        !quote.intake_reviewed_at &&
+        requestReviewQuoteIds.has(quote.id);
 
       return !stillInRequestReview;
     });
 
     const openJobs = jobRows.filter(
-      (job) =>
-        job.status !== "Cancelled" &&
-        job.work_stage !== "Closed",
+      (job) => job.status !== "Cancelled" && job.work_stage !== "Closed",
     );
 
     const pendingRefunds = (refunds.data ?? []).filter(
@@ -66,7 +78,7 @@ export async function workspaceAttention(
     );
 
     return {
-      getTagged: Array.isArray(requests.data) ? requests.data.length : 0,
+      getTagged: requestRows.length,
       quotes: openQuotes.length,
       jobs: openJobs.length,
       refunds: pendingRefunds.length,

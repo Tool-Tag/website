@@ -1321,3 +1321,35 @@ textarea:focus-visible {
     gap: 8px;
   }
 }
+
+
+/* Live workspace attention: brief nudge on new/pending work, then periodic reminders. */
+.workspace-nav-count-attention {
+  transform-origin: 50% 50%;
+  animation: workspace-nav-attention-nudge 0.58s ease-in-out 0s 2;
+}
+
+@keyframes workspace-nav-attention-nudge {
+  0%,
+  100% {
+    transform: translateX(0) scale(1);
+  }
+  20% {
+    transform: translateX(-2px) scale(1.04);
+  }
+  40% {
+    transform: translateX(2px) scale(1.04);
+  }
+  60% {
+    transform: translateX(-1px) scale(1.02);
+  }
+  80% {
+    transform: translateX(1px) scale(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-nav-count-attention {
+    animation: none;
+  }
+}
