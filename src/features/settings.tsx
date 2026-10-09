@@ -27,9 +27,7 @@ export async function Settings() {
       <Panel title="Google Drive"><p>UI prepared · configuration pending. Uploads and previews are disabled.</p><pre style={{whiteSpace:"pre-wrap"}}>ToolTag Customers / Customer / Jobs / Job / Agreement, Receiving, Completed, Payments, Issue-Review, Other</pre></Panel>
       <Panel title="Agreements / Policies">
         <p className="notice">
-          No se ha inventado texto legal. Publica únicamente el texto aprobado.
-          Cada versión queda preservada; las aceptaciones anteriores conservan
-          su contenido.
+          No legal text has been invented. Publish only approved text. Each version is preserved, and previous acceptances retain their original content.
         </p>
         {policies.map((p) => (
           <details key={p.id}>
@@ -64,12 +62,11 @@ export async function Settings() {
           <p>Refund review: 14 days.</p>
           <p>Delivery acceptance: 3 days after notification.</p>
           <p>Monthly close: day 1, previous month.</p>
-          <p>Pagos: Cash, Zelle, Venmo.</p>
+          <p>Payments: Cash, Zelle, Venmo.</p>
         </Panel>
         <Panel title="Documents / Drive">
           <p className="muted">
-            Integración de subida pendiente. Puedes vincular archivos reales
-            existentes por su Drive File ID.
+            Upload integration is pending. You can link existing files by their Drive File ID.
           </p>
           <Form
             operation="settings"
@@ -160,7 +157,7 @@ export async function Settings() {
                 <td>{n.event}<small style={{display:"block"}}>{n.id}</small></td>
                 <td>{n.status}</td>
                 <td>{new Date(n.due_at).toLocaleString("en-US")}</td>
-                <td>{n.mail_error || n.provider_id || "Pendiente"}</td>
+                <td>{n.mail_error || n.provider_id || "Pending"}</td>
               </tr>
             ))}
           </Table>
