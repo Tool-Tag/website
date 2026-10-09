@@ -57,7 +57,7 @@ export async function mutate(
   let destination: string | undefined;
   try {
     const { db, unit, role } = await context();
-    if (role !== "admin") return { error: "Esta cuenta es de consulta." };
+    if (role !== "admin") return { error: "This account is read-only." };
     const p: Record<string, unknown> = {
       ...Object.fromEntries(form.entries()),
       unit_id: unit,
@@ -72,7 +72,7 @@ export async function mutate(
         const id = z.uuid().parse(p.id);
         const part = String(p.part || "process");
         if (part === "authorize-live") {
-          if (form.get("reconciled")!=="on") return {error:"Confirma el envío al destinatario real antes de autorizar."};
+          if (form.get("reconciled")!=="on") return {error:"Confirm delivery to the actual recipient before authorizing."};
           const {error}=await db.rpc("authorize_document_live_copies",{p_id:id});
           if(error) return {error:error.message};
         } else if (part !== "process") {
@@ -90,7 +90,7 @@ export async function mutate(
         revalidatePath("/app","layout");return {ok:true,mailStatus};
       }
       case "activate-live-mail":
-        if (form.get("confirm")!=="on") return {error:"Confirma la activación solo para avisos nuevos."};
+        if (form.get("confirm")!=="on") return {error:"Confirm activation for new notifications only."};
         name="activate_customer_mail"; args={}; break;
       case "retry-notification":
         name="retry_customer_notification"; args={p_id:p.id,p_reconciled:form.get("reconciled")==="on"}; break;
@@ -168,10 +168,10 @@ export async function mutate(
           .parse(JSON.parse(String(p.items)))
           .map((item, index) => {
             if (item.engraving_type !== "Fee" && !item.marks.length)
-              throw new Error("Agrega al menos un grabado con su ubicación.");
+              throw new Error("Add at least one engraving with its location.");
             for (const mark of item.marks) {
               if (mark.paint_fill && (!mark.paint_details || (mark.paint_details.mode === "single" ? !mark.paint_details.color.trim() : !mark.paint_details.instructions.trim())))
-                throw new Error("Especifica el color o las instrucciones de pintura del grabado.");
+                throw new Error("Specify the color or paint instructions for the engraving.");
             }
             return { ...item, sort_order: index };
           });
@@ -269,7 +269,7 @@ export async function mutate(
         name = "save_category";
         break;
       default:
-        return { error: "Acción desconocida" };
+        return { error: "Unknown action" };
     }
     const { data, error } = await db.rpc(name, args);
     if (error) return { error: error.message };
@@ -289,7 +289,7 @@ export async function mutate(
       destination = `/app/finance/expenses?created=${data}`;
     else if (back.startsWith("/app") || back.startsWith("/pick-return")) destination = back;
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "No se pudo guardar" };
+    return { error: e instanceof Error ? e.message : "Could not save" };
   }
   if (destination) redirect(destination);
   return { ok: true };
