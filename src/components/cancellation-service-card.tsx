@@ -162,7 +162,7 @@ export function CancellationServiceCard({
                   </p>
                   {(progress?.started ?? 0) > (progress?.finished ?? 0) && (
                     <p className="muted">
-                      {progress.started}/{progress.total} items have been started or
+                      {progress?.started ?? 0}/{progress?.total ?? 0} items have been started or
                       finished.
                     </p>
                   )}
