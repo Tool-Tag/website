@@ -2394,3 +2394,48 @@ begin
 end $$;
 
 revoke all on function private.movement_integrity() from public;
+
+
+-- Pre-work logistics payments must not enter the legacy final-payment stages.
+-- Final Balance / Cancellation Balance behavior remains unchanged.
+create or replace function private.sync_payment_work_stage()
+returns trigger
+language plpgsql
+security definer
+set search_path=''
+as $$
+declare
+  jid uuid;
+begin
+  if tg_table_name='payment_requests' then
+    jid:=new.job_id;
+
+    if new.purpose in ('Logistics Fee','Logistics Full Prepayment') then
+      return new;
+    end if;
+
+    if new.status='Pending Verification' then
+      update public.jobs
+      set work_stage='Payment Verification',updated_at=now()
+      where id=jid;
+    elsif new.status='Confirmed' then
+      if exists(
+        select 1
+        from public.job_commercial_totals
+        where id=jid and balance_due=0
+      ) then
+        update public.jobs
+        set work_stage='Closed',updated_at=now()
+        where id=jid;
+      else
+        update public.jobs
+        set work_stage='Payment',updated_at=now()
+        where id=jid;
+      end if;
+    end if;
+  end if;
+
+  return new;
+end $$;
+
+revoke all on function private.sync_payment_work_stage() from public;

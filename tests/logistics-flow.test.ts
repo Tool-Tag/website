@@ -502,6 +502,12 @@ test("Pickup selection reserves Saturday, backend blocks work, manual confirmati
     ),
     "pending_verification",
   );
+  assert.equal(
+    await value("select work_stage from public.jobs where id=$1", [
+      accepted.job_id,
+    ]),
+    "Not Started",
+  );
 
   await value("select public.confirm_payment_request($1)", [
     submitted.payment_request_id,
@@ -520,6 +526,12 @@ test("Pickup selection reserves Saturday, backend blocks work, manual confirmati
       [accepted.job_id],
     ),
     "Scheduled",
+  );
+  assert.equal(
+    await value("select work_stage from public.jobs where id=$1", [
+      accepted.job_id,
+    ]),
+    "Not Started",
   );
   assert.equal(
     Number(
@@ -767,6 +779,12 @@ test("Card stays pending until a matching provider confirmation and then opens t
       [quote],
     ),
     "paid_confirmed",
+  );
+  assert.equal(
+    await value("select work_stage from public.jobs where id=$1", [
+      accepted.job_id,
+    ]),
+    "Not Started",
   );
   assert.equal(
     await value(
