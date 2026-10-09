@@ -14,35 +14,35 @@ export async function FinanceHub() {
     <>
       <Heading
         title="Finance Hub"
-        subtitle="Una cuenta bancaria física. Asignaciones separadas por unidad."
+        subtitle="One physical bank account. Separate allocations by unit."
       />
       <div className="grid">
         <Panel title="BOFT System">
           {settings[0]?.boft_url ? (
             <a className="button secondary" href={settings[0].boft_url}>
-              Abrir BOFT ↗
+              Open BOFT ↗
             </a>
           ) : (
             <p className="muted">Configura el enlace en Settings.</p>
           )}
           <p className="muted" style={{ marginTop: 14 }}>
-            BOFT sigue en su sistema actual. Sus datos históricos aún no están
+            BOFT remains in its current system. Its historical data is not yet
             migrados.
           </p>
         </Panel>
         <Panel title="ToolTag Finance">
           <Link className="button" href="/app/finance">
-            Abrir ToolTag →
+            Open ToolTag →
           </Link>
         </Panel>
         <Metric
-          label="BOFT Business Checking · saldo físico"
-          value={bank?.reconciled_balance ?? "Pendiente de conciliación"}
+          label="BOFT Business Checking · Physical Balance"
+          value={bank?.reconciled_balance ?? "Pending Reconciliation"}
           currency={bank?.reconciled_balance != null}
           help="Se muestra una sola vez. No se conoce el saldo real del banco hasta conciliarlo."
         />
       </div>
-      <Panel title="Asignación y resultados por unidad">
+      <Panel title="Allocation & Results by Unit">
         <Table headers={["Unidad", "Cuenta operativa", "Resultado registrado"]}>
           {summaries.map((s) => (
             <tr key={s.unit_id}>
@@ -57,12 +57,12 @@ export async function FinanceHub() {
         </Table>
         <p className="muted">
           Los ceros de BOFT representan ausencia de movimientos migrados, no el
-          estado real de BOFT.
+          actual BOFT status.
         </p>
       </Panel>
       <Panel title="Movimientos recientes">
         {tx.length ? (
-          <Table headers={["Unidad", "Fecha", "Descripción", "Importe"]}>
+          <Table headers={["Unit", "Date", "Description", "Amount"]}>
             {tx.map((t) => (
               <tr key={t.id}>
                 <td>{summaries.find((s) => s.unit_id === t.unit_id)?.code}</td>
