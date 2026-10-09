@@ -12,21 +12,21 @@ export function AssetForm({
 }) {
   const [origin, setOrigin] = useState("Purchased");
   const fields: Field[] = [
-    { name: "name", label: "Nombre del equipo", required: true },
+    { name: "name", label: "Equipment Name", required: true },
     {
       name: "category_id",
-      label: "Categoría de equipo",
+      label: "Equipment Category",
       options: categories,
       required: true,
     },
-    { name: "serial_number", label: "Número de serie" },
-    { name: "warranty_expiration", label: "Fin de garantía", type: "date" },
+    { name: "serial_number", label: "Serial Number" },
+    { name: "warranty_expiration", label: "Warranty Expiration", type: "date" },
     { name: "notes", label: "Notas", type: "textarea", wide: true },
   ];
   if (origin === "Purchased")
     fields.unshift({
       name: "source_expense_id",
-      label: "Compra de equipo sin vincular",
+      label: "Unlinked Equipment Purchase",
       options: expenses,
       required: true,
       value: expense,
@@ -42,7 +42,7 @@ export function AssetForm({
       { name: "donated_by", label: "Donado por", required: true },
       {
         name: "received_date",
-        label: "Fecha de recepción",
+        label: "Received Date",
         type: "date",
         required: true,
       },
