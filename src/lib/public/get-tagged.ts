@@ -1,15 +1,12 @@
 import { z } from "zod";
 
-export const PICKUP_TERMS_VERSION = "2.0";
-export const PICKUP_FEE = 10;
+export const PICKUP_FEE = 19.99;
 
 export const PICKUP_REQUEST_DISCLAIMER = [
-  "ToolTag Pickup service is normally scheduled on Saturdays between 8:00 AM and 12:00 PM.",
-  "Completed items are normally returned on Sunday between approximately 4:00 PM and 6:00 PM, depending on workload. Processing may extend up to the following Sunday when necessary.",
-  "Weekday Pickup or Return may be available during afternoon hours and may include an additional service charge. Use “Anything else we should know?” to request special scheduling.",
-  "Changes or cancellations must be received no later than Friday at 6:00 PM before the scheduled Saturday Pickup for the Pickup Service Fee to remain eligible for refund. After that deadline, or if ToolTag arrives and the items are unavailable, the Pickup Service Fee is non-refundable.",
-  "On Return day, monitor the phone number and email address provided to ToolTag so delivery can be coordinated.",
-  "ToolTag will not leave items unattended unless the customer expressly authorizes it. If unattended delivery is authorized, ToolTag will record delivery evidence. Once the items are delivered to the authorized location and delivery evidence is recorded, ToolTag is not responsible for subsequent theft or loss except where applicable law provides otherwise.",
+  "ToolTag Pickup is normally requested for Saturdays between 8:00 AM and 12:00 PM, subject to route capacity.",
+  "Pickup & Delivery is $19.99 total: $9.99 for Pickup and $9.99 for Delivery.",
+  "The logistics fee must be paid and confirmed before the requested Pickup becomes confirmed.",
+  "Delivery is coordinated after the engraving work is finished; no delivery day or time is selected at the request stage.",
 ].join("\n\n");
 
 const shortText = z.string().trim().max(160);

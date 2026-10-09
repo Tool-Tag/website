@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   PICKUP_FEE,
   PICKUP_REQUEST_DISCLAIMER,
-  PICKUP_TERMS_VERSION,
   emptyGetTaggedRequest,
   emptyItem,
   emptyMark,
@@ -600,7 +599,7 @@ export function GetTaggedForm() {
             }
           >
             <option value="Drop-off">Drop-off</option>
-            <option value="Pickup">Pickup & Return</option>
+            <option value="Pickup">Pickup & Delivery</option>
             <option value="On-site" disabled>
               On-site — temporarily unavailable
             </option>
@@ -630,24 +629,16 @@ export function GetTaggedForm() {
             </label>
 
             <div className="notice pickup-request-terms">
-              <strong>
-                Pickup & Return Service Terms v{PICKUP_TERMS_VERSION}
-              </strong>
+              <strong>Pickup & Delivery</strong>
               <p>
-                A {"$" + PICKUP_FEE.toFixed(2)} Pickup Service Fee applies and
-                must be paid and confirmed before Pickup can be scheduled.
+                A {"$" + PICKUP_FEE.toFixed(2)} logistics fee applies and must be
+                paid and confirmed before the requested Pickup is confirmed.
               </p>
               {PICKUP_REQUEST_DISCLAIMER.split("\n\n").map(
                 (paragraph, index) => (
                   <p key={index}>{paragraph}</p>
                 ),
               )}
-              <p>
-                <strong>
-                  These Pickup & Return terms will be included in the final
-                  ToolTag Agreement if your request is approved.
-                </strong>
-              </p>
             </div>
           </>
         )}
@@ -667,13 +658,6 @@ export function GetTaggedForm() {
           />
         </label>
 
-        {request.service.method === "Pickup" && (
-          <p className="muted">
-            Need a special weekday Pickup or Return? Tell us above. Weekday
-            service is generally limited to afternoon hours and may include an
-            additional charge.
-          </p>
-        )}
       </fieldset>
 
       <div className="intake-honeypot" aria-hidden="true">
