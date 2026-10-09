@@ -14,9 +14,7 @@ export default async function Login({
       <p className="muted">Private access for authorized accounts.</p>
       {p.notice && (
         <p className="notice">
-          Tu cuenta necesita acceso a ToolTag. El administrador debe asignarlo
-          antes de entrar.
-        </p>
+          Your account needs ToolTag access. An administrator must assign it before you can continue.</p>
       )}
       {isConfigured() ? (
         <LoginForm />

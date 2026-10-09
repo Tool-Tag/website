@@ -39,7 +39,7 @@ export async function FinanceHub() {
           label="BOFT Business Checking · Physical Balance"
           value={bank?.reconciled_balance ?? "Pending Reconciliation"}
           currency={bank?.reconciled_balance != null}
-          help="Se muestra una sola vez. No se conoce el saldo real del banco hasta conciliarlo."
+          help="Shown only once. The actual bank balance is not known until reconciliation."
         />
       </div>
       <Panel title="Allocation & Results by Unit">
@@ -56,11 +56,11 @@ export async function FinanceHub() {
           ))}
         </Table>
         <p className="muted">
-          Los ceros de BOFT representan ausencia de movimientos migrados, no el
+          BOFT zeros mean no migrated transactions are present, not the
           actual BOFT status.
         </p>
       </Panel>
-      <Panel title="Movimientos recientes">
+      <Panel title="Recent Transactions">
         {tx.length ? (
           <Table headers={["Unit", "Date", "Description", "Amount"]}>
             {tx.map((t) => (

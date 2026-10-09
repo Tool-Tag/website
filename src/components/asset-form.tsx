@@ -21,7 +21,7 @@ export function AssetForm({
     },
     { name: "serial_number", label: "Serial Number" },
     { name: "warranty_expiration", label: "Warranty Expiration", type: "date" },
-    { name: "notes", label: "Notas", type: "textarea", wide: true },
+    { name: "notes", label: "Notes", type: "textarea", wide: true },
   ];
   if (origin === "Purchased")
     fields.unshift({
@@ -35,7 +35,7 @@ export function AssetForm({
     fields.push(
       {
         name: "estimated_value",
-        label: "Valor estimado (informativo)",
+        label: "Estimated Value (informational)",
         type: "number",
         required: true,
       },
@@ -49,9 +49,7 @@ export function AssetForm({
     );
   return (
     <>
-      <label style={{ marginBottom: 18 }}>
-        Origen
-        <select value={origin} onChange={(e) => setOrigin(e.target.value)}>
+      <label style={{ marginBottom: 18 }}>Source<select value={origin} onChange={(e) => setOrigin(e.target.value)}>
           <option>Purchased</option>
           <option>Donated</option>
         </select>

@@ -67,7 +67,7 @@ export async function Dashboard() {
         <Panel title="Customers">
           <p className="muted">
             Start with the customer. Their Quotes, Jobs, and payments stay
-            relacionados.
+            linked.
           </p>
           <div className="actions">
             <Link className="button secondary" href="/app/customers">

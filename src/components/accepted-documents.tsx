@@ -19,7 +19,7 @@ export async function AcceptedDocuments({quoteId,jobId}:{quoteId?:string;jobId?:
     const copyStatus = (copy:string) => { const row = copies?.find(c => c.payload.copy===copy && c.payload.test === false) || copies?.find(c => c.payload.copy===copy); return row ? `${row.status}${row.mail_error ? ` · ${row.mail_error}` : ""}` : "Pending"; };
     return <Panel key={d.id} title={`Agreement · ${d.acceptance_folio}`}>
       <p>Version {d.agreement_version} · Accepted: {new Date(d.accepted_at).toLocaleString("en-US")}</p>
-      <p>Destinatario original: {d.customer_recipient_email}</p>
+      <p>Original Recipient: {d.customer_recipient_email}</p>
       <p>PDF: {status?.pdf_status || "Pending"}</p>
       <p>Customer copy: {copyStatus("customer")}<br/>ToolTag copy: {copyStatus("internal")}</p>
       <p>Drive: {status?.storage_status || "Pending Drive Upload"}</p>

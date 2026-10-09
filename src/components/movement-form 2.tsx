@@ -40,7 +40,7 @@ export function MovementForm({
     },
     {
       name: "account_id",
-      label: "Cuenta atribuida",
+      label: "Attributed Account",
       options: accounts,
       required: true,
       value: accounts[0]?.value,
@@ -97,12 +97,12 @@ export function MovementForm({
   if (type === "INTER_UNIT_TRANSFER")
     fields.push({
       name: "destination_account_id",
-      label: "Cuenta de destino BOFT",
+      label: "BOFT Destination Account",
       options: destinationAccounts,
       required: true,
     });
   fields.push(
-    { name: "reference", label: "Referencia (opcional)" },
+    { name: "reference", label: "Reference (optional)" },
     {
       name: "reason",
       label: "Exception Reason / Closed-Month Change",
@@ -113,16 +113,14 @@ export function MovementForm({
   return (
     <>
       <div className="formgrid" style={{ marginBottom: 20 }}>
-        <label>
-          Tipo
-          <select
+        <label>Type<select
             value={type}
             disabled={!!saleId}
             onChange={(e) => setType(e.target.value)}
           >
             {[
               ["EXPENSE", "Expense"],
-              ["COLLECTION", "Cobro"],
+              ["COLLECTION", "Collection"],
               ["OWNER_INJECTION", "Owner Injection"],
               ["OWNER_DRAW", "Owner Draw / Reimbursement"],
               ["INTER_UNIT_TRANSFER", "Transferencia interna a BOFT"],
@@ -173,7 +171,7 @@ export function MovementForm({
         back={
           saleId ? `/app/finance/sales/${saleId}` : "/app/finance/transactions"
         }
-        button="Registrar movimiento"
+        button="Record Transaction"
       />
     </>
   );

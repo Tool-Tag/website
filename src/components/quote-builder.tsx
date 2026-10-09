@@ -364,8 +364,8 @@ export function QuoteBuilder({
                       </label>
                       {m.type === "Text" ? (
                         <label>
-                          Texto a grabar · {Array.from(m.text).length}{" "}
-                          caracteres
+                          Text to Engrave · {Array.from(m.text).length}{" "}
+                          characters
                           <input
                             required
                             value={m.text}
@@ -459,7 +459,7 @@ export function QuoteBuilder({
                 </>
               )}
               <label style={{ margin: "16px 0" }}>
-                Notas
+                Notes
                 <textarea
                   value={draft.notes}
                   onChange={(e) => update("notes", e.target.value)}

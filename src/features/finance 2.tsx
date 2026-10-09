@@ -90,8 +90,8 @@ export async function Finance({
           <dl>
             <dt>Operating Balance</dt>
             <dd>
-              Funds attributed to ToolTag based on recorded movements. It does not represent all
-              el saldo bancario compartido.
+              Funds attributed to ToolTag based on recorded movements. It does not represent the
+              full balance of the shared bank account.
             </dd>
             <dt>Net Profit</dt>
             <dd>
@@ -101,8 +101,7 @@ export async function Finance({
             </dd>
             <dt>Equipment Investment</dt>
             <dd>
-              Equipment purchases minus related refunds. The
-              donaciones son informativas.
+              Equipment purchases minus related refunds. Donations are informational.
             </dd>
             <dt>Owner Injection</dt>
             <dd>Owner contributions. They increase cash, not profit.</dd>
@@ -112,14 +111,13 @@ export async function Finance({
             </dd>
             <dt>Available Balance</dt>
             <dd>
-              Operating Balance menos Owner Reimbursement Due. Esta V1 no
-              incluye cuentas por pagar adicionales.
+              Operating Balance minus Owner Reimbursement Due. This V1 does not
+              include additional accounts payable.
             </dd>
             <dt>Investment Recovery / Net Position</dt>
             <dd>
               Accumulated profit minus net investment in equipment. This is an
-              operating measure, not a tax return or a recovery promise
-              del capital.
+              operating measure, not a tax return or a promise of capital recovery.
             </dd>
           </dl>
           <p>
@@ -224,8 +222,7 @@ export async function Finance({
                     {money(d.content_snapshot.balance_remaining)}
                   </p>
                   <small>
-                    Comprobante guardado. Copia por email y archivo en Drive
-                    pending integration.
+                    Receipt saved. Email copy and Drive archival are pending integration.
                   </small>
                 </div>
               ) : (

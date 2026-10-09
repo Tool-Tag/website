@@ -108,7 +108,7 @@ export async function JobLifecycle({
             <p>Extensiones aprobadas: {money(t.extensions_amount)}</p>
             <h3>Total: {money(t.grand_total)}</h3>
             <p>
-              Cobrado: {money(t.collected)} · Reembolsado: {money(t.refunded)} · Saldo:{" "}
+              Collected: {money(t.collected)} · Refunded: {money(t.refunded)} · Balance:{" "}
               {money(t.balance_due)}
             </p>
             <p className="muted">
@@ -120,7 +120,7 @@ export async function JobLifecycle({
               .map((x) => (
                 <p key={x.id}>
                   <Link href={`/app/finance/sales/${x.sale_id}`}>
-                    Registrar cobro de {x.code}
+                    Record Collection for {x.code}
                   </Link>
                 </p>
               ))}
@@ -144,7 +144,7 @@ export async function JobLifecycle({
                       target="_blank"
                       rel="noreferrer"
                     >
-                      Ver comprobante →
+                      View Receipt →
                     </a>
                   </p>
                 )}
@@ -230,7 +230,7 @@ export async function JobLifecycle({
   }
 
   return (
-    <Panel title="Actividad">
+    <Panel title="Activity">
       {activity.length ? (
         activity.map((a) => (
           <p key={a.id}>
@@ -239,7 +239,7 @@ export async function JobLifecycle({
           </p>
         ))
       ) : (
-        <p>Sin actividad registrada.</p>
+        <p>No activity recorded.</p>
       )}
     </Panel>
   );
