@@ -236,7 +236,7 @@ export function QuoteBuilder({
               aria-label="Close"
               onClick={() => dialog.current?.close()}
             >
-              Cerrar
+              Close
             </button>
           </div>
           {confirming ? (
@@ -340,7 +340,7 @@ export function QuoteBuilder({
                     <fieldset className="item" key={i}>
                       <legend>Mark / Engraving {i + 1}</legend>
                       <label>
-                        Tipo
+                        Type
                         <select
                           value={m.type}
                           onChange={(e) =>
@@ -471,7 +471,7 @@ export function QuoteBuilder({
                   className="secondary"
                   onClick={() => dialog.current?.close()}
                 >
-                  Cancelar
+                  Cancel
                 </button>
                 <button>Save Item</button>
               </div>
@@ -536,7 +536,7 @@ export function QuoteBuilder({
               className="secondary"
               onClick={() => paintDialog.current?.close()}
             >
-              Cancelar
+              Cancel
             </button>
             <button>Save Paint</button>
           </div>
