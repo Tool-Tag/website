@@ -7,10 +7,10 @@ export function AcceptedDocumentActions({id,back}:{id:string;back:string}) {
     <input type="hidden" name="id" value={id}/>
     <label>Document Action
       <select name="part" defaultValue="process">
-        <option value="process">Procesar PDF / copias pendientes</option>
+        <option value="process">Process PDF / Pending Copies</option>
         <option value="pdf">Retry Failed PDF Generation</option>
         <option value="customer">Retry Failed Customer Copy</option>
-        <option value="authorize-live">Autorizar copias reales de este documento</option>
+        <option value="authorize-live">Authorize Real Copies for This Document</option>
         <option value="internal">Retry Failed ToolTag Copy</option>
       </select>
     </label>
