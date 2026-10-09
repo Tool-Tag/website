@@ -73,10 +73,10 @@ export async function Finance({
     <>
       <Heading
         title="ToolTag Finance"
-        subtitle="Ventas, efectivo y aportaciones, cada uno en su lugar."
+        subtitle="Sales, cash, and owner contributions, each recorded in the right place."
       >
         <Link className="button" href="/app/finance/transactions/new">
-          + Registrar movimiento
+          + Record Transaction
         </Link>
       </Heading>
       <FinanceTabs />
@@ -207,14 +207,14 @@ export async function Finance({
                   </h3>
                   <p>
                     Venta:{" "}
-                    {d.content_snapshot.sale_code ?? "Cobro sin vincular"}
+                    {d.content_snapshot.sale_code ?? "Unlinked Collection"}
                   </p>
                   <p>
-                    Recibido: {money(d.content_snapshot.amount)} ·{" "}
+                    Received: {money(d.content_snapshot.amount)} ·{" "}
                     {d.content_snapshot.payment_method} ·{" "}
                     {d.content_snapshot.date}
                   </p>
-                  <p>Total de venta: {money(d.content_snapshot.sale_total)}</p>
+                  <p>Sale Total: {money(d.content_snapshot.sale_total)}</p>
                   <p>
                     Paid through this receipt:{" "}
                     {money(d.content_snapshot.paid_to_date)}
@@ -245,11 +245,11 @@ export async function Finance({
               },
               {
                 name: "drive_file_id",
-                label: "ID del archivo existente en Drive",
+                label: "Existing Drive File ID",
                 required: true,
               },
             ]}
-            button="Vincular comprobante"
+            button="Link Receipt"
           />
         </Panel>
       </>
@@ -385,15 +385,15 @@ export async function Finance({
             fields={[
               { name: "date", label: "Date", type: "date", required: true },
               { name: "purpose", label: "Purpose", required: true },
-              { name: "origin", label: "Origen", required: true },
-              { name: "destination", label: "Destino", required: true },
+              { name: "origin", label: "Origin", required: true },
+              { name: "destination", label: "Destination", required: true },
               {
                 name: "miles",
                 label: "Miles",
                 type: "number",
                 required: true,
               },
-              { name: "notes", label: "Notas" },
+              { name: "notes", label: "Notes" },
             ]}
             back="/app/finance/expenses"
           />
@@ -433,7 +433,7 @@ export async function Finance({
     return (
       <>
         {heading}
-        <Panel title="Cerrar mes">
+        <Panel title="Close Month">
           <p className="muted">
             Save a version with figures and warnings. Previous versions
             are preserved. Review pending items first.
@@ -450,7 +450,7 @@ export async function Finance({
                 required: true,
               },
             ]}
-            button="Cerrar mes ahora"
+            button="Close Month Now"
           />
         </Panel>
         <Panel title="Vehicle · Annual Analysis">
