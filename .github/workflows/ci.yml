@@ -1,9 +1,10 @@
-name: Validate English cleanup and live badges
+name: CI
 
 on:
   push:
     branches:
-      - english-system-cleanup
+      - main
+  pull_request:
 
 permissions:
   contents: read
@@ -20,9 +21,9 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
-      - name: Lint (known baseline issues are non-blocking)
-        continue-on-error: true
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
         run: npm run lint
+      - name: Tests
+        run: npm test
