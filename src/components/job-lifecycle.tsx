@@ -80,7 +80,7 @@ export async function JobLifecycle({
               {money(x.total)}
             </p>
           ))}
-          {!extensions.length && <p>Sin ampliaciones.</p>}
+          {!extensions.length && <p>No extensions.</p>}
           {role === "admin" && (
             <details>
               <summary>Add Additional Work Request</summary>
@@ -103,17 +103,16 @@ export async function JobLifecycle({
         </Panel>
 
         {t && (
-          <Panel title="Total y pagos">
+          <Panel title="Total & Payments">
             <p>Base Quote: {money(t.base_amount)}</p>
-            <p>Extensiones aprobadas: {money(t.extensions_amount)}</p>
+            <p>Approved Extensions: {money(t.extensions_amount)}</p>
             <h3>Total: {money(t.grand_total)}</h3>
             <p>
-              Cobrado: {money(t.collected)} · Reembolsado: {money(t.refunded)} · Saldo:{" "}
+              Collected: {money(t.collected)} · Refunded: {money(t.refunded)} · Balance:{" "}
               {money(t.balance_due)}
             </p>
             <p className="muted">
-              Each approved extension has its own sale component and collections. Here you
-              consolidan sin duplicar ingresos.
+              Each approved extension has its own sale component and collections. They are consolidated here without duplicating revenue.
             </p>
             {extensions
               .filter((x) => x.sale_id)
@@ -144,13 +143,13 @@ export async function JobLifecycle({
                       target="_blank"
                       rel="noreferrer"
                     >
-                      Ver comprobante →
+                      View Payment Proof →
                     </a>
                   </p>
                 )}
                 {request.status === "Confirmed" && (
                   <p>
-                    Confirmado: {money(request.confirmed_amount)} ·{" "}
+                    Confirmed: {money(request.confirmed_amount)} ·{" "}
                     {request.confirmed_at
                       ? new Date(request.confirmed_at).toLocaleString("en-US")
                       : ""}
@@ -176,7 +175,7 @@ export async function JobLifecycle({
           {receipts.map((r) => (
             <p key={r.id}>
               <Link href={`/app/job-receipts/${r.id}`}>
-                Resumen del {new Date(r.created_at).toLocaleString("en-US")}
+                Summary · {new Date(r.created_at).toLocaleString("en-US")}
               </Link>{" "}
               · {r.storage_status}
             </p>
