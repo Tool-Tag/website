@@ -90,19 +90,15 @@ export async function Finance({
           <dl>
             <dt>Operating Balance</dt>
             <dd>
-              Fondos atribuidos a ToolTag según movimientos. No representa todo
-              el saldo bancario compartido.
+              Funds attributed to ToolTag based on recorded transactions. This does not represent the full shared bank balance.
             </dd>
             <dt>Net Profit</dt>
             <dd>
-              Sales menos devoluciones de clientes y gastos operativos netos.
-              Cobrar una venta no vuelve a generar ingreso. Equipo se muestra
-              por separado; no calculamos depreciación.
+              Sales minus customer refunds and net operating expenses. Collecting a sale does not generate revenue again. Equipment is shown separately; depreciation is not calculated.
             </dd>
             <dt>Equipment Investment</dt>
             <dd>
-              Compras de equipo menos devoluciones correspondientes. Las
-              donaciones son informativas.
+              Equipment purchases minus related refunds. Donations are informational.
             </dd>
             <dt>Owner Injection</dt>
             <dd>Owner contributions. They increase cash, not profit.</dd>
@@ -112,20 +108,15 @@ export async function Finance({
             </dd>
             <dt>Available Balance</dt>
             <dd>
-              Operating Balance menos Owner Reimbursement Due. Esta V1 no
-              incluye cuentas por pagar adicionales.
+              Operating Balance minus Owner Reimbursement Due. This V1 does not include additional accounts payable.
             </dd>
             <dt>Investment Recovery / Net Position</dt>
             <dd>
-              Utilidad acumulada menos inversión neta en equipo. Es una medida
-              operativa, no la declaración fiscal ni una promesa de recuperación
-              del capital.
+              Accumulated profit minus net equipment investment. This is an operating measure, not a tax return or a promise of capital recovery.
             </dd>
           </dl>
           <p>
-            La revisión de comprobantes aplica la regla interna aprobada:
-            requerido desde $75 y siempre en hospedaje. Se permite guardar y
-            revisar faltantes.
+            Receipt review follows the approved internal rule: receipts are required for $75 or more and always for lodging. Missing receipts may still be saved and reviewed.
           </p>
         </Panel>
       </>
@@ -182,8 +173,7 @@ export async function Finance({
             ]}
           />
           <p className="muted">
-            Las correcciones de importes se registran mediante devoluciones o
-            revisiones, conservando el historial.
+            Amount corrections are recorded through refunds or revisions while preserving history.
           </p>
         </Panel>
         <Panel title="Receipts / Supporting Documents">
@@ -220,16 +210,15 @@ export async function Finance({
                     {money(d.content_snapshot.paid_to_date)}
                   </p>
                   <p>
-                    Saldo pending:{" "}
+                    Balance Due:{" "}
                     {money(d.content_snapshot.balance_remaining)}
                   </p>
                   <small>
-                    Receipt guardado. Copia por email y archivo en Drive
-                    pendings de integración.
+                    Receipt saved. Email copy and Drive storage are pending integration.
                   </small>
                 </div>
               ) : (
-                <p className="muted">Documento pending.</p>
+                <p className="muted">Document pending.</p>
               )}
             </details>
           ))}
@@ -435,8 +424,7 @@ export async function Finance({
         {heading}
         <Panel title="Close Month">
           <p className="muted">
-            Guarda una versión con cifras y advertencias. Las versiones
-            anteriores se conservan. Revisa primero los pendings.
+            Save a version with figures and warnings. Previous versions are preserved. Review pending items first.
           </p>
           <Form
             operation="close"
@@ -450,7 +438,7 @@ export async function Finance({
                 required: true,
               },
             ]}
-            button="Close Month ahora"
+            button="Close Month Now"
           />
         </Panel>
         <Panel title="Vehicle · Annual Analysis">
@@ -544,7 +532,7 @@ export async function Finance({
             value={s?.[k]}
             help={
               k === "available_balance"
-                ? "Fondos atribuidos menos gastos pendings de reembolsar al dueño."
+                ? "Attributed funds minus expenses still owed to the owner."
                 : undefined
             }
           />
