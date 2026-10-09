@@ -142,14 +142,21 @@ before(async () => {
      grant select on storage.objects to authenticated;`,
   );
 
-  for (const file of (
-    await readdir("supabase/migrations-archive/pre-baseline")
-  ).sort()) {
+  const baselineFiles = (
+    await readdir("supabase/migrations")
+  )
+    .filter((file) => file.includes("_baseline_") && file.endsWith(".sql"))
+    .sort();
+
+  assert.equal(
+    baselineFiles.length,
+    6,
+    "The clean logistics fixture must start from the six canonical baselines.",
+  );
+
+  for (const file of baselineFiles) {
     await db.exec(
-      await readFile(
-        `supabase/migrations-archive/pre-baseline/${file}`,
-        "utf8",
-      ),
+      await readFile(`supabase/migrations/${file}`, "utf8"),
     );
   }
 
