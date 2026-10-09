@@ -57,7 +57,7 @@ export function SendQuote({ id, email, companyEmail, sent = false, lastRequested
               {state.mailStatus || "Quote ready. You can copy the link to share it."}
             </p>
             <input
-              aria-label="Enlace privado"
+              aria-label="Private link"
               readOnly
               value={window.location.origin + state.link}
             />
@@ -77,7 +77,7 @@ export function SendQuote({ id, email, companyEmail, sent = false, lastRequested
                   }
                 }}
               >
-                {copied ? "Copiado" : "Copiar enlace"}
+                {copied ? "Copied" : "Copy Link"}
               </button>
               <a href={state.link} target="_blank" rel="noreferrer">
                 View Customer Page

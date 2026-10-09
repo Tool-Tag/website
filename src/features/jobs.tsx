@@ -48,7 +48,7 @@ export async function Jobs({ id }: { id?: string }) {
                 <td>
                   <Badge>{jobStatusLabel(j.status)}</Badge>
                 </td>
-                <td>{new Date(j.created_at).toLocaleDateString("es-US")}</td>
+                <td>{new Date(j.created_at).toLocaleDateString("en-US")}</td>
               </tr>
             ))}
           </Table>

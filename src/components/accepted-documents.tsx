@@ -9,7 +9,7 @@ export async function AcceptedDocuments({quoteId,jobId}:{quoteId?:string;jobId?:
   if (!documents?.length) {
     const {data:agreements}=await db.from("agreements").select("quote_id,commercial_snapshot").eq(quoteId ? "quote_id" : "job_id",quoteId || jobId!);
     if(role!=="admin" || !agreements?.length) return null;
-    return <Panel title="Prepare Existing Acceptance Document"><p>The existing accepted record will be used without creating another Job, Sale, or acceptance. Historical copies will not be sent automatically.</p>{agreements.filter(a=>a.commercial_snapshot).map(a=><Form key={a.quote_id} operation="prepare-accepted-document" hidden={{quote_id:a.quote_id}} fields={[]} button="Preparar PDF de esta aceptación" back={quoteId ? `/app/quotes/${quoteId}` : `/app/jobs/${jobId}`}/>)}</Panel>;
+    return <Panel title="Prepare Existing Acceptance Document"><p>The existing accepted record will be used without creating another Job, Sale, or acceptance. Historical copies will not be sent automatically.</p>{agreements.filter(a=>a.commercial_snapshot).map(a=><Form key={a.quote_id} operation="prepare-accepted-document" hidden={{quote_id:a.quote_id}} fields={[]} button="Prepare PDF for This Acceptance" back={quoteId ? `/app/quotes/${quoteId}` : `/app/jobs/${jobId}`}/>)}</Panel>;
   }
   return <>{await Promise.all(documents.map(async d => {
     const [{data:status},{data:copies}] = await Promise.all([

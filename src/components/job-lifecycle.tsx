@@ -152,7 +152,7 @@ export async function JobLifecycle({
                   <p>
                     Confirmado: {money(request.confirmed_amount)} ·{" "}
                     {request.confirmed_at
-                      ? new Date(request.confirmed_at).toLocaleString("es-US")
+                      ? new Date(request.confirmed_at).toLocaleString("en-US")
                       : ""}
                   </p>
                 )}
@@ -222,7 +222,7 @@ export async function JobLifecycle({
         <p>
           Receipt confirmed:{" "}
           {ack[0]
-            ? new Date(ack[0].acknowledged_at).toLocaleString("es-US")
+            ? new Date(ack[0].acknowledged_at).toLocaleString("en-US")
             : "No explicit confirmation"}
         </p>
       </Panel>
@@ -234,7 +234,7 @@ export async function JobLifecycle({
       {activity.length ? (
         activity.map((a) => (
           <p key={a.id}>
-            {new Date(a.created_at).toLocaleString("es-US")} · {a.field} ·{" "}
+            {new Date(a.created_at).toLocaleString("en-US")} · {a.field} ·{" "}
             {typeof a.new_value === "string" ? a.new_value : JSON.stringify(a.new_value)}
           </p>
         ))
