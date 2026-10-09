@@ -4,7 +4,7 @@ import { Heading, Panel, Table, Empty, Metric } from "@/components/ui";
 import { Form, type Field } from "@/components/form";
 import { money } from "@/lib/domain/money";
 export const customerFields: Field[] = [
-  { name: "name", label: "Nombre de la persona", required: true },
+  { name: "name", label: "Person Name", required: true },
   { name: "phone", label: "Phone", type: "tel", required: true },
   { name: "email", label: "Email", type: "email", required: true },
   { name: "address", label: "Address", required: true },
@@ -54,7 +54,7 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
         <div className="grid">
           <Metric currency={false} label="Jobs" value={jobs.length} />
           <Metric label="Ventas acumuladas" value={stats?.lifetime_sales} />
-          <Metric label="Saldo pendiente" value={stats?.outstanding} />
+          <Metric label="Outstanding Balance" value={stats?.outstanding} />
         </div>
         <Panel title="Contacto">
           <p>
