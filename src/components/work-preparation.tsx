@@ -20,7 +20,7 @@ export function WorkPreparation({ items }: { items: QuoteItem[] }) {
               <div className="work-mark-number">{markIndex + 1}</div>
               <div className="work-mark-content">
                 <div className="work-mark-meta">
-                  <strong>{mark.type === "Text" ? "Texto" : "Imagen / Logo"}</strong>
+                  <strong>{mark.type === "Text" ? "Text" : "Image / Logo"}</strong>
                   <span>{mark.location || "Location not recorded"}</span>
                 </div>
 
@@ -32,7 +32,7 @@ export function WorkPreparation({ items }: { items: QuoteItem[] }) {
                       <img
                         className="work-image-preview"
                         src={mark.url}
-                        alt={mark.description || `Logo para ${item.article}`}
+                        alt={mark.description || `Logo for ${item.article}`}
                       />
                     ) : null}
                     {mark.description && <p>{mark.description}</p>}
@@ -57,13 +57,13 @@ export function WorkPreparation({ items }: { items: QuoteItem[] }) {
                   <dd>
                     {mark.paint_fill
                       ? mark.paint_details?.mode === "single"
-                        ? mark.paint_details.color || "Color no registrado"
+                        ? mark.paint_details.color || "Color not recorded"
                         : mark.paint_details?.instructions || "Multiple Colors"
                       : "No"}
                   </dd>
                   {mark.description && mark.type === "Text" && (
                     <>
-                      <dt>Detalle</dt>
+                      <dt>Details</dt>
                       <dd>{mark.description}</dd>
                     </>
                   )}
@@ -74,7 +74,7 @@ export function WorkPreparation({ items }: { items: QuoteItem[] }) {
 
           {item.notes && (
             <div className="work-notes">
-              <small>Notas</small>
+              <small>Notes</small>
               <p>{item.notes}</p>
             </div>
           )}
