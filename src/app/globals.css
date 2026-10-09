@@ -1455,3 +1455,62 @@ textarea:focus-visible {
     flex-direction: column;
   }
 }
+
+
+/* Desktop Get Tagged modal content */
+.intake-modal-page {
+  width: min(780px, 100%);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 18px 22px 96px;
+  box-sizing: border-box;
+}
+
+.intake-modal-intro {
+  margin-top: 0;
+}
+
+.intake-form-modal {
+  padding-bottom: 0;
+}
+
+.intake-submit {
+  display: grid;
+}
+
+.intake-submit button {
+  width: 100%;
+}
+
+.intake-submit-sticky {
+  position: sticky;
+  z-index: 20;
+  bottom: 0;
+  margin: 18px -22px -96px;
+  padding: 14px 22px 18px;
+  border-top: 1px solid var(--line);
+  background: linear-gradient(to bottom, rgba(8, 11, 15, 0.92), #080b0f 34%);
+  backdrop-filter: blur(8px);
+}
+
+.intake-modal-success {
+  display: grid;
+  align-content: center;
+  gap: 16px;
+  min-height: 100dvh;
+}
+
+.intake-modal-success .panel {
+  margin-bottom: 0;
+}
+
+@media (max-width: 600px) {
+  .intake-modal-page {
+    padding-inline: 16px;
+  }
+
+  .intake-submit-sticky {
+    margin-inline: -16px;
+    padding-inline: 16px;
+  }
+}
