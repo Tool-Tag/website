@@ -13,23 +13,38 @@ import { WorkPreparation } from "@/components/work-preparation";
 import { money } from "@/lib/domain/money";
 import { jobStatusLabel, paymentStatusLabel, workStageLabel } from "@/lib/domain/status-labels";
 import type { QuoteItem } from "@/lib/domain/quote-items";
+import { logisticsOption } from "@/lib/domain/logistics";
 
 export async function Jobs({ id }: { id?: string }) {
   if (!id) {
-    const list = await rows("jobs", { order: "created_at" });
+    const [list, logisticsRows] = await Promise.all([
+      rows("jobs", { order: "created_at" }),
+      rows("quote_logistics", { limit: 500 }),
+    ]);
+    const logisticsPaymentJobs = new Set(
+      logisticsRows
+        .filter((entry) =>
+          ["pending", "pending_verification"].includes(entry.payment_status),
+        )
+        .map((entry) => entry.job_id)
+        .filter(Boolean),
+    );
 
     const activeJobs = list.filter(
       (j) =>
         !["Payment", "Payment Verification", "Closed", "Issue Review"].includes(
           j.work_stage ?? "Not Started",
         ) &&
-        !["Cancelled"].includes(j.status),
+        !["Cancelled"].includes(j.status) &&
+        !logisticsPaymentJobs.has(j.id),
     );
     const reviewJobs = list.filter(
       (j) => j.work_stage === "Issue Review" || j.status === "Issue / Review",
     );
-    const paymentJobs = list.filter((j) =>
-      ["Payment", "Payment Verification"].includes(j.work_stage),
+    const paymentJobs = list.filter(
+      (j) =>
+        ["Payment", "Payment Verification"].includes(j.work_stage) ||
+        logisticsPaymentJobs.has(j.id),
     );
     const completedJobs = list.filter((j) => j.work_stage === "Closed");
     const cancelledJobs = list.filter((j) => j.status === "Cancelled");
@@ -112,25 +127,50 @@ export async function Jobs({ id }: { id?: string }) {
   const j = (await rows("jobs", { id }))[0];
   if (!j) return <Empty>Job not found.</Empty>;
 
-  const [docs, sales, paymentRequests, rawJobItems, pickupRows, cancellationRows] = await Promise.all([
+  const [
+    docs,
+    sales,
+    paymentRequests,
+    rawJobItems,
+    pickupRows,
+    cancellationRows,
+    logisticsRows,
+  ] = await Promise.all([
     rows("documents", { field: "job_id", value: id }),
     rows("sale_balances", { field: "job_id", value: id }),
     rows("payment_requests", { field: "job_id", value: id, order: "submitted_at" }),
     rows("job_items", { field: "job_id", value: id, limit: 500 }),
     rows("pick_return_orders", { field: "job_id", value: id }),
     rows("cancellation_requests", { field: "job_id", value: id, order: "requested_at" }),
+    rows("quote_logistics", { field: "quote_id", value: j.quote_id }),
   ]);
 
   const jobItems = [...rawJobItems].sort((a, b) => Number(a.sequence) - Number(b.sequence));
   const pickupReturn = pickupRows[0] ?? null;
+  const logistics = logisticsRows[0] ?? null;
+  const logisticsPaymentReady =
+    !logistics ||
+    ["paid_confirmed", "not_applicable"].includes(logistics.payment_status);
+  const pickupRequired = logistics
+    ? ["pickup_only", "pickup_delivery"].includes(logistics.option_code)
+    : Boolean(pickupReturn);
+  const deliveryRequired = logistics
+    ? ["pickup_delivery", "dropoff_delivery"].includes(logistics.option_code)
+    : Boolean(pickupReturn);
   const activeCancellation =
     cancellationRows.find((request) => request.status === "Requested") ?? null;
   const cancelledRequest =
     cancellationRows.find((request) => request.status === "Cancelled") ?? null;
 
-  const pendingPayment = paymentRequests.find(
-    (request) => request.status === "Pending Verification",
-  );
+  const pendingPayment =
+    paymentRequests.find(
+      (request) =>
+        request.status === "Pending Verification" &&
+        String(request.purpose || "").startsWith("Logistics"),
+    ) ??
+    paymentRequests.find(
+      (request) => request.status === "Pending Verification",
+    );
 
   let pendingProofUrl: string | null = null;
   if (role === "admin" && pendingPayment?.proof_path) {
@@ -140,10 +180,12 @@ export async function Jobs({ id }: { id?: string }) {
     pendingProofUrl = data?.signedUrl ?? null;
   }
 
-  const scope = await rows("quote_items", {
-    field: "quote_id",
-    value: j.quote_id,
-  });
+  const scope = (
+    await rows("quote_items", {
+      field: "quote_id",
+      value: j.quote_id,
+    })
+  ).filter((item) => item.pricing?.kind !== "pickup_service_fee");
 
   const receivingFiles = docs.filter((d) => d.type === "Receiving Evidence");
   const stage = j.work_stage ?? "Not Started";
@@ -334,7 +376,60 @@ export async function Jobs({ id }: { id?: string }) {
 
   const workTab = j.status === "Cancelled" ? cancelledWorkTab : (
     <>
-      {stage === "Not Started" && !pickupReturn && (
+      {logistics && (
+        <Panel title="Logistics">
+          <p>
+            <strong>
+              {logisticsOption(logistics.option_code)?.name ?? logistics.option_code}
+            </strong>{" "}
+            · Fee{" "}
+            {money(logistics.fee_amount)} · Payment{" "}
+            <strong>{logistics.payment_status}</strong>
+          </p>
+          {logistics.pickup_address && <p>Pickup: {logistics.pickup_address}</p>}
+          {logistics.saturday_date && (
+            <p>
+              Requested Saturday:{" "}
+              {new Date(logistics.saturday_date + "T12:00:00").toLocaleDateString("en-US")} ·
+              8:00 AM–12:00 PM
+            </p>
+          )}
+          {logistics.delivery_address && <p>Delivery: {logistics.delivery_address}</p>}
+          {!logisticsPaymentReady && (
+            <p className="notice">
+              Work is locked until the logistics fee is confirmed. This gate is enforced by the database.
+            </p>
+          )}
+        </Panel>
+      )}
+
+      {stage === "Not Started" && !logisticsPaymentReady && (
+        <Panel title="Payment required before work">
+          <p>
+            The customer must complete the logistics payment before this Job can
+            enter receiving or production.
+          </p>
+          {pendingPayment?.purpose?.startsWith("Logistics") && (
+            <>
+              <p>
+                <strong>{pendingPayment.method}</strong> · {money(pendingPayment.amount)} ·{" "}
+                {paymentStatusLabel(pendingPayment.status)}
+              </p>
+              {role === "admin" && pendingPayment.status === "Pending Verification" && (
+                <Form
+                  operation="confirm-payment"
+                  hidden={{ id: pendingPayment.id }}
+                  fields={[]}
+                  button="Confirm Logistics Payment"
+                  back={`/app/jobs/${id}`}
+                />
+              )}
+            </>
+          )}
+        </Panel>
+      )}
+
+      {stage === "Not Started" && logisticsPaymentReady && !pickupRequired && (
         <>
           <Panel title="Start Job">
             <p className="muted">Start the receiving workflow for this Job.</p>
@@ -349,16 +444,18 @@ export async function Jobs({ id }: { id?: string }) {
         </>
       )}
 
-      {stage === "Not Started" && pickupReturn && (
-        <Panel title="Pickup & Return">
+      {stage === "Not Started" && logisticsPaymentReady && pickupRequired && pickupReturn && (
+        <Panel title={logistics ? "ToolTag Pickup" : "Pickup & Return"}>
           <p>
-            Pickup fee: <strong>{money(pickupReturn.fee_amount)}</strong> · {pickupReturn.fee_status}
+            Logistics fee: <strong>{money(pickupReturn.fee_amount)}</strong> ·{" "}
+            {pickupReturn.fee_status}
           </p>
           <p className="muted">
-            This Job enters production automatically after Pickup receiving evidence is recorded and the items are marked Picked Up.
+            Production begins after Pickup receiving evidence is recorded and the
+            items are marked Picked Up.
           </p>
           <Link className="button" href="/pick-return">
-            Open Pick & Return
+            Open Pickup Route
           </Link>
         </Panel>
       )}
@@ -392,7 +489,7 @@ export async function Jobs({ id }: { id?: string }) {
 
       {["Preparing", "Engraving", "Final Evidence", "Final Details"].includes(stage) &&
         allItemsFinished &&
-        !pickupReturn && (
+        !deliveryRequired && (
           <Form
             operation="complete-job-work"
             hidden={{ id }}
@@ -402,7 +499,7 @@ export async function Jobs({ id }: { id?: string }) {
           />
         )}
 
-      {stage === "Delivery In Progress" && pickupReturn && (
+      {stage === "Delivery In Progress" && deliveryRequired && pickupReturn && (
         <Panel title="Delivery in progress">
           <p>
             All {jobItems.length} items are finished. The Job is now in the Return workflow.

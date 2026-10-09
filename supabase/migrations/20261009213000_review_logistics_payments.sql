@@ -2270,3 +2270,89 @@ end $$;
 
 revoke all on function public.complete_job_production(uuid) from public;
 grant execute on function public.complete_job_production(uuid) to authenticated;
+
+
+-- Route-stop integration boundary: keep the existing tracking system untouched,
+-- but make each stop self-contained with the contact/address data it needs.
+create or replace function private.populate_logistics_route_stop()
+returns trigger
+language plpgsql
+security definer
+set search_path=''
+as $$
+declare
+  route_leg text;
+  route_unit uuid;
+  route_day date;
+  max_stops integer;
+  used_stops integer;
+  qid uuid;
+  logistics public.quote_logistics;
+  agreement public.agreements;
+begin
+  select r.leg,r.unit_id,r.route_date
+  into route_leg,route_unit,route_day
+  from public.pick_return_routes r
+  where r.id=new.route_id;
+
+  if route_leg is null then return new; end if;
+
+  if route_leg='Pickup' and new.status not in ('Cancelled','Failed') then
+    select s.max_pickup_stops_per_saturday
+    into max_stops
+    from public.unit_settings s
+    where s.unit_id=route_unit;
+
+    select count(*)::integer
+    into used_stops
+    from public.pick_return_stops x
+    where x.route_id=new.route_id
+      and x.id is distinct from new.id
+      and x.status not in ('Cancelled','Failed');
+
+    if used_stops>=coalesce(max_stops,10) then
+      raise exception 'That Saturday is at capacity; choose another Saturday';
+    end if;
+  end if;
+
+  select j.quote_id into qid from public.jobs j where j.id=new.job_id;
+  select * into logistics
+  from public.quote_logistics l
+  where l.quote_id=qid;
+
+  select * into agreement
+  from public.agreements a
+  where a.job_id=new.job_id
+  order by a.accepted_at desc
+  limit 1;
+
+  if logistics.quote_id is not null then
+    new.address:=coalesce(
+      nullif(trim(new.address),''),
+      case
+        when route_leg='Pickup' then logistics.pickup_address
+        when route_leg='Return' then logistics.delivery_address
+        else null
+      end
+    );
+  end if;
+
+  new.customer_phone:=coalesce(
+    nullif(trim(new.customer_phone),''),
+    nullif(trim(agreement.accepted_phone),'')
+  );
+  new.customer_email:=coalesce(
+    nullif(trim(new.customer_email),''),
+    nullif(trim(agreement.accepted_email),'')
+  );
+  new.requested_at:=coalesce(new.requested_at,now());
+
+  return new;
+end $$;
+
+revoke all on function private.populate_logistics_route_stop() from public;
+
+create trigger pick_return_stop_logistics_context
+before insert or update of route_id,job_id,status,address,customer_phone,customer_email
+on public.pick_return_stops
+for each row execute function private.populate_logistics_route_stop();

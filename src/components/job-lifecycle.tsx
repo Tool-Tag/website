@@ -105,7 +105,7 @@ export async function JobLifecycle({
         {t && (
           <Panel title="Totals & Payments">
             <p>Base Quote: {money(t.base_amount)}</p>
-            <p>Extensiones aprobadas: {money(t.extensions_amount)}</p>
+            <p>Approved extensions: {money(t.extensions_amount)}</p>
             <h3>Total: {money(t.grand_total)}</h3>
             <p>
               Collected: {money(t.collected)} · Refunded: {money(t.refunded)} · Balance:{" "}
@@ -113,7 +113,7 @@ export async function JobLifecycle({
             </p>
             <p className="muted">
               Each approved extension has its own sale component and collections. Here they
-              consolidan sin duplicar ingresos.
+              consolidate without duplicating revenue.
             </p>
             {extensions
               .filter((x) => x.sale_id)
@@ -135,7 +135,8 @@ export async function JobLifecycle({
                   <strong>{request.method}</strong> · {money(request.amount)} · {paymentStatusLabel(request.status)}
                 </p>
                 <p className="muted">
-                  Submitted: {new Date(request.submitted_at).toLocaleString("en-US")}
+                  {request.purpose || "Customer Payment"} · Submitted:{" "}
+                  {new Date(request.submitted_at).toLocaleString("en-US")}
                 </p>
                 {proofLinks.get(request.id) && (
                   <p>
@@ -150,7 +151,7 @@ export async function JobLifecycle({
                 )}
                 {request.status === "Confirmed" && (
                   <p>
-                    Confirmado: {money(request.confirmed_amount)} ·{" "}
+                    Confirmed: {money(request.confirmed_amount)} ·{" "}
                     {request.confirmed_at
                       ? new Date(request.confirmed_at).toLocaleString("en-US")
                       : ""}
@@ -199,7 +200,7 @@ export async function JobLifecycle({
     return (
       <Panel title="Customer Review & Delivery">
         <p>
-          Respuesta:{" "}
+          Response:{" "}
           {lifecycle?.review?.response === "ready"
             ? "Ready for Delivery"
             : lifecycle?.review?.response === "additional"
@@ -210,7 +211,7 @@ export async function JobLifecycle({
         <p>
           Review email: {lifecycle?.review?.notified_at || "Pending"}
           <br />
-          Primera visita: {lifecycle?.review?.viewed_at || "Pending"}
+          First visit: {lifecycle?.review?.viewed_at || "Pending"}
           <br />
           Respuesta: {lifecycle?.review?.response_at || "Pending"}
         </p>
