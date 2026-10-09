@@ -243,7 +243,7 @@ export async function Quotes({
   ) => (
     <Panel>
       {quotes.length ? (
-        <Table headers={["Quote", "Versión", "Status", "Validity"]}>
+        <Table headers={["Quote", "Version", "Status", "Validity"]}>
           {quotes.map((q) => {
             const displayStatus =
               completedLabel && q.status === "Accepted" && hasClosedJob(q.id)
@@ -261,7 +261,7 @@ export async function Quotes({
                 </td>
                 <td>
                   {q.expires_at
-                    ? new Date(q.expires_at).toLocaleDateString("es-US")
+                    ? new Date(q.expires_at).toLocaleDateString("en-US")
                     : q.status === "Draft"
                       ? "Not Sent"
                       : "—"}
