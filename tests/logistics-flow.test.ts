@@ -18,18 +18,23 @@ async function rpc(name: string, payload: unknown) {
   ]);
 }
 
+let customerSequence = 1000;
+
 async function createCustomer(name: string, suffix: string) {
-  return rpc("save_customer", {
+  customerSequence++;
+  const phone = `801555${String(customerSequence).padStart(4, "0")}`;
+  const id = await rpc("save_customer", {
     unit_id: unit,
     name,
     email: `${suffix}@example.test`,
-    phone: "8015550199",
+    phone,
     address: "101 Personal Way, Draper, UT 84020",
     company_name: "Test Company",
     company_email: `company-${suffix}@example.test`,
     company_phone: "8015550111",
     company_address: "202 Company Way, Draper, UT 84020",
   });
+  return { id, phone };
 }
 
 async function createQuote(customerId: string, amount = "40.00") {
@@ -267,7 +272,7 @@ after(async () => {
 
 test("Review requires logistics, free option needs no payment, and Agreement version stays pinned", async () => {
   const customer = await createCustomer("Free Logistics", "free-logistics");
-  const quote = await createQuote(customer, "40.00");
+  const quote = await createQuote(customer.id, "40.00");
   const token = await value<string>("select public.send_quote($1)", [quote]);
 
   const beforeSnapshot = await value<{
@@ -335,7 +340,7 @@ test("Review requires logistics, free option needs no payment, and Agreement ver
       "select commercial_snapshot->'policy'->>'version' from public.agreements where quote_id=$1",
       [quote],
     ),
-    "1",
+    String(beforeSnapshot.policy.version),
   );
   assert.equal(
     await value(
@@ -362,7 +367,7 @@ test("Pickup selection reserves Saturday, backend blocks work, manual confirmati
   );
 
   const account = await value<string>(
-    "select id from public.accounts where unit_id=$1 order by created_at limit 1",
+    "select id from public.accounts where unit_id=$1 order by id limit 1",
     [unit],
   );
   await db.query(
@@ -375,7 +380,7 @@ test("Pickup selection reserves Saturday, backend blocks work, manual confirmati
   );
 
   const customer = await createCustomer("Pickup Logistics", "pickup-logistics");
-  const quote = await createQuote(customer, "80.00");
+  const quote = await createQuote(customer.id, "80.00");
   const token = await value<string>("select public.send_quote($1)", [quote]);
 
   const accepted = await acceptWithLogistics(token, {
@@ -435,7 +440,7 @@ test("Pickup selection reserves Saturday, backend blocks work, manual confirmati
   assert.equal(stop.status, "Requested");
   assert.equal(stop.address, logistics.pickup_address);
   assert.equal(stop.customer_email, "pickup-logistics@example.test");
-  assert.equal(stop.customer_phone, "8015550199");
+  assert.equal(stop.customer_phone, customer.phone);
   assert.equal(stop.window, "08:00-12:00");
 
   await assert.rejects(
@@ -447,7 +452,7 @@ test("Pickup selection reserves Saturday, backend blocks work, manual confirmati
     "Capacity Customer",
     "capacity-customer",
   );
-  const secondQuote = await createQuote(secondCustomer, "30.00");
+  const secondQuote = await createQuote(secondCustomer.id, "30.00");
   const secondToken = await value<string>("select public.send_quote($1)", [
     secondQuote,
   ]);
@@ -548,7 +553,7 @@ test("Pickup selection reserves Saturday, backend blocks work, manual confirmati
 
 test("Full prepayment closes payment stage, and Drop-off + Delivery requires only delivery address", async () => {
   const customer = await createCustomer("Full Prepay", "full-prepay");
-  const quote = await createQuote(customer, "55.00");
+  const quote = await createQuote(customer.id, "55.00");
   const token = await value<string>("select public.send_quote($1)", [quote]);
 
   await assert.rejects(
@@ -632,7 +637,7 @@ test("Full prepayment closes payment stage, and Drop-off + Delivery requires onl
 test("Old Get Tagged Pickup maps to Pickup & Delivery; Drop-off stays unresolved", async () => {
   const customer = await createCustomer("Legacy Intake", "legacy-intake");
 
-  const pickupQuote = await createQuote(customer, "20.00");
+  const pickupQuote = await createQuote(customer.id, "20.00");
   await db.query(
     `update public.quotes
      set source='public_get_tagged',
@@ -655,7 +660,7 @@ test("Old Get Tagged Pickup maps to Pickup & Delivery; Drop-off stays unresolved
   assert.equal(pickupSnapshot.logistics.requires_selection, false);
   assert.equal(pickupSnapshot.logistics.selected_option, "pickup_delivery");
 
-  const dropoffQuote = await createQuote(customer, "21.00");
+  const dropoffQuote = await createQuote(customer.id, "21.00");
   await db.query(
     `update public.quotes
      set source='public_get_tagged',
