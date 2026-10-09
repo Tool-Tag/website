@@ -185,26 +185,30 @@ export function Nav({
   useEffect(() => {
     if (!enabled || !attention) return;
 
-    if (!bootstrapped.current) {
-      liveAttentionRef.current = attention;
-      setLiveAttention(attention);
+    const timer = window.setTimeout(() => {
+      if (!bootstrapped.current) {
+        liveAttentionRef.current = attention;
+        setLiveAttention(attention);
 
-      const now = Date.now();
-      for (const key of ATTENTION_KEYS) {
-        if (attention[key] <= 0) {
-          lastNudgeAt.current[key] = 0;
-        } else if (isAttentionAreaActive(key)) {
-          lastNudgeAt.current[key] = now;
-        } else {
-          triggerNudge(key, now);
+        const now = Date.now();
+        for (const key of ATTENTION_KEYS) {
+          if (attention[key] <= 0) {
+            lastNudgeAt.current[key] = 0;
+          } else if (isAttentionAreaActive(key)) {
+            lastNudgeAt.current[key] = now;
+          } else {
+            triggerNudge(key, now);
+          }
         }
+
+        bootstrapped.current = true;
+        return;
       }
 
-      bootstrapped.current = true;
-      return;
-    }
+      applyAttention(attention);
+    }, 0);
 
-    applyAttention(attention);
+    return () => window.clearTimeout(timer);
   }, [
     applyAttention,
     attention,
@@ -216,12 +220,16 @@ export function Nav({
   useEffect(() => {
     if (!enabled) return;
 
-    const now = Date.now();
-    for (const key of ATTENTION_KEYS) {
-      if (isAttentionAreaActive(key)) {
-        clearNudge(key, now);
+    const timer = window.setTimeout(() => {
+      const now = Date.now();
+      for (const key of ATTENTION_KEYS) {
+        if (isAttentionAreaActive(key)) {
+          clearNudge(key, now);
+        }
       }
-    }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [clearNudge, enabled, isAttentionAreaActive, path]);
 
   useEffect(() => {
@@ -232,7 +240,7 @@ export function Nav({
       remindPendingAreas();
     };
 
-    void refreshAttention();
+    const initial = window.setTimeout(tick, 0);
     const interval = window.setInterval(tick, POLL_INTERVAL_MS);
 
     const onFocus = () => tick();
@@ -244,6 +252,7 @@ export function Nav({
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
+      window.clearTimeout(initial);
       window.clearInterval(interval);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibilityChange);
