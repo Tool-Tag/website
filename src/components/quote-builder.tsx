@@ -104,7 +104,7 @@ export function QuoteBuilder({
         <input type="hidden" name="items" value={JSON.stringify(items)} />
         {revises && <input type="hidden" name="revises_id" value={revises} />}
         <label>
-          Cliente
+          Customer
           <select
             name="customer_id"
             required
@@ -160,7 +160,7 @@ export function QuoteBuilder({
             {money(String(designs.length * 3))}
           </p>
         )}
-        {paintedQuantity(items) > 0 && <p>Relleno de pintura: {paintedQuantity(items)} pieza(s) × $2 = {money(String(paintedQuantity(items) * 2))}. Una vez por pieza, aunque tenga varios grabados con color.</p>}
+        {paintedQuantity(items) > 0 && <p>Paint Fill: {paintedQuantity(items)} piece(s) × $2 = {money(String(paintedQuantity(items) * 2))}. Charged once per piece, even when the piece has multiple colored engravings.</p>}
         {additionalEngravings(items)>0 && <p>Grabados adicionales: {additionalEngravings(items)} × $5 = {money(String(additionalEngravings(items)*5))}</p>}
         <h3>Total: {money(total)}</h3>
         <label style={{ margin: "20px 0" }}>
@@ -244,7 +244,7 @@ export function QuoteBuilder({
               <h3>Confirm the Work Before Saving</h3>
               <QuoteScope items={[draft]} />
               {additionalEngravings([draft])>0 && <p>Grabados adicionales: {money(String(additionalEngravings([draft])*5))}</p>}
-              {paintedQuantity([draft]) > 0 && <p>Pintura: {draft.quantity} pieza(s) × $2 = {money(String(draft.quantity * 2))} adicionales.</p>}
+              {paintedQuantity([draft]) > 0 && <p>Paint: {draft.quantity} piece(s) × $2 = {money(String(draft.quantity * 2))} additional.</p>}
               <div className="actions">
                 <button
                   type="button"
@@ -418,13 +418,13 @@ export function QuoteBuilder({
                             paintDialog.current?.showModal();
                           } else mark(i, { paint_fill: false, paint_details: undefined });
                         }} />
-                        Relleno de pintura · $2 extra por pieza
+                        Paint Fill · $2 extra per piece
                       </label>
                       {m.paint_fill && <button type="button" className="secondary" onClick={() => {
                         setPaintIndex(i);
                         setPaint(m.paint_details ?? { mode: "single", color: "", instructions: "" });
                         paintDialog.current?.showModal();
-                      }}>Editar pintura de este grabado</button>}
+                      }}>Edit Paint for This Engraving</button>}
                       {(draft.marks?.length ?? 0) > 1 && (
                         <button
                           type="button"
@@ -491,7 +491,7 @@ export function QuoteBuilder({
             paintDialog.current?.close();
           }}
         >
-          <h2 id="paint-title">Relleno de pintura</h2>
+          <h2 id="paint-title">Paint Fill</h2>
           <label>
             Coloreado
             <select
