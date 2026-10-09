@@ -9,7 +9,7 @@ export function WorkPreparation({ items }: { items: QuoteItem[] }) {
         <section className="work-prep-item" key={itemIndex}>
           <div className="work-prep-head">
             <div>
-              <small>Artículo</small>
+              <small>Item</small>
               <h3>{item.article}</h3>
             </div>
             <span className="badge">Qty {item.quantity}</span>
@@ -20,8 +20,8 @@ export function WorkPreparation({ items }: { items: QuoteItem[] }) {
               <div className="work-mark-number">{markIndex + 1}</div>
               <div className="work-mark-content">
                 <div className="work-mark-meta">
-                  <strong>{mark.type === "Text" ? "Texto" : "Imagen / Logo"}</strong>
-                  <span>{mark.location || "Ubicación no registrada"}</span>
+                  <strong>{mark.type === "Text" ? "Text" : "Image / Logo"}</strong>
+                  <span>{mark.location || "Location not recorded"}</span>
                 </div>
 
                 {mark.type === "Text" ? (
@@ -38,7 +38,7 @@ export function WorkPreparation({ items }: { items: QuoteItem[] }) {
                     {mark.description && <p>{mark.description}</p>}
                     {mark.url && (
                       <a href={mark.url} target="_blank" rel="noreferrer">
-                        Abrir imagen original →
+                        Open Original Image →
                       </a>
                     )}
                   </div>
@@ -47,7 +47,7 @@ export function WorkPreparation({ items }: { items: QuoteItem[] }) {
                 <dl className="work-instructions">
                   {(item.width_mm || item.height_mm) && (
                     <>
-                      <dt>Área</dt>
+                      <dt>Area</dt>
                       <dd>
                         {item.width_mm || "—"} × {item.height_mm || "—"} mm
                       </dd>
@@ -58,12 +58,12 @@ export function WorkPreparation({ items }: { items: QuoteItem[] }) {
                     {mark.paint_fill
                       ? mark.paint_details?.mode === "single"
                         ? mark.paint_details.color || "Color no registrado"
-                        : mark.paint_details?.instructions || "Múltiples colores"
+                        : mark.paint_details?.instructions || "Multiple Colors"
                       : "No"}
                   </dd>
                   {mark.description && mark.type === "Text" && (
                     <>
-                      <dt>Detalle</dt>
+                      <dt>Detail</dt>
                       <dd>{mark.description}</dd>
                     </>
                   )}
@@ -82,7 +82,7 @@ export function WorkPreparation({ items }: { items: QuoteItem[] }) {
       ))}
 
       {!productionItems.length && (
-        <p className="muted">No hay artículos de producción en este Job.</p>
+        <p className="muted">No production items are available for this Job.</p>
       )}
     </div>
   );
