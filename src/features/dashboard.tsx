@@ -19,11 +19,11 @@ export async function Dashboard() {
   return (
     <>
       <Heading
-        title="Todo bajo control."
-        subtitle="Clientes, trabajo y finanzas en un solo lugar."
+        title="Everything under control."
+        subtitle="Customers, work, and finances in one place."
       >
         <Link className="button" href="/app/quotes/new">
-          + Nueva cotización
+          + New Quote
         </Link>
         <Link className="button secondary" href="/app/finance">
           ToolTag Finance
@@ -31,25 +31,25 @@ export async function Dashboard() {
       </Heading>
       <div className="grid">
         <Metric
-          label="Trabajos activos"
+          label="Active Jobs"
           currency={false}
           value={stats?.active_jobs ?? 0}
-          help={`${stats?.ready_jobs ?? 0} listos para entregar · ${stats?.issue_jobs ?? 0} en revisión`}
+          help={`${stats?.ready_jobs ?? 0} ready for delivery · ${stats?.issue_jobs ?? 0} in review`}
         />
         <Metric
-          label="Cotizaciones pendientes"
+          label="Pending Quotes"
           currency={false}
           value={stats?.pending_quotes ?? 0}
-          help={`${stats?.accepted_quotes ?? 0} aceptadas`}
+          help={`${stats?.accepted_quotes ?? 0} accepted`}
         />
         <Metric
           label="Main Account"
           value={s?.operating_balance}
-          help="Saldo atribuido a ToolTag; no es todo el saldo del banco."
+          help="Balance attributed to ToolTag; it is not the entire bank balance."
         />
       </div>
       <div className="grid two">
-        <Panel title="Requiere atención">
+        <Panel title="Requires Attention">
           {review.length ? (
             review.slice(0, 8).map((r, i) => (
               <p key={i}>
@@ -59,36 +59,36 @@ export async function Dashboard() {
           ) : (
             <Empty>
               {ready
-                ? "All Clear — no hay pendientes."
-                : "Conecta Supabase para cargar tus pendientes."}
+                ? "All Clear — nothing needs attention."
+                : "Connect Supabase to load items that need attention."}
             </Empty>
           )}
         </Panel>
-        <Panel title="Clientes">
+        <Panel title="Customers">
           <p className="muted">
             Empieza por la persona. Sus cotizaciones, trabajos y pagos quedan
             relacionados.
           </p>
           <div className="actions">
             <Link className="button secondary" href="/app/customers">
-              Buscar cliente
+              Search Customers
             </Link>
             <Link className="button secondary" href="/app/customers/new">
-              + Nuevo cliente
+              + New Customer
             </Link>
           </div>
         </Panel>
       </div>
-      <Panel title="Ventas y cobros">
+      <Panel title="Sales & Collections">
         <div className="grid">
-          <Metric label="Ventas del mes" value={stats?.sales_month} />
-          <Metric label="Cobrado este mes" value={stats?.collected_month} />
-          <Metric label="Por cobrar" value={stats?.balance_due} />
+          <Metric label="Sales This Month" value={stats?.sales_month} />
+          <Metric label="Collected This Month" value={stats?.collected_month} />
+          <Metric label="Balance Due" value={stats?.balance_due} />
         </div>
       </Panel>
-      <Panel title="Actividad reciente">
+      <Panel title="Recent Activity">
         {activity.length ? (
-          <Table headers={["Registro", "Cambio", "Fecha"]}>
+          <Table headers={["Record", "Change", "Date"]}>
             {activity.map((a) => (
               <tr key={a.id}>
                 <td>
@@ -96,7 +96,7 @@ export async function Dashboard() {
                 </td>
                 <td>{a.changed_fields}</td>
                 <td>
-                  {new Date(a.created_at).toLocaleString("es-US", {
+                  {new Date(a.created_at).toLocaleString("en-US", {
                     timeZone: "America/Denver",
                   })}
                 </td>
