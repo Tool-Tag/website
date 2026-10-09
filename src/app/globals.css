@@ -1353,3 +1353,105 @@ textarea:focus-visible {
     animation: none;
   }
 }
+
+
+/* Review & Accept logistics */
+.logistics-options,
+.payment-choice {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 0;
+  border: 0;
+}
+
+.logistics-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid #2b3542;
+  border-radius: 10px;
+  background: #0b1016;
+  cursor: pointer;
+}
+
+.logistics-option.selected,
+.logistics-option:has(input:checked) {
+  border-color: #4b6384;
+  background: #101824;
+}
+
+.logistics-option > span {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+}
+
+.logistics-option p {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  color: var(--muted);
+}
+
+.logistics-option small {
+  color: #e2bf7a;
+  font-weight: 700;
+}
+
+.logistics-selected-detail,
+.logistics-readonly,
+.logistics-address,
+.logistics-total-line {
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid #2b3542;
+  border-radius: 9px;
+  background: #0b1016;
+}
+
+.logistics-readonly {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px 12px;
+}
+
+.logistics-readonly p,
+.logistics-readonly small {
+  grid-column: 1 / -1;
+}
+
+.logistics-total-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.logistics-address {
+  display: grid;
+  gap: 10px;
+}
+
+.payment-choice legend {
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .logistics-option > span,
+  .logistics-readonly {
+    grid-template-columns: 1fr;
+  }
+
+  .logistics-option small,
+  .logistics-readonly p,
+  .logistics-readonly small {
+    grid-column: 1;
+  }
+
+  .logistics-total-line {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

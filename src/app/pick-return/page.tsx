@@ -73,7 +73,7 @@ export default async function PickReturnPage() {
                     <div>
                       <strong>{job.code}</strong>
                       <p className="muted">
-                        {job.work_stage} · Pickup fee {money(order.fee_amount)} · {order.fee_status}
+                        {job.work_stage} · Logistics fee {money(order.fee_amount)} · {order.fee_status}
                       </p>
                     </div>
                     <div className="actions">
@@ -82,14 +82,15 @@ export default async function PickReturnPage() {
                     </div>
                   </div>
 
-                  {order.fee_status !== "Confirmed" && order.pickup_status !== "Picked Up" && (
+                  {order.fee_status !== "Confirmed" && (
                     <p className="notice">
-                      Pickup is locked until the {money(order.fee_amount)} Pickup fee is confirmed.
+                      ToolTag logistics actions are locked until the{" "}
+                      {money(order.fee_amount)} logistics fee is confirmed.
                     </p>
                   )}
 
                   {order.fee_status === "Confirmed" &&
-                    !["Picked Up", "Cancelled"].includes(order.pickup_status) && (
+                    !["Not Applicable", "Picked Up", "Cancelled"].includes(order.pickup_status) && (
                       <details>
                         <summary>Schedule / reschedule Pickup</summary>
                         <p className="muted">
@@ -188,9 +189,22 @@ export default async function PickReturnPage() {
                       Window: {dateTime(stop.window_start)} → {dateTime(stop.window_end)}
                     </p>
                     <p className="muted">ETA: {dateTime(stop.eta)}</p>
+                    {stop.address && <p><strong>Address:</strong> {stop.address}</p>}
+                    {(stop.customer_phone || stop.customer_email) && (
+                      <p className="muted">
+                        {stop.customer_phone || "No phone"} · {stop.customer_email || "No email"}
+                      </p>
+                    )}
                   </div>
                   <Badge>{route.route_date}</Badge>
                 </div>
+
+                {stop.status === "Requested" && (
+                  <p className="notice">
+                    Requested by the customer. This stop remains unconfirmed until
+                    the logistics payment is confirmed.
+                  </p>
+                )}
 
                 {stop.status === "Scheduled" && (
                   <Form

@@ -11,6 +11,8 @@ import { z } from "zod";
 import { createHash, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { loginFailure } from "@/lib/domain/auth-errors";
+import { paymentProvider, toolTagPublicUrl } from "@/lib/payments";
+import type { PaymentMethod, PaymentScope } from "@/lib/payments/provider";
 export type ActionState = { error?: string; ok?: boolean; link?: string; mailStatus?: string; mailRequestedAt?: string; data?: unknown };
 export async function login(
   _: ActionState,
@@ -301,6 +303,101 @@ export async function customerAction(
   form: FormData,
 ): Promise<ActionState> {
   const db = await supabase();
+  if (kind === "logistics-payment") {
+    const scope = String(form.get("scope") || "") as PaymentScope;
+    const method = String(form.get("method") || "") as PaymentMethod;
+    if (!["full", "fee_only"].includes(scope))
+      return { error: "Choose how much you would like to pay now." };
+    if (!["Card", "Zelle", "Venmo"].includes(method))
+      return { error: "Choose Card, Zelle, or Venmo." };
+
+    const attemptId = randomUUID();
+    const { data: prepared, error: prepareError } = await db.rpc(
+      "prepare_logistics_payment",
+      {
+        p_token: token,
+        p_scope: scope,
+        p_method: method,
+        p_attempt: attemptId,
+      },
+    );
+    if (prepareError || !prepared)
+      return {
+        error: prepareError?.message || "Could not prepare the payment.",
+      };
+
+    const destination =
+      method === "Zelle"
+        ? prepared.zelle
+        : method === "Venmo"
+          ? prepared.venmo
+          : null;
+    const provider = paymentProvider(method, destination);
+    if (!provider.isConfigured())
+      return {
+        error:
+          method === "Card"
+            ? "Card payments are not configured yet. Choose Zelle or Venmo."
+            : `${method} is not configured yet.`,
+      };
+
+    try {
+      const base = toolTagPublicUrl();
+      const result = await provider.start({
+        attemptId,
+        amountCents: Math.round(Number(prepared.amount) * 100),
+        currency: "usd",
+        description:
+          scope === "full"
+            ? `ToolTag full prepayment · ${prepared.job_code}`
+            : `ToolTag logistics fee · ${prepared.job_code}`,
+        customerEmail: String(prepared.customer_email || ""),
+        successUrl: `${base}/review/${encodeURIComponent(token)}/payment?card=success`,
+        cancelUrl: `${base}/review/${encodeURIComponent(token)}/payment?card=cancelled`,
+        jobId: String(prepared.job_id),
+        quoteId: String(prepared.quote_id),
+        paymentScope: scope,
+      });
+
+      if (result.provider === "manual") {
+        const { data, error } = await db.rpc(
+          "mark_logistics_manual_submitted",
+          { p_token: token, p_attempt: attemptId },
+        );
+        if (error) return { error: error.message };
+        await dispatchWorkerMail();
+        revalidatePath(`/review/${token}/payment`);
+        revalidatePath("/app", "layout");
+        return { ok: true, data };
+      }
+
+      if (!result.providerReference || !result.redirectUrl)
+        return {
+          error: "Card checkout did not return a secure payment link.",
+        };
+
+      const { error } = await db.rpc("attach_logistics_card_session", {
+        p_token: token,
+        p_attempt: attemptId,
+        p_provider_reference: result.providerReference,
+      });
+      if (error) return { error: error.message };
+
+      return {
+        ok: true,
+        link: result.redirectUrl,
+        data: { status: result.state },
+      };
+    } catch (error) {
+      return {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Payment could not be started.",
+      };
+    }
+  }
+
   if (["work-ready","work-additional","extension-accept"].includes(kind)) {
     if(kind==="extension-accept" && form.get("confirmed")!=="on") return {error:"Confirm the additional scope and price."};
     const {error}= kind==="extension-accept"
@@ -408,27 +505,41 @@ export async function customerAction(
     return { ok: true, link: `/payment/${token}/confirmation` };
   }
   if (kind === "review") {
-    const { error } = await db.rpc("accept_review", {
+    let logistics: unknown;
+    try {
+      logistics = JSON.parse(String(form.get("logistics") || "null"));
+    } catch {
+      return { error: "Review your logistics selection and try again." };
+    }
+
+    const { data, error } = await db.rpc("accept_review_with_logistics", {
       p_token: token,
       p_quote_confirmed: form.get("quote_confirmed") === "on",
       p_agreement_confirmed: form.get("agreement_confirmed") === "on",
-      p_name: String(form.get("name") ?? "").trim(),
-      p_email: String(form.get("email") ?? "").trim(),
-      p_phone: String(form.get("phone") ?? "").trim(),
+      p_logistics: logistics,
     });
     if (error) return { error: error.message };
+
     after(async () => {
       await processAcceptedWorker();
       await dispatchWorkerMail();
     });
+
     revalidatePath(`/review/${token}`);
+    revalidatePath(`/review/${token}/payment`);
     revalidatePath(`/accept/${token}`);
     revalidatePath("/app", "layout");
-    return { ok: true };
+
+    return {
+      ok: true,
+      link: data?.payment_path || undefined,
+      data,
+    };
   }
+
   if (!["accept", "issue"].includes(kind))
     return { error: "Use the combined quote and Agreement review page." };
-  const { error } = await db.rpc("public_completion", {
+  const { data, error } = await db.rpc("public_completion", {
     p_token: token,
     p_decision: kind,
   });
@@ -436,6 +547,11 @@ export async function customerAction(
   await dispatchWorkerMail();
   revalidatePath(`/completion/${token}`);
   return kind === "accept"
-    ? { ok: true, link: `/payment/${token}` }
+    ? {
+        ok: true,
+        link: data?.payment?.paid_in_full
+          ? `/payment/${token}/confirmation`
+          : `/payment/${token}`,
+      }
     : { ok: true };
 }

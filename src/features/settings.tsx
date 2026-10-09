@@ -64,7 +64,8 @@ export async function Settings() {
           <p>Refund review: 14 days.</p>
           <p>Delivery acceptance: 3 days after notification.</p>
           <p>Monthly close: day 1, previous month.</p>
-          <p>Payments: Cash, Zelle, Venmo.</p>
+          <p>Final in-person payments: Cash, Zelle, Venmo.</p>
+          <p>Review logistics fees: Card, Zelle or Venmo only · no cash.</p>
         </Panel>
         <Panel title="Documents / Drive">
           <p className="muted">
@@ -110,6 +111,49 @@ export async function Settings() {
           />
         </Panel>
       </div>
+      <Panel title="Payments & Logistics">
+        <p className="muted">
+          Zelle and Venmo identifiers are configuration only. Leave them blank
+          until the real ToolTag accounts are ready. Card checkout is enabled
+          only when Stripe server keys are configured in the deployment
+          environment.
+        </p>
+        <p>
+          Card provider:{" "}
+          <strong>
+            {process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET
+              ? "Stripe configured"
+              : "Stripe not configured"}
+          </strong>
+        </p>
+        <Form
+          operation="settings"
+          fields={[
+            {
+              name: "zelle_email",
+              label: "ToolTag Zelle identifier",
+              value: s?.zelle_email ?? "",
+              help: "Placeholder/configurable — do not enter a customer account.",
+            },
+            {
+              name: "venmo_handle",
+              label: "ToolTag Venmo handle",
+              value: s?.venmo_handle ?? "",
+              help: "Placeholder/configurable until the ToolTag Venmo account is finalized.",
+            },
+            {
+              name: "max_pickup_stops_per_saturday",
+              label: "Maximum Pickup Stops per Saturday",
+              type: "number",
+              required: true,
+              value: String(s?.max_pickup_stops_per_saturday ?? 10),
+              help: "Review & Accept hides Saturdays once this capacity is reached.",
+            },
+          ]}
+          back="/app/settings"
+          button="Save Payment & Logistics Settings"
+        />
+      </Panel>
       <Panel title="Categories">
         <Table headers={["Name", "Type", "Status"]}>
           {categories.map((c) => (

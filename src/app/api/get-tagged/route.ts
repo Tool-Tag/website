@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   PICKUP_FEE,
   PICKUP_REQUEST_DISCLAIMER,
-  PICKUP_TERMS_VERSION,
   getTaggedQuoteItems,
   getTaggedRequestSchema,
 } from "@/lib/public/get-tagged";
@@ -60,7 +59,7 @@ function publicError(message: string) {
   if (message.includes("On-site service is temporarily unavailable")) {
     return {
       status: 400,
-      message: "On-site service is temporarily unavailable. Choose Drop-off or Pickup & Return.",
+      message: "On-site service is temporarily unavailable. Choose Drop-off or Pickup & Delivery.",
     };
   }
   if (
@@ -157,10 +156,9 @@ export async function POST(request: NextRequest) {
         ? {
             ...customerRequest.service,
             method: "Pickup",
-            pickup_terms_version: PICKUP_TERMS_VERSION,
-            pickup_terms_text: PICKUP_REQUEST_DISCLAIMER,
-            pickup_fee: PICKUP_FEE,
-            agreement_version: 2,
+            logistics_option: "pickup_delivery",
+            logistics_fee: PICKUP_FEE,
+            logistics_note: PICKUP_REQUEST_DISCLAIMER,
           }
         : customerRequest.service,
       quote_items: getTaggedQuoteItems(customerRequest),

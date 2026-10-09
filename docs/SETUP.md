@@ -19,7 +19,7 @@ Las pruebas SQL ejecutan las migraciones completas con PostgreSQL embebido (PGli
 
 Project ref proporcionado por el usuario: `eoldyqqupkuggyyfhqkg`.
 
-Estado: proyecto vinculado y las nueve migraciones aplicadas correctamente. Se verificó que no había tablas previas y no se importaron datos de BOFT. Falta crear el primer usuario Auth y asignar sus permisos.
+Estado: proyecto vinculado con el baseline consolidado aplicado. Las migraciones nuevas posteriores al baseline se mantienen forward-only y deben pasar CI/pruebas antes de aplicarse al remoto. No editar una migración que ya figure aplicada en Supabase.
 
 Desde este repositorio:
 
@@ -58,7 +58,21 @@ Para tester: crear otra cuenta Auth y asignar `viewer` únicamente a ToolTag. Nu
 
 Conservar el dominio existente. Cambiar el proyecto de hosting estático a **Next.js**, Root Directory = raíz del repo; Build = `npm run build`; Output Directory = `.next` (sin el antiguo override `dist`). `vercel.json` versiona estas opciones. La configuración remota histórica no fue accesible desde los archivos locales: verificar sus overrides antes de publicar.
 
-Agregar las dos variables públicas de `.env.example`. Probar primero un Preview Deployment. Verificar `/`, `/hub/`, `/hub/falcon/`, `/hub/tiempos/`, `/login` y `/app`.
+Agregar las variables públicas y server-only de `.env.example`. Probar primero un Preview Deployment. Verificar `/`, `/hub/`, `/hub/falcon/`, `/hub/tiempos/`, `/login` y `/app`.
+
+### Review & Accept: logística y pagos
+
+- Zelle y Venmo se configuran desde **Settings → Payments & Logistics**. No hay identificadores de negocio hardcodeados en el repo.
+- La capacidad de Pickup de los sábados se configura con `max_pickup_stops_per_saturday`; el default de base es 10.
+- El fee logístico de Review & Accept acepta Card, Zelle o Venmo; Cash no se presenta ni se acepta en ese paso.
+- Zelle/Venmo quedan en verificación manual hasta que staff confirme el `payment_request`.
+- Card usa Stripe Checkout mediante la abstracción de pagos. Configurar en Vercel:
+  - `STRIPE_SECRET_KEY=sk_test_...` durante pruebas y `sk_live_...` sólo al activar producción.
+  - `STRIPE_WEBHOOK_SECRET=whsec_...`.
+  - webhook HTTPS: `/api/payments/stripe/webhook`, con los eventos de Checkout configurados en Stripe.
+- Sin ambas claves Stripe, la opción Card queda deshabilitada; nunca se marca un pago de tarjeta como confirmado sólo por el retorno del navegador.
+- `STRIPE_API_BASE` existe únicamente como override opcional para pruebas/integración; producción debe dejarlo vacío para usar el endpoint oficial.
+- Los quotes ya aceptados antes de esta migración conservan su flujo histórico.
 
 Para el trabajo programado: configurar `SUPABASE_SERVICE_ROLE_KEY` y un `CRON_SECRET` aleatorio **solo en el entorno del servidor**. Nunca usar prefijo `NEXT_PUBLIC` para secretos. La ruta `/api/cron` devuelve 503 sin ellos y 401 sin autorización. Vercel invoca diariamente a las 08:00 UTC; el worker cierra el mes anterior de ToolTag una sola vez, con zona local configurable. Nunca cierra BOFT. El proceso es recuperable si una ejecución no ocurre el día 1.
 
