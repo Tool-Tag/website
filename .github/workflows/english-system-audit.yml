@@ -18,7 +18,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re, sys
-          words = r"cotizaci[oó]n|cotizaciones|trabajo|trabajos|cliente|clientes|pago|pagos|correo|estado|revisi[oó]n|reembolso|reembolsos|guardar|guardando|abrir|cerrar|volver|nuevo|nueva|pendiente|pendientes|configuraci[oó]n|equipo|finanzas|fecha|descripci[oó]n|importe|categor[ií]a|categor[ií]as|seleccionar|agregar|quitar|editar|cancelar|confirmar|recibo|recibos|venta|ventas|gasto|gastos|cobro|cobros|completado|completada|cancelado|cancelada|enviado|enviada|aceptado|aceptada|borrador|borradores|vigencia|historial|contrase[nñ]a|direcci[oó]n|tel[eé]fono|nombre|art[ií]culo|cantidad|pintura|grabado|grabados|ubicaci[oó]n|notas|origen|destino|prop[oó]sito|buscar|registros|movimientos|resumen|preparado|preparar"
+          words = r"cotizaci[oó]n|cotizaciones|trabajo|trabajos|cliente|clientes|pago|pagos|correo|estado|revisión|reembolso|reembolsos|guardar|guardando|abrir|cerrar|volver|nuevo|nueva|pendiente|pendientes|configuraci[oó]n|equipo|finanzas|fecha|descripci[oó]n|importe|categor[ií]a|categor[ií]as|seleccionar|agregar|quitar|editar|cancelar|confirmar|recibo|recibos|venta|ventas|gasto|gastos|cobro|cobros|completado|completada|cancelado|cancelada|enviado|enviada|aceptado|aceptada|borrador|borradores|vigencia|historial|contrase[nñ]a|direcci[oó]n|tel[eé]fono|nombre|art[ií]culo|cantidad|pintura|grabado|grabados|ubicaci[oó]n|notas|origen|destino|prop[oó]sito|buscar|registros|movimientos|resumen|preparado|preparar"
           pattern = re.compile(rf"([áéíóúüñ¿¡]|\b(?:{words})\b)", re.I)
           hits=[]
           for path in Path("src").rglob("*"):
