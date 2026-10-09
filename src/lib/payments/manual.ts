@@ -17,7 +17,8 @@ export class ManualPaymentProvider implements PaymentProvider {
     return Boolean(this.destination?.trim());
   }
 
-  async start(_input: StartPaymentInput): Promise<StartPaymentResult> {
+  async start(input: StartPaymentInput): Promise<StartPaymentResult> {
+    void input;
     if (!this.isConfigured()) {
       throw new Error(`${this.method} is not configured yet.`);
     }

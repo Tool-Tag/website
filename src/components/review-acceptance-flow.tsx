@@ -150,12 +150,6 @@ export function ReviewAcceptanceFlow({
   );
 
   useEffect(() => {
-    if (optionCode === "pickup_delivery" && sameAsPickup) {
-      setDeliveryAddress(pickupAddress);
-    }
-  }, [optionCode, pickupAddress, sameAsPickup]);
-
-  useEffect(() => {
     if (state.link) {
       router.push(state.link);
     } else if (state.ok) {
@@ -168,10 +162,15 @@ export function ReviewAcceptanceFlow({
     [baseTotal, selected],
   );
 
+  const effectiveDeliveryAddress =
+    optionCode === "pickup_delivery" && sameAsPickup
+      ? pickupAddress
+      : deliveryAddress;
+
   const logisticsValid = Boolean(
     selected &&
       (!selected.pickup || (pickupAddress.trim() && saturdayDate)) &&
-      (!selected.delivery || deliveryAddress.trim()),
+      (!selected.delivery || effectiveDeliveryAddress.trim()),
   );
   const canAccept =
     logisticsValid && quoteConfirmed && agreementConfirmed && !pending && !state.ok;
@@ -179,7 +178,9 @@ export function ReviewAcceptanceFlow({
   const payload = JSON.stringify({
     option_code: optionCode || null,
     pickup_address: selected?.pickup ? pickupAddress.trim() : null,
-    delivery_address: selected?.delivery ? deliveryAddress.trim() : null,
+    delivery_address: selected?.delivery
+      ? effectiveDeliveryAddress.trim()
+      : null,
     saturday_date: selected?.pickup ? saturdayDate : null,
   });
 
@@ -309,7 +310,6 @@ export function ReviewAcceptanceFlow({
                   checked={sameAsPickup}
                   onChange={(event) => {
                     setSameAsPickup(event.target.checked);
-                    if (event.target.checked) setDeliveryAddress(pickupAddress);
                   }}
                 />
                 Delivery address is the same as the Pickup address.
