@@ -120,8 +120,7 @@ export function QuoteBuilder({
           </select>
         </label>
         <p className="muted">
-          Precio manual por artículo. Falcon Adaptation: $3 por imagen/logo
-          diferente, una sola vez por cotización. Primer grabado incluido; cada adicional cuesta $5 por pieza. Paint: $2 extra por pieza coloreada.
+          Manual price per item. Falcon Adaptation: $3 per unique image/logo, charged once per Quote. The first engraving is included; each additional engraving costs $5 per piece. Paint Fill: $2 extra per painted piece.
         </p>
         <div className="actions">
           <button
@@ -333,14 +332,13 @@ export function QuoteBuilder({
               {draft.engraving_type !== "Fee" && (
                 <>
                   <p>
-                    {draft.marks?.length ?? 0} grabado(s) por artículo. Agrega
-                    uno por cada ubicación.
+                    {draft.marks?.length ?? 0} engraving(s) per item. Add one for each location.
                   </p>
                   {draft.marks?.map((m, i) => (
                     <fieldset className="item" key={i}>
                       <legend>Mark / Engraving {i + 1}</legend>
                       <label>
-                        Tipo
+                        Type
                         <select
                           value={m.type}
                           onChange={(e) =>
@@ -348,7 +346,7 @@ export function QuoteBuilder({
                           }
                         >
                           <option value="Text">Text</option>
-                          <option value="Image / Logo">Imagen / Logo</option>
+                          <option value="Image / Logo">Image / Logo</option>
                         </select>
                       </label>
                       <label>
@@ -405,8 +403,7 @@ export function QuoteBuilder({
                             </label>
                           )}
                           <small>
-                            Usa el mismo enlace para repetir un diseño sin
-                            cobrar otra adaptación.
+                            Use the same link to repeat a design without another adaptation charge.
                           </small>
                         </>
                       )}
@@ -418,7 +415,7 @@ export function QuoteBuilder({
                             paintDialog.current?.showModal();
                           } else mark(i, { paint_fill: false, paint_details: undefined });
                         }} />
-                        Paint Fill · $2 extra por pieza
+                        Paint Fill · $2 extra per piece
                       </label>
                       {m.paint_fill && <button type="button" className="secondary" onClick={() => {
                         setPaintIndex(i);
