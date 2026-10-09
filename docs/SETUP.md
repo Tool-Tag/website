@@ -2,7 +2,7 @@
 
 ## Estado y alcance
 
-La Home y `dist/hub` se conservan sin modificaciones. Next.js copia `dist/` a `public/` durante desarrollo/build. No editar `public` (generado). La aplicación privada vive en `/app`, las capacidades del cliente en `/accept/<token>` y `/completion/<token>`. Los enlaces privados se almacenan como SHA-256 en la base; no hay acceso anónimo general a tablas.
+La Home y `public/hub` se conservan como archivos estáticos versionados. `public/` es la fuente canónica del sitio público y Next.js la sirve directamente durante desarrollo y build; no existe un paso de copia desde `dist/`. La aplicación privada vive en `/app`, las capacidades del cliente en `/accept/<token>` y `/completion/<token>`. Los enlaces privados se almacenan como SHA-256 en la base; no hay acceso anónimo general a tablas.
 
 No se ha migrado ni modificado BOFT. Los registros de sus hojas no se importan en esta fase. La cuenta física arranca sin saldo conciliado; las asignaciones arrancan en cero. Nunca se presenta un cero de BOFT como saldo real.
 

@@ -2,11 +2,11 @@
 
 ## Rutas
 
-- `dist/hub/index.html` → `/hub/`: entrada del hub con un solo módulo activo.
-- `dist/hub/falcon/index.html` → `/hub/falcon/`: tabla editable de parámetros.
-- `dist/hub/hub.css`: estilo compartido, negro, azul, dorado y blanco.
-- `dist/hub/falcon/falcon-data.js`: esquema y validación de datos.
-- `dist/hub/falcon/falcon.js`: formulario, tabla, filtros, guardado y respaldo.
+- `public/hub/index.html` → `/hub/`: entrada del hub con un solo módulo activo.
+- `public/hub/falcon/index.html` → `/hub/falcon/`: tabla editable de parámetros.
+- `public/hub/hub.css`: estilo compartido, negro, azul, dorado y blanco.
+- `public/hub/falcon/falcon-data.js`: esquema y validación de datos.
+- `public/hub/falcon/falcon.js`: formulario, tabla, filtros, guardado y respaldo.
 
 La página pública existente no se modifica. No se agregan módulos BOFT ni enlaces vacíos. Para crecer, agregar otra carpeta de módulo y un enlace en `hub/index.html`. Este esqueleto no implementa login, API ni sincronización.
 
@@ -20,7 +20,7 @@ La página no tiene protección de acceso. `noindex` solo desaconseja indexació
 
 ## Integración
 
-Copiar exclusivamente la carpeta `hub/` entregada dentro de `dist/` del repositorio `Tool-Tag/website`. Debe existir `dist/assets/favicon.svg`, ya presente en ToolTag. Mantener la configuración actual de Vercel para publicar `dist/`. No reemplazar la Home ni modificar la raíz de publicación. El despliegue de Vercel debe completarse antes de visitar `/hub/` y `/hub/falcon/`.
+Copiar exclusivamente la carpeta `hub/` entregada dentro de `public/` del repositorio `Tool-Tag/website`. Debe existir `public/assets/favicon.svg`, ya presente en ToolTag. Next.js sirve `public/` directamente y Vercel compila el proyecto con salida `.next`. No reemplazar la Home ni modificar las rutas públicas. El despliegue de Vercel debe completarse antes de visitar `/hub/` y `/hub/falcon/`.
 
 ## Referencia y límites
 
@@ -28,7 +28,7 @@ Se revisó directamente https://github.com/Boftbuild/Boftbuild/blob/main/hub/ind
 
 ## Validación de esta integración
 
-- Integrado en el repositorio local Tool-Tag/website, dentro de `dist/hub/`.
+- Integrado en Tool-Tag/website dentro de `public/hub/`, fuente canónica versionada del Hub.
 - La Home y todos sus archivos existentes permanecen intactos. El cambio previo de `.DS_Store` se conserva y no forma parte del Hub.
 - ZIP comprobado contra los archivos preparados. Rutas relativas a Home, Hub, Falcon, CSS, scripts y favicon comprobadas en disco.
 - Siete pruebas automatizadas de lógica aprobadas: semillas exactas; almacenamiento existente y tabla vacía; almacenamiento corrupto/bloqueado; búsqueda y filtro combinados; alta/edición/eliminación y recarga; exportación/importación con duplicados y rechazo atómico; validación de parámetros.
@@ -38,7 +38,7 @@ Se revisó directamente https://github.com/Boftbuild/Boftbuild/blob/main/hub/ind
 
 ## Publicar desde GitHub Desktop / Vercel
 
-1. Revisar `dist/hub/`, `HUB.md`, `ToolTag-Falcon-Parametros.json` y `tests/falcon.test.cjs`. Dejar `.DS_Store` fuera del commit de esta integración.
+1. Revisar `public/hub/`, `HUB.md`, `ToolTag-Falcon-Parametros.json` y `tests/falcon.test.cjs`. Dejar `.DS_Store` fuera del commit de esta integración.
 2. Crear el commit, por ejemplo `Add ToolTag Hub and Falcon parameters`, y hacer Push origin cuando se decida publicar. Esta entrega no crea commits ni hace push.
 3. Comprobar en el proyecto Vercel conectado a Tool-Tag/website que se sirve la carpeta `dist`. El repositorio no contiene `vercel.json` ni `.vercel/project.json`; no se pudieron confirmar los valores del panel ni la conexión/ramificación de producción. Si Root Directory es la raíz del repositorio, Output Directory debe ser `dist`; si Root Directory ya es `dist`, servir esa raíz. Este sitio estático no necesita instalación ni compilación; usar Other y Build Command vacío si se requiere configurar el proyecto. Conservar la configuración que ya funciona.
 4. Si el despliegue automático está conectado a la rama publicada, esperar el estado Ready después del push; en caso contrario iniciar el despliegue desde Vercel.

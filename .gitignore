@@ -1,6 +1,5 @@
 node_modules/
 .next/
-public/
 .env*
 !.env.example
 *.tsbuildinfo
@@ -9,3 +8,4 @@ supabase/.branches/
 playwright-report/
 test-results/
 .DS_Store
+dist/

@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const root = path.resolve(__dirname, '..');
-const source = name => fs.readFileSync(path.join(root, 'dist/hub/falcon', name), 'utf8');
+const source = name => fs.readFileSync(path.join(root, 'public/hub/falcon', name), 'utf8');
 const backup = JSON.parse(fs.readFileSync(path.join(root, 'ToolTag-Falcon-Parametros.json'), 'utf8'));
 const key = 'tooltag-falcon-v1';
 

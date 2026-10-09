@@ -1,4 +1,4 @@
-const {test}=require('node:test');const assert=require('node:assert/strict');const {estimate,letterSettings}=require('../dist/hub/tiempos/estimate.js');
+const {test}=require('node:test');const assert=require('node:assert/strict');const {estimate,letterSettings}=require('../public/hub/tiempos/estimate.js');
 const image={contentType:'Imagen',frameWidth:20,frameHeight:10,seconds:60};const letters={...image,contentType:'Letras',mode:'Fill',letters:5,letterHeight:3,seconds:120};
 test('images use image references and scale frame area',()=>{const r=estimate({...image,frameWidth:40},[image,letters]);assert.equal(r.seconds,120);assert.equal(r.count,1);assert.equal(estimate(image,[letters]).available,false);});
 test('letters separate Fill and Line and scale count/height',()=>{assert.equal(estimate({...letters,letterHeight:6},[letters]).seconds,480);const line={...letters,mode:'Line'};assert.equal(estimate({...line,letterHeight:6},[line,letters]).seconds,240);assert.equal(estimate(line,[letters]).available,false);assert.equal(estimate({...letters,letters:10},[letters]).seconds,240);});
