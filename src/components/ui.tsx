@@ -90,13 +90,13 @@ export function FinanceTabs() {
     <nav className="tabs">
       {[
         ["", "Overview"],
-        ["transactions", "Movimientos"],
-        ["sales", "Ventas"],
-        ["expenses", "Gastos"],
+        ["transactions", "Transactions"],
+        ["sales", "Sales"],
+        ["expenses", "Expenses"],
         ["equipment", "Equipment"],
-        ["reports", "Cierres"],
+        ["reports", "Monthly Closes"],
         ["review", "Review"],
-        ["about", "Acerca de"],
+        ["about", "About"],
       ].map(([p, n]) => (
         <Link key={p} href={`/app/finance${p ? "/" + p : ""}`}>
           {n}
