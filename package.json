@@ -8,7 +8,7 @@
     "start": "next start",
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint src tests/core.test.ts",
-    "test": "node --test tests/*.test.cjs && node --import tsx --test tests/core.test.ts",
+    "test": "node --test tests/*.test.cjs && node --import tsx --test tests/core.test.ts tests/logistics-flow.test.ts",
     "test:db": "node --import tsx --test tests/database.test.ts tests/customer-review.test.ts",
     "test:ui-fixture": "node tests/ui-fixture-server.mjs"
   },
