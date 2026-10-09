@@ -29,7 +29,7 @@ export function QuoteTabs({
       <nav
         className="job-tab-list no-print"
         role="tablist"
-        aria-label="Estados de cotizaciones"
+        aria-label="Quote Status Tabs"
       >
         {tabs.map((tab) => {
           const selected = tab.id === current.id;
