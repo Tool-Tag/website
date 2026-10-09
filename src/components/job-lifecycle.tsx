@@ -201,7 +201,7 @@ export async function JobLifecycle({
         <p>
           Respuesta:{" "}
           {lifecycle?.review?.response === "ready"
-            ? "Listo para entrega"
+            ? "Ready for Delivery"
             : lifecycle?.review?.response === "additional"
               ? "Requested Additional Work"
               : "Pending"}
