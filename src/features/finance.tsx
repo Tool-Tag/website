@@ -206,7 +206,7 @@ export async function Finance({
                       : "Payment Receipt"}
                   </h3>
                   <p>
-                    Venta:{" "}
+                    Sale:{" "}
                     {d.content_snapshot.sale_code ?? "Unlinked Collection"}
                   </p>
                   <p>
@@ -269,16 +269,16 @@ export async function Finance({
         <Panel title={s.code}>
           <Badge>{s.status}</Badge>
           <div className="grid">
-            <Metric label="Venta" value={s.amount} />
-            <Metric label="Cobrado" value={s.collected} />
-            <Metric label="Por cobrar" value={s.balance_due} />
+            <Metric label="Sale" value={s.amount} />
+            <Metric label="Collected" value={s.collected} />
+            <Metric label="Balance Due" value={s.balance_due} />
           </div>
           {s.job_id && (
             <Link href={`/app/jobs/${s.job_id}`}>Open Job →</Link>
           )}
         </Panel>
         {Number(s.balance_due) > 0 && (
-          <Panel title="Registrar cobro">
+          <Panel title="Record Collection">
             <Movement saleId={id} type="COLLECTION" />
           </Panel>
         )}
@@ -337,21 +337,21 @@ export async function Finance({
         {heading}
         {saved?.is_equipment && !saved.linked_asset_id && (
           <div className="notice success">
-            Compra guardada.{" "}
+            Purchase saved.{" "}
             <Link href={`/app/equipment?expense=${created}`}>
               Create Linked Equipment →
             </Link>
           </div>
         )}
-        <Panel title="Gastos">
+        <Panel title="Expenses">
           {expenses.length ? (
             <Table
               headers={[
                 "Expense",
                 "Amount",
-                "Pagado por",
-                "Por reembolsar",
-                "Comprobante",
+                "Paid By",
+                "Reimbursement Due",
+                "Receipt",
               ]}
             >
               {expenses.map((e) => (
@@ -479,11 +479,11 @@ export async function Finance({
                 {c.month} · v{c.version} · {c.status}
               </summary>
               <p>
-                Ingresos: {money(c.snapshot.revenue)} · Gastos:{" "}
+                Revenue: {money(c.snapshot.revenue)} · Expenses:{" "}
                 {money(c.snapshot.expenses)} · Equipment:{" "}
                 {money(c.snapshot.equipment)}
               </p>
-              <p>Advertencias al cierre: {c.warnings.length}</p>
+              <p>Warnings at Close: {c.warnings.length}</p>
             </details>
           ))}
           {!closes.length && <Empty />}
