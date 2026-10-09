@@ -591,11 +591,11 @@ export async function Jobs({ id }: { id?: string }) {
         defaultTab="work"
         tabs={[
           { id: "work", label: "Work", content: workTab },
-          { id: "details", label: "Detalles", content: detailsTab },
-          { id: "commercial", label: "Comercial", content: commercialTab },
+          { id: "details", label: "Details", content: detailsTab },
+          { id: "commercial", label: "Commercial", content: commercialTab },
           { id: "evidence", label: "Evidence", content: evidenceTab },
           { id: "delivery", label: "Delivery", content: deliveryTab },
-          { id: "activity", label: "Actividad", content: activityTab },
+          { id: "activity", label: "Activity", content: activityTab },
         ]}
       />
     </>
