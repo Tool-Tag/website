@@ -641,7 +641,8 @@ test("Old Get Tagged Pickup maps to Pickup & Delivery; Drop-off stays unresolved
   await db.query(
     `update public.quotes
      set source='public_get_tagged',
-         intake_details='{"service":{"method":"Pickup","address":"606 Intake Way, Draper, UT 84020"}}'::jsonb
+         intake_details='{"service":{"method":"Pickup","address":"606 Intake Way, Draper, UT 84020"}}'::jsonb,
+         intake_reviewed_at=now()
      where id=$1`,
     [pickupQuote],
   );
@@ -664,7 +665,8 @@ test("Old Get Tagged Pickup maps to Pickup & Delivery; Drop-off stays unresolved
   await db.query(
     `update public.quotes
      set source='public_get_tagged',
-         intake_details='{"service":{"method":"Drop-off","address":""}}'::jsonb
+         intake_details='{"service":{"method":"Drop-off","address":""}}'::jsonb,
+         intake_reviewed_at=now()
      where id=$1`,
     [dropoffQuote],
   );
@@ -682,4 +684,103 @@ test("Old Get Tagged Pickup maps to Pickup & Delivery; Drop-off stays unresolved
   assert.equal(dropoffSnapshot.logistics.predefined, false);
   assert.equal(dropoffSnapshot.logistics.requires_selection, true);
   assert.equal(dropoffSnapshot.logistics.selected_option, null);
+});
+
+
+test("Card stays pending until a matching provider confirmation and then opens the backend gate", async () => {
+  const account = await value<string>(
+    "select id from public.accounts where unit_id=$1 order by id limit 1",
+    [unit],
+  );
+  await db.query(
+    "update public.unit_settings set payment_account_id=$2 where unit_id=$1",
+    [unit, account],
+  );
+
+  const customer = await createCustomer("Card Logistics", "card-logistics");
+  const quote = await createQuote(customer.id, "45.00");
+  const token = await value<string>("select public.send_quote($1)", [quote]);
+  const accepted = await acceptWithLogistics(token, {
+    option_code: "dropoff_delivery",
+    delivery_address: "707 Card Delivery Ave, Draper, UT 84020",
+  });
+
+  const attempt = "80000000-0000-0000-0000-000000000093";
+  const prepared = await value<{ amount: number; scope: string; method: string }>(
+    "select public.prepare_logistics_payment($1,'fee_only','Card',$2)",
+    [token, attempt],
+  );
+  assert.equal(Number(prepared.amount), 9.99);
+  assert.equal(prepared.scope, "fee_only");
+  assert.equal(prepared.method, "Card");
+
+  await value("select public.attach_logistics_card_session($1,$2,$3)", [
+    token,
+    attempt,
+    "cs_test_tooltag_93",
+  ]);
+
+  assert.equal(
+    await value(
+      "select payment_status from public.quote_logistics where quote_id=$1",
+      [quote],
+    ),
+    "pending",
+  );
+
+  await assert.rejects(
+    () => value("select public.advance_job($1,'start')", [accepted.job_id]),
+    /Logistics fee must be confirmed/,
+  );
+
+  await db.exec(
+    "select set_config('request.jwt.claim.role','service_role',false)",
+  );
+
+  await assert.rejects(
+    () =>
+      value(
+        "select public.confirm_logistics_card_payment($1,$2,$3::numeric)",
+        [attempt, "cs_test_wrong", "9.99"],
+      ),
+    /does not match/,
+  );
+
+  const confirmed = await value<{
+    status: string;
+    confirmed_amount: number;
+  }>(
+    "select public.confirm_logistics_card_payment($1,$2,$3::numeric)",
+    [attempt, "cs_test_tooltag_93", "9.99"],
+  );
+
+  assert.equal(confirmed.status, "paid_confirmed");
+  assert.equal(Number(confirmed.confirmed_amount), 9.99);
+
+  await db.exec(
+    "select set_config('request.jwt.claim.role','authenticated',false)",
+  );
+
+  assert.equal(
+    await value(
+      "select payment_status from public.quote_logistics where quote_id=$1",
+      [quote],
+    ),
+    "paid_confirmed",
+  );
+  assert.equal(
+    await value(
+      "select payment_method from public.transactions where reference=$1",
+      ["STRIPE:cs_test_tooltag_93"],
+    ),
+    "Card",
+  );
+
+  await value("select public.advance_job($1,'start')", [accepted.job_id]);
+  assert.equal(
+    await value("select work_stage from public.jobs where id=$1", [
+      accepted.job_id,
+    ]),
+    "Receiving Evidence",
+  );
 });

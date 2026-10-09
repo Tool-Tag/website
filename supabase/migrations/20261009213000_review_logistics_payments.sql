@@ -907,7 +907,7 @@ declare
   saturday date;
   zone text;
   max_stops integer;
-  route_id uuid;
+  v_route_id uuid;
   stop_id uuid;
   used_stops integer;
   seq integer;
@@ -1103,13 +1103,16 @@ begin
     values(q.unit_id,saturday,'Pickup')
     on conflict(unit_id,route_date,leg)
     do update set route_date=excluded.route_date
-    returning id into route_id;
+    returning id into v_route_id;
 
-    perform 1 from public.pick_return_routes where id=route_id for update;
+    perform 1
+    from public.pick_return_routes r
+    where r.id=v_route_id
+    for update;
 
     select count(*)::integer into used_stops
     from public.pick_return_stops s
-    where s.route_id=route_id
+    where s.route_id=v_route_id
       and s.status not in ('Cancelled','Failed');
 
     if used_stops>=max_stops then
@@ -1118,7 +1121,7 @@ begin
 
     select coalesce(max(s.sequence),0)+1 into seq
     from public.pick_return_stops s
-    where s.route_id=route_id;
+    where s.route_id=v_route_id;
 
     window_start:=(saturday+time '08:00') at time zone zone;
     window_end:=(saturday+time '12:00') at time zone zone;
@@ -1128,7 +1131,7 @@ begin
       window_start,window_end,eta,address,customer_phone,customer_email,requested_at
     )
     values(
-      q.unit_id,route_id,jid,seq,'Requested',
+      q.unit_id,v_route_id,jid,seq,'Requested',
       window_start,window_end,null,pickup_address,
       accepted_phone,accepted_email,now()
     )
@@ -2356,3 +2359,38 @@ create trigger pick_return_stop_logistics_context
 before insert or update of route_id,job_id,status,address,customer_phone,customer_email
 on public.pick_return_stops
 for each row execute function private.populate_logistics_route_stop();
+
+
+-- Card is a valid collection method only after the payment provider has
+-- confirmed it. Preserve all existing movement checks while extending the
+-- collection-method allowlist for the Stripe confirmation path.
+create or replace function private.movement_integrity()
+returns trigger
+language plpgsql
+security definer
+set search_path=''
+as $$
+begin
+  if new.type='COLLECTION'
+     and (
+       new.payment_method is null
+       or new.payment_method not in ('Cash','Zelle','Venmo','Card')
+     )
+  then
+    raise exception 'Choose Cash, Zelle, Venmo, or Card';
+  end if;
+
+  if new.account_id is not null
+     and not exists(
+       select 1
+       from public.accounts
+       where id=new.account_id and active
+     )
+  then
+    raise exception 'Account inactive';
+  end if;
+
+  return new;
+end $$;
+
+revoke all on function private.movement_integrity() from public;
