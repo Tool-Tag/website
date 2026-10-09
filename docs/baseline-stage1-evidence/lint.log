@@ -1,0 +1,4 @@
+
+> tooltag-core@0.1.0 lint
+> eslint src tests/core.test.ts
+

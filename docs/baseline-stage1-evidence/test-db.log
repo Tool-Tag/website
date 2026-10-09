@@ -1,0 +1,33 @@
+
+> tooltag-core@0.1.0 test:db
+> node --import tsx --test tests/database.test.ts tests/customer-review.test.ts
+
+✔ A–I: valid send requires Agreement; stable private link, calendar expiry, pinned policy and email snapshot (1093.334046ms)
+✔ J–P: both acknowledgments, atomic idempotent job/sale, contact snapshot, immutable records and audit (36.93406ms)
+✔ Q–S: bad/expired links rejected, rotation invalidates old link, revisions preserve history and reuse job/sale (30.845897ms)
+✔ Reminder becomes due two calendar days before expiry; no false delivery; worker idempotent (21.19033ms)
+✔ T: mail previews escape HTML and never send in test mode or without transport (1.126542ms)
+✔ Additive upgrade preserves an already accepted legacy quote and its original contact/sale (1548.786172ms)
+✔ Paint is stored per engraving and charged once per colored piece (8.557869ms)
+✔ Owner injection is cash, not revenue; owner expense and reimbursement do not double count (1087.379469ms)
+✔ One allocation transfer changes neither physical cash nor profit (9.709247ms)
+✔ Quote and agreement produce exactly one job/sale; collection does not create revenue (57.448066ms)
+✔ Equipment expense links one asset and derives its financial facts (6.931907ms)
+✔ Closed-period changes require reason and reclose; older version preserved (18.307722ms)
+✔ RLS denies nonmember reads and direct writes; public token cannot list data (4.480808ms)
+✔ Partial refunds are capped by actual collection and need an override after 14 days (12.321028ms)
+✔ Viewer may read only their unit, cannot write, cannot see shared bank balance (4.446476ms)
+✔ Documents mark a close as Documentation Updated without overwriting its snapshot (4.46602ms)
+✔ Commercial revision preserves job and sale identities and prior agreement content (16.119608ms)
+✔ Receiving/completed evidence gate job transitions and missing messaging never starts deadline (30.229741ms)
+✔ Scheduled worker is restricted and monthly close is idempotent (11.561671ms)
+✔ Financial request retries are idempotent and cannot reuse a key with changed amount (5.033287ms)
+✔ Quote marks persist and adaptation is calculated once per design by the database (18.03747ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3298.8702

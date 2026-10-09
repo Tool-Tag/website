@@ -1,0 +1,51 @@
+{
+  "public.business_units": {
+    "remote_rows": 2,
+    "local_rows": 2,
+    "remote_sha256": "03dfe6786f6a0e9c6063eac898b88ea57cb1348e973bbed88c4e4aaeb48ded78",
+    "local_sha256": "03dfe6786f6a0e9c6063eac898b88ea57cb1348e973bbed88c4e4aaeb48ded78",
+    "equal": true
+  },
+  "public.categories": {
+    "remote_rows": 21,
+    "local_rows": 21,
+    "remote_sha256": "ce33d11fd7801863ec05852533b5d8591ffa590bdbe7bf4e6ba745f00f93e524",
+    "local_sha256": "ce33d11fd7801863ec05852533b5d8591ffa590bdbe7bf4e6ba745f00f93e524",
+    "equal": true
+  },
+  "public.unit_settings": {
+    "remote_rows": 2,
+    "local_rows": 2,
+    "remote_sha256": "bbde2672dbab258f8ba21186062902b979bb8fa2586d5f56acb653e744faeacb",
+    "local_sha256": "bbde2672dbab258f8ba21186062902b979bb8fa2586d5f56acb653e744faeacb",
+    "equal": true
+  },
+  "public.accounts": {
+    "remote_rows": 2,
+    "local_rows": 2,
+    "remote_sha256": "3df3537299c0fc804012329bbee7243c4a2df78b60d52199dd7351bb4393aae4",
+    "local_sha256": "3df3537299c0fc804012329bbee7243c4a2df78b60d52199dd7351bb4393aae4",
+    "equal": true
+  },
+  "public.physical_accounts": {
+    "remote_rows": 1,
+    "local_rows": 1,
+    "remote_sha256": "1f158e0a50bf91dda7c2fcc74e1ae9e8aff09167c584b703b9ef6d2f452142a6",
+    "local_sha256": "1f158e0a50bf91dda7c2fcc74e1ae9e8aff09167c584b703b9ef6d2f452142a6",
+    "equal": true
+  },
+  "public.policies": {
+    "remote_rows": 2,
+    "local_rows": 2,
+    "remote_sha256": "6ec161302759ae7ab84ab1ff8a7a037eb39ffd7e53b932cf0ecf0320c175bdbe",
+    "local_sha256": "6ec161302759ae7ab84ab1ff8a7a037eb39ffd7e53b932cf0ecf0320c175bdbe",
+    "equal": true
+  },
+  "storage.buckets": {
+    "remote_rows": 1,
+    "local_rows": 1,
+    "remote_sha256": "d018f7ab9650ebd8f68c06009590b2f9125396f8d4b4e2e3502f3afaf65ba7ac",
+    "local_sha256": "d018f7ab9650ebd8f68c06009590b2f9125396f8d4b4e2e3502f3afaf65ba7ac",
+    "equal": true
+  }
+}

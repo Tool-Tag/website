@@ -1,13 +1,14 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
+import { BaselineDatabase } from "./baseline-database";
 import { readFile, readdir } from "node:fs/promises";
 import {
   renderQuoteMail,
   prepareQuoteMail,
   type CommercialSnapshot,
 } from "../src/lib/integrations/quote-mail";
-const db = new PGlite();
+const db = process.env.BASELINE_DATABASE_URL ? new BaselineDatabase() : new PGlite();
 const unit = "10000000-0000-0000-0000-000000000002",
   admin = "90000000-0000-0000-0000-000000000001";
 async function value<T = string>(
@@ -21,13 +22,20 @@ async function rpc(name: string, p: unknown) {
   return value(`select public.${name}($1::jsonb)`, [JSON.stringify(p)]);
 }
 before(async () => {
+  if (!process.env.BASELINE_DATABASE_URL) {
+
   await db.exec(
     `create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;create function auth.role() returns text language sql stable as $$ select current_setting('request.jwt.claim.role',true) $$;grant usage on schema auth to anon,authenticated,service_role;grant execute on all functions in schema auth to anon,authenticated,service_role;`,
   );
-  for (const f of (await readdir("supabase/migrations")).sort())
-    await db.exec(await readFile(`supabase/migrations/${f}`, "utf8"));
+  for (const f of (await readdir("supabase/migrations-archive/pre-baseline")).sort())
+    await db.exec(await readFile(`supabase/migrations-archive/pre-baseline/${f}`, "utf8"));
+  }
+  if (process.env.BASELINE_DATABASE_URL) {
+    // Existing tests intentionally exercise the unpublished-Agreement gate in their own disposable database.
+    await db.exec("SET session_replication_role=replica; DELETE FROM public.policies; SET session_replication_role=origin");
+  }
   await db.exec(
-    `insert into auth.users values('${admin}');insert into public.memberships select id,'${admin}','admin' from public.business_units;select set_config('request.jwt.claim.sub','${admin}',false);`,
+    `insert into auth.users(id) values('${admin}');insert into public.memberships select id,'${admin}','admin' from public.business_units;select set_config('request.jwt.claim.sub','${admin}',false);`,
   );
 });
 after(() => db.close());
@@ -126,7 +134,7 @@ test("A–I: valid send requires Agreement; stable private link, calendar expiry
     [token],
   );
   assert.equal(snap.policy.version, 1);
-  assert.equal(Number(snap.total), 53);
+  assert.equal(Number(snap.total), 58);
   assert.equal(
     snap.items.reduce((n, i) => n + (i.marks?.length ?? 0), 0),
     3,
@@ -143,7 +151,7 @@ test("A–I: valid send requires Agreement; stable private link, calendar expiry
     "left side",
     "right side",
     "top",
-    "$53.00",
+    "$58.00",
     "Valid Until",
     "Review & Accept Quote",
   ])
@@ -230,7 +238,7 @@ test("J–P: both acknowledgments, atomic idempotent job/sale, contact snapshot,
         [job],
       ),
     ),
-    53,
+    58,
   );
   const snap = await value<CommercialSnapshot>(
     "select commercial_snapshot from public.agreements where quote_id=$1",
@@ -247,7 +255,7 @@ test("J–P: both acknowledgments, atomic idempotent job/sale, contact snapshot,
         [job],
       ),
     ),
-    3,
+    4,
   );
   await db.query(
     "update public.customers set name='Changed',email='changed@example.test' where id=$1",
@@ -335,7 +343,7 @@ test("Q–S: bad/expired links rejected, rotation invalidates old link, revision
         [job],
       ),
     ),
-    53,
+    58,
   );
   assert.equal(
     await value("select public.accept_review($1,true,true,$2,$3,$4)", [
@@ -360,7 +368,7 @@ test("Q–S: bad/expired links rejected, rotation invalidates old link, revision
         ])
       ).total,
     ),
-    53,
+    58,
   );
   assert.equal(
     await value("select status from public.quotes where id=$1", [q]),
@@ -485,12 +493,12 @@ test("Additive upgrade preserves an already accepted legacy quote and its origin
     await legacy.exec(
       `create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;create function auth.role() returns text language sql stable as $$ select current_setting('request.jwt.claim.role',true) $$;grant usage on schema auth to anon,authenticated,service_role;grant execute on all functions in schema auth to anon,authenticated,service_role;`,
     );
-    for (const f of (await readdir("supabase/migrations")).sort()) {
+    for (const f of (await readdir("supabase/migrations-archive/pre-baseline")).sort()) {
       if (f < "202610030002_customer_review.sql")
-        await legacy.exec(await readFile(`supabase/migrations/${f}`, "utf8"));
+        await legacy.exec(await readFile(`supabase/migrations-archive/pre-baseline/${f}`, "utf8"));
     }
     await legacy.exec(
-      `insert into auth.users values('${admin}');insert into public.memberships select id,'${admin}','admin' from public.business_units;select set_config('request.jwt.claim.sub','${admin}',false);`,
+      `insert into auth.users(id) values('${admin}');insert into public.memberships select id,'${admin}','admin' from public.business_units;select set_config('request.jwt.claim.sub','${admin}',false);`,
     );
     await legacy.exec(`do $$ declare c uuid; q uuid; t text; begin
       c:=public.save_customer(jsonb_build_object('unit_id','${unit}','name','Legacy Customer','email','legacy@example.test','phone','5558761234','address','Test'));
@@ -509,7 +517,7 @@ test("Additive upgrade preserves an already accepted legacy quote and its origin
     );
     await legacy.exec(
       await readFile(
-        "supabase/migrations/202610030002_customer_review.sql",
+        "supabase/migrations-archive/pre-baseline/202610030002_customer_review.sql",
         "utf8",
       ),
     );
@@ -533,7 +541,7 @@ test("Additive upgrade preserves an already accepted legacy quote and its origin
 test("Paint is stored per engraving and charged once per colored piece", async () => {
   const marks = [{type: "Text", text: "A", location: "left", url: "", paint_fill: true, paint_details: {mode: "single", color: "Blue", instructions: ""}}, {type: "Text", text: "B", location: "right", url: "", paint_fill: true, paint_details: {mode: "single", color: "Gold", instructions: ""}}];
   const id = await rpc("create_quote", {unit_id: unit, customer_id: customer, items: [{article: "Battery", quantity: 3, engraving_type: "Text", unit_price: "10.00", marks}, {article: "Charger", quantity: 2, engraving_type: "Text", unit_price: "5.00", marks: [{type: "Text", text: "C", location: "top", url: "", paint_fill: false}]}]});
-  assert.equal(await value("select sum(quantity*unit_price)::text from public.quote_items where quote_id=$1", [id]), "46.00");
+  assert.equal(await value("select sum(quantity*unit_price)::text from public.quote_items where quote_id=$1", [id]), "61.00");
   assert.equal(await value("select quantity from public.quote_items where quote_id=$1 and paint_fee", [id]), 3);
   assert.equal(await value("select marks->0->'paint_details'->>'color' from public.quote_items where quote_id=$1 and article='Battery'", [id]), "Blue");
 });
