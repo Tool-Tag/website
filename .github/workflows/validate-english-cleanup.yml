@@ -1,0 +1,23 @@
+name: Validate English Cleanup
+
+on:
+  push:
+    branches:
+      - english-system-cleanup
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Production build
+        run: npm run build
