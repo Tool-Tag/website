@@ -20,10 +20,10 @@ export async function Dashboard() {
     <>
       <Heading
         title="Todo bajo control."
-        subtitle="Clientes, trabajo y finanzas en un solo lugar."
+        subtitle="Customers, work, and finances in one place."
       >
         <Link className="button" href="/app/quotes/new">
-          + Nueva cotización
+          + New Quote
         </Link>
         <Link className="button secondary" href="/app/finance">
           ToolTag Finance
@@ -31,13 +31,13 @@ export async function Dashboard() {
       </Heading>
       <div className="grid">
         <Metric
-          label="Trabajos activos"
+          label="Active Jobs"
           currency={false}
           value={stats?.active_jobs ?? 0}
-          help={`${stats?.ready_jobs ?? 0} listos para entregar · ${stats?.issue_jobs ?? 0} en revisión`}
+          help={`${stats?.ready_jobs ?? 0} ready for delivery · ${stats?.issue_jobs ?? 0} in review`}
         />
         <Metric
-          label="Cotizaciones pendientes"
+          label="Pending Quotes"
           currency={false}
           value={stats?.pending_quotes ?? 0}
           help={`${stats?.accepted_quotes ?? 0} aceptadas`}
@@ -49,7 +49,7 @@ export async function Dashboard() {
         />
       </div>
       <div className="grid two">
-        <Panel title="Requiere atención">
+        <Panel title="Needs Attention">
           {review.length ? (
             review.slice(0, 8).map((r, i) => (
               <p key={i}>
@@ -59,22 +59,22 @@ export async function Dashboard() {
           ) : (
             <Empty>
               {ready
-                ? "All Clear — no hay pendientes."
+                ? "All Clear — nothing pending."
                 : "Conecta Supabase para cargar tus pendientes."}
             </Empty>
           )}
         </Panel>
-        <Panel title="Clientes">
+        <Panel title="Customers">
           <p className="muted">
-            Empieza por la persona. Sus cotizaciones, trabajos y pagos quedan
+            Start with the customer. Their Quotes, Jobs, and payments stay
             relacionados.
           </p>
           <div className="actions">
             <Link className="button secondary" href="/app/customers">
-              Buscar cliente
+              Find Customer
             </Link>
             <Link className="button secondary" href="/app/customers/new">
-              + Nuevo cliente
+              + New Customer
             </Link>
           </div>
         </Panel>
