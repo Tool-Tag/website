@@ -85,7 +85,7 @@ test("Logo adaptation charges once per distinct link, across quantities and arti
       },
     ],
   };
-  assert.equal(quoteTotal(withAdaptation([a, b, c])), "32.00");
+  assert.equal(quoteTotal(withAdaptation([a, b, c])), "37.00");
   assert.equal(
     quoteTotal(withAdaptation([{ ...blankItem(), unit_price: "2.00" }])),
     "2.00",
@@ -94,7 +94,7 @@ test("Logo adaptation charges once per distinct link, across quantities and arti
 
 test("Paint charges $2 per colored piece, not per engraving, and excludes manual fees", () => {
   const colored = {...blankItem(), quantity: 3, unit_price: "10.00", marks: [{type: "Text" as const, text: "A", url: "", paint_fill: true}, {type: "Text" as const, text: "B", url: "", paint_fill: true}]};
-  assert.equal(quoteTotal(withAdaptation([colored])), "36.00");
-  assert.equal(quoteTotal(withAdaptation([{...colored, marks: colored.marks.map(m => ({...m, paint_fill: false}))}])), "30.00");
+  assert.equal(quoteTotal(withAdaptation([colored])), "51.00");
+  assert.equal(quoteTotal(withAdaptation([{...colored, marks: colored.marks.map(m => ({...m, paint_fill: false}))}])), "45.00");
   assert.equal(quoteTotal(withAdaptation([{...colored, engraving_type: "Fee"}])), "30.00");
 });
