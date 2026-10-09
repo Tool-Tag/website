@@ -69,6 +69,73 @@ function futureSaturday() {
   return date.toISOString().slice(0, 10);
 }
 
+
+function decodeCopyText(field: string) {
+  return field
+    .replace(/\\\\([btnrfv\\\\])/g, (_match, escape: string) => {
+      const values: Record<string, string> = {
+        b: "\b",
+        t: "\t",
+        n: "\n",
+        r: "\r",
+        f: "\f",
+        v: "\v",
+        "\\": "\\",
+      };
+      return values[escape] ?? escape;
+    })
+    .replace(/\\\\([0-7]{1,3})/g, (_match, octal: string) =>
+      String.fromCharCode(Number.parseInt(octal, 8)),
+    );
+}
+
+function sqlLiteralFromCopy(field: string) {
+  if (field === "\\N") return "null";
+  const decoded = decodeCopyText(field);
+  return "'" + decoded.replaceAll("'", "''") + "'";
+}
+
+function pgDumpForPGlite(sql: string) {
+  const input = sql.split("\n");
+  const output: string[] = [];
+
+  for (let index = 0; index < input.length; index++) {
+    const line = input[index];
+    const match = line.match(/^COPY (.+?) \((.+)\) FROM stdin;$/);
+    if (!match) {
+      output.push(line);
+      continue;
+    }
+
+    const table = match[1];
+    const columns = match[2];
+    const rows: string[] = [];
+
+    index++;
+    while (index < input.length && input[index] !== "\\.") {
+      if (input[index] !== "") {
+        rows.push(
+          "(" +
+            input[index]
+              .split("\t")
+              .map(sqlLiteralFromCopy)
+              .join(",") +
+            ")",
+        );
+      }
+      index++;
+    }
+
+    if (rows.length) {
+      output.push(
+        `insert into ${table} (${columns}) values\n${rows.join(",\n")};`,
+      );
+    }
+  }
+
+  return output.join("\n");
+}
+
 async function acceptWithLogistics(
   token: string,
   logistics: {
@@ -111,6 +178,7 @@ before(async () => {
     `create role anon;
      create role authenticated;
      create role service_role;
+     create role supabase_admin;
      create schema auth;
      create table auth.users(id uuid primary key);
      create function auth.uid() returns uuid language sql stable
@@ -124,9 +192,18 @@ before(async () => {
      create table storage.buckets(
        id text primary key,
        name text not null,
+       owner uuid,
+       created_at timestamptz default now(),
+       updated_at timestamptz default now(),
        public boolean not null default false,
+       avif_autodetection boolean not null default false,
        file_size_limit bigint,
-       allowed_mime_types text[]
+       allowed_mime_types text[],
+       owner_id text,
+       type text default 'STANDARD',
+       versioning_status text default 'DISABLED',
+       lifecycle_configuration jsonb,
+       lifecycle_configuration_generation bigint
      );
      create table storage.objects(
        id uuid primary key default gen_random_uuid(),
@@ -156,7 +233,9 @@ before(async () => {
 
   for (const file of baselineFiles) {
     await db.exec(
-      await readFile(`supabase/migrations/${file}`, "utf8"),
+      pgDumpForPGlite(
+        await readFile(`supabase/migrations/${file}`, "utf8"),
+      ),
     );
   }
 
