@@ -1,0 +1,38 @@
+name: English system audit
+on:
+  push:
+    branches: [english-system-audit]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Audit visible Spanish strings
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, sys
+          words = r"cotizaci[oó]n|cotizaciones|trabajo|trabajos|cliente|clientes|pago|pagos|correo|estado|revisi[oó]n|reembolso|reembolsos|guardar|guardando|abrir|cerrar|volver|nuevo|nueva|pendiente|pendientes|configuraci[oó]n|equipo|finanzas|fecha|descripci[oó]n|importe|categor[ií]a|categor[ií]as|seleccionar|agregar|quitar|editar|cancelar|confirmar|recibo|recibos|venta|ventas|gasto|gastos|cobro|cobros|completado|completada|cancelado|cancelada|enviado|enviada|aceptado|aceptada|borrador|borradores|vigencia|historial|contrase[nñ]a|direcci[oó]n|tel[eé]fono|nombre|art[ií]culo|cantidad|pintura|grabado|grabados|ubicaci[oó]n|notas|origen|destino|prop[oó]sito|buscar|registros|movimientos|resumen|preparado|preparar"
+          pattern = re.compile(rf"([áéíóúüñ¿¡]|\b(?:{words})\b)", re.I)
+          hits=[]
+          for path in Path("src").rglob("*"):
+              if path.suffix not in {".ts",".tsx"} or " 2." in path.name:
+                  continue
+              for no,line in enumerate(path.read_text(encoding="utf-8").splitlines(),1):
+                  if pattern.search(line):
+                      hits.append(f"{path}:{no}: {line.strip()}")
+          if hits:
+              print("\n".join(hits))
+              sys.exit(1)
+          print("No Spanish UI/system strings detected in active src files.")
+          PY
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Production build
+        run: npm run build
