@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const root = path.resolve(__dirname, '../dist');
+const root = path.resolve(__dirname, '../public');
 
 for (const route of ['/hub', '/hub/', '/hub/falcon', '/hub/falcon/']) {
   test(`links and assets resolve correctly from ${route}`, () => {
