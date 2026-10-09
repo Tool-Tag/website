@@ -88,7 +88,7 @@ export async function Dashboard() {
       </Panel>
       <Panel title="Actividad reciente">
         {activity.length ? (
-          <Table headers={["Registro", "Cambio", "Fecha"]}>
+          <Table headers={["Record", "Change", "Date"]}>
             {activity.map((a) => (
               <tr key={a.id}>
                 <td>
