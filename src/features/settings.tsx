@@ -19,7 +19,7 @@ export async function Settings() {
       />
       <Panel title="Production Email">
         <p>Modo del servidor: {process.env.TOOLTAG_MAIL_MODE || "preview"}</p>
-        <p>Inicio de avisos elegibles: {mail?.activated_at || "Pendiente de activar"}</p>
+        <p>Eligible notifications start: {mail?.activated_at || "Pending Activation"}</p>
         <p>Activation does not resend tests or historical notifications. Failures require an individual retry.</p>
         {role==="admin" && !mail?.activated_at && <Form operation="activate-live-mail" fields={[]} button="Enable New Notifications" back="/app/settings"><label className="checkbox"><input type="checkbox" name="confirm" required/>Enable only new notifications from this point forward.</label></Form>}
         <p className="muted">To deliver to customers, Vercel must have TOOLTAG_MAIL_MODE=live. This screen does not modify Vercel environment variables.</p>
@@ -133,7 +133,7 @@ export async function Settings() {
           <Form
             operation="category"
             fields={[
-              { name: "name", label: "Nombre", required: true },
+              { name: "name", label: "Name", required: true },
               {
                 name: "kind",
                 label: "Tipo",
@@ -160,7 +160,7 @@ export async function Settings() {
                 <td>{n.event}<small style={{display:"block"}}>{n.id}</small></td>
                 <td>{n.status}</td>
                 <td>{new Date(n.due_at).toLocaleString("es-US")}</td>
-                <td>{n.mail_error || n.provider_id || "Pendiente"}</td>
+                <td>{n.mail_error || n.provider_id || "Pending"}</td>
               </tr>
             ))}
           </Table>
