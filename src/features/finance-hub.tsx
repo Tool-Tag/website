@@ -23,11 +23,10 @@ export async function FinanceHub() {
               Open BOFT ↗
             </a>
           ) : (
-            <p className="muted">Configura el enlace en Settings.</p>
+            <p className="muted">Configure the link in Settings.</p>
           )}
           <p className="muted" style={{ marginTop: 14 }}>
-            BOFT remains in its current system. Its historical data is not yet
-            migrados.
+            BOFT remains in its current system. Its historical data has not been migrated yet.
           </p>
         </Panel>
         <Panel title="ToolTag Finance">
@@ -56,11 +55,10 @@ export async function FinanceHub() {
           ))}
         </Table>
         <p className="muted">
-          Los ceros de BOFT representan ausencia de movimientos migrados, no el
-          estado real de BOFT.
+          BOFT zeros represent the absence of migrated transactions, not BOFT's actual financial state.
         </p>
       </Panel>
-      <Panel title="Movimientos recientes">
+      <Panel title="Recent Transactions">
         {tx.length ? (
           <Table headers={["Business Unit", "Date", "Description", "Amount"]}>
             {tx.map((t) => (
