@@ -48,7 +48,7 @@ export async function Movement({
         .filter((s) => Number(s.balance_due) > 0)
         .map((s) => ({
           value: s.transaction_id,
-          label: `${s.code} · ${money(s.balance_due)} pendiente`,
+          label: `${s.code} · ${money(s.balance_due)} due`,
         }))}
       expenses={options("EXPENSE")}
       collections={options("COLLECTION")}
@@ -160,7 +160,7 @@ export async function Finance({
             fields={[
               {
                 name: "transaction_date",
-                label: "Fecha",
+                label: "Date",
                 type: "date",
                 value: t.transaction_date,
               },
@@ -220,7 +220,7 @@ export async function Finance({
                     {money(d.content_snapshot.paid_to_date)}
                   </p>
                   <p>
-                    Saldo pendiente:{" "}
+                    Balance due:{" "}
                     {money(d.content_snapshot.balance_remaining)}
                   </p>
                   <small>
@@ -229,7 +229,7 @@ export async function Finance({
                   </small>
                 </div>
               ) : (
-                <p className="muted">Documento pendiente.</p>
+                <p className="muted">Document pending.</p>
               )}
             </details>
           ))}
@@ -240,7 +240,7 @@ export async function Finance({
             fields={[
               {
                 name: "file_name",
-                label: "Nombre del archivo",
+                label: "File Name",
                 required: true,
               },
               {
@@ -348,7 +348,7 @@ export async function Finance({
             <Table
               headers={[
                 "Expense",
-                "Importe",
+                "Amount",
                 "Pagado por",
                 "Por reembolsar",
                 "Comprobante",
@@ -383,7 +383,7 @@ export async function Finance({
           <Form
             operation="mileage"
             fields={[
-              { name: "date", label: "Fecha", type: "date", required: true },
+              { name: "date", label: "Date", type: "date", required: true },
               { name: "purpose", label: "Purpose", required: true },
               { name: "origin", label: "Origen", required: true },
               { name: "destination", label: "Destino", required: true },
@@ -463,7 +463,7 @@ export async function Finance({
             {vehicle?.miles_history ?? 0}
           </p>
           <p>
-            Importe considerado:{" "}
+            Amount considered:{" "}
             {vehicle?.selected_amount == null
               ? "Set the mileage rate in Settings"
               : money(vehicle.selected_amount)}
