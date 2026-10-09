@@ -54,7 +54,7 @@ export function Metric({
   );
 }
 export function Empty({
-  children = "Todavía no hay registros.",
+  children = "No records yet.",
 }: {
   children?: React.ReactNode;
 }) {
@@ -89,14 +89,14 @@ export function FinanceTabs() {
   return (
     <nav className="tabs">
       {[
-        ["", "Resumen"],
-        ["transactions", "Movimientos"],
-        ["sales", "Ventas"],
-        ["expenses", "Gastos"],
-        ["equipment", "Equipo"],
-        ["reports", "Cierres"],
-        ["review", "Revisión"],
-        ["about", "Acerca de"],
+        ["", "Overview"],
+        ["transactions", "Transactions"],
+        ["sales", "Sales"],
+        ["expenses", "Expenses"],
+        ["equipment", "Equipment"],
+        ["reports", "Monthly Close"],
+        ["review", "Review"],
+        ["about", "About"],
       ].map(([p, n]) => (
         <Link key={p} href={`/app/finance${p ? "/" + p : ""}`}>
           {n}
