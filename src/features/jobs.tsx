@@ -490,7 +490,7 @@ export async function Jobs({ id }: { id?: string }) {
   const commercialTab = (
     <>
       <JobLifecycle id={id} section="commercial" />
-      <Panel title="Venta y cobros">
+      <Panel title="Sales & Collections">
         {sales.length ? (
           sales.map((s) => (
             <p key={s.transaction_id}>
@@ -500,7 +500,7 @@ export async function Jobs({ id }: { id?: string }) {
             </p>
           ))
         ) : (
-          <p>Sin ventas registradas.</p>
+          <p>No sales recorded.</p>
         )}
       </Panel>
     </>
