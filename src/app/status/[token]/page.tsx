@@ -187,13 +187,13 @@ export default async function JobStatusPage({
           </div>
         )}
 
-        {pickup?.return_window_start && pickup.delivery_payment_status !== "Shop Pickup" && !["Delivered","En Route","Arrived","Cancelled"].includes(pickup.return_status) && <details><summary>Reschedule Return</summary><RouteCalendar job={data.id} leg="Return" token={token} /></details>}
+        {pickup?.return_window_start && !pickup.return_reservation_stop_id && pickup.delivery_payment_status !== "Shop Pickup" && !["Delivered","En Route","Arrived","Cancelled"].includes(pickup.return_status) && <details><summary>Reschedule Return</summary><RouteCalendar job={data.id} leg="Return" token={token} /></details>}
         {["Not Scheduled","Scheduled"].includes(pickup?.pickup_status) && <details><summary>Reschedule Pickup</summary><RouteCalendar job={data.id} leg="Pickup" token={token} /></details>}
         <StatusTimeline steps={steps} current={activeStage} updated={data.updated_at} finished={itemsCompleted} total={itemsTotal} />
       </section>
 
       {pickupMissed && !data.cancelled && <PickupMissChoice job={data.id} token={token} />}
-      {pickup?.delivery_attempts === 1 && pickup.delivery_payment_status !== "Shop Pickup" && !pickup.return_window_start && <ReturnChoice token={token} job={data.id} fee={Number(data.second_return_fee)} chosen={Boolean(data.second_return_chosen)} />}
+      {pickup?.delivery_attempts === 1 && pickup.delivery_payment_status !== "Shop Pickup" && pickup.return_reservation_stop_id && <ReturnChoice token={token} job={data.id} fee={Number(data.second_return_fee)} chosen={Boolean(data.second_return_chosen)} />}
       {pickup?.production_ready_at && !pickup.returned_at && Number(data.payment?.balance_due || 0)>0 && <PaymentForm token={token} balanceDue={data.payment.balance_due} zelleEmail={data.payment.methods?.zelle_email} venmoHandle={data.payment.methods?.venmo_handle} cardConfigured={cardPaymentsConfigured()} routePayment />}
       {Array.isArray(data.payment_proofs) && data.payment_proofs.length>0 && <section className="panel"><h2>Payment proofs</h2>{data.payment_proofs.map((proof:{id:string;submitted_at:string})=><form key={proof.id} method="post" action={`/app/proofpayment/${encodeURIComponent(data.code)}`}><input type="hidden" name="token" value={token}/><input type="hidden" name="payment" value={proof.id}/><button>View payment proof · {denverDateTime(proof.submitted_at)}</button></form>)}</section>}
       <section className="panel status-help-panel">
