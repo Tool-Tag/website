@@ -49,13 +49,6 @@ export function EvidenceUpload({
         <textarea name="notes" rows={2} maxLength={2000} />
       </label>
 
-      <p className="notice wide evidence-storage-note">
-        Google Drive is not connected yet. ToolTag will save the evidence record,
-        SHA-256 fingerprint, file metadata, visibility, and workflow relationship.
-        The binary file itself is <strong>not stored yet</strong> and will remain
-        marked <strong>Pending Drive Upload</strong>.
-      </p>
-
       {state.error && (
         <p className="notice error wide" role="alert">
           {state.error}
@@ -63,12 +56,12 @@ export function EvidenceUpload({
       )}
 
       {state.ok && (
-        <p className="notice success wide">
-          Evidence registered. {state.warning}
+        <p className="notice success wide" role="status">
+          File stored in Supabase Storage and linked to this record.
         </p>
       )}
 
-      <button disabled={pending}>{pending ? "Registering…" : button}</button>
+      <button disabled={pending}>{pending ? "Uploading…" : button}</button>
     </form>
   );
 }
