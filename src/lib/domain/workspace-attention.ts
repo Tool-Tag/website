@@ -23,7 +23,7 @@ export async function workspaceAttention(
   unit: string,
 ): Promise<WorkspaceAttention> {
   try {
-    const [requests, quotes, jobs, refunds] = await Promise.all([
+    const [requests, quotes, jobs, refunds, routeRefunds] = await Promise.all([
       db.rpc("get_tagged_attention"),
       db
         .from("quotes")
@@ -39,6 +39,7 @@ export async function workspaceAttention(
         .select("id,refund_status,refund_eligible_amount")
         .eq("unit_id", unit)
         .eq("refund_status", "Pending"),
+      db.from("route_compensations").select("id,status,amount,paid_amount").eq("unit_id",unit).neq("status","Completed"),
     ]);
 
     const requestRows: GetTaggedAttentionRow[] = Array.isArray(requests.data)
@@ -81,7 +82,7 @@ export async function workspaceAttention(
       getTagged: requestRows.length,
       quotes: openQuotes.length,
       jobs: openJobs.length,
-      refunds: pendingRefunds.length,
+      refunds: pendingRefunds.length+(routeRefunds.data??[]).filter(r=>Number(r.amount)>Number(r.paid_amount)).length,
     };
   } catch {
     return ZERO;

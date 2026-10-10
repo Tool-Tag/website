@@ -1,3 +1,4 @@
+import {DriverIncidentChoice} from "@/components/driver-incident-choice";
 import {PickupMissChoice} from "@/components/pickup-miss-choice";
 import {ReturnChoice} from "@/components/return-choice";
 import {PaymentForm} from "@/components/payment-form";
@@ -124,6 +125,8 @@ export default async function JobStatusPage({
   const activeStage = data.tracking_stage ?? data.stage ?? "In Process";
   const current = labels[activeStage] ?? labels["In Process"];
   const pickup = data.pickup_return;
+  const {data:driverIncident,error:incidentError}=await db.rpc("driver_incident_context",{p_job:data.id,p_token:token});
+  if(incidentError)throw new Error("Could not load route update");
   const itemsTotal = Number(data.items_total ?? 0);
   const itemsCompleted = Number(data.items_completed ?? 0);
   const itemsStarted = Number(data.items_started ?? 0);
@@ -195,6 +198,7 @@ export default async function JobStatusPage({
         <StatusTimeline steps={steps} current={activeStage} updated={data.updated_at} finished={itemsCompleted} total={itemsTotal} />
       </section>
 
+      {driverIncident && <DriverIncidentChoice job={data.id} token={token} data={driverIncident} />}
       {pickupMissed && !data.cancelled && <PickupMissChoice job={data.id} token={token} />}
       {pickup?.delivery_attempts === 1 && pickup.delivery_payment_status !== "Shop Pickup" && pickup.return_reservation_stop_id && <ReturnChoice token={token} job={data.id} fee={Number(data.second_return_fee)} chosen={Boolean(data.second_return_chosen)} />}
       {pickup?.production_ready_at && !pickup.returned_at && Number(data.payment?.balance_due || 0)>0 && <PaymentForm token={token} balanceDue={data.payment.balance_due} zelleEmail={data.payment.methods?.zelle_email} venmoHandle={data.payment.methods?.venmo_handle} cardConfigured={cardPaymentsConfigured()} routePayment />}

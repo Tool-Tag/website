@@ -1,3 +1,4 @@
+import {RouteRefundConfirm} from "@/components/route-refund-confirm";
 import { rows } from "@/lib/domain/context";
 import { Heading, Panel, Empty, Badge } from "@/components/ui";
 import { Form } from "@/components/form";
@@ -6,9 +7,10 @@ import { money } from "@/lib/domain/money";
 export const dynamic = "force-dynamic";
 
 export default async function RefundsPage() {
-  const [requests, jobs] = await Promise.all([
+  const [requests, jobs, routeRefunds] = await Promise.all([
     rows("cancellation_requests", { order: "requested_at", limit: 500 }),
     rows("jobs", { order: "created_at", limit: 500 }),
+    rows("route_compensations",{limit:500}),
   ]);
 
   const jobMap = new Map(jobs.map((job) => [job.id, job]));
@@ -21,9 +23,10 @@ export default async function RefundsPage() {
     <>
       <Heading
         title="Refunds"
-        subtitle="Cancellation refunds are recorded only after ToolTag actually issues the money."
+        subtitle="Refunds are recorded only after the provider or ToolTag actually issues the money."
       />
 
+      <section><h2>Route interruption refunds</h2>{routeRefunds.length?routeRefunds.map(refund=><Panel key={refund.id}><h3>{jobMap.get(refund.job_id)?.code??refund.job_id}</h3><p>{money(refund.amount)} due · {money(refund.paid_amount)} issued · {refund.method??"Payment requires review"} · {refund.status}</p>{refund.error&&<p className="notice">{refund.error}</p>}{refund.status==="ManualRequired"&&<RouteRefundConfirm id={refund.id} />}</Panel>):<Empty>No route interruption refunds.</Empty>}</section>
       <section>
         <h2>Pending Refunds</h2>
         {pending.length ? (

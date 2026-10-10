@@ -13,7 +13,7 @@ export function ReturnStopControls({stop,status,waitUntil,coming,blocked,hasEvid
  return <div className="pickup-controls">
  <label className="checkbox"><input type="checkbox" />Start recording before exiting the vehicle</label>
  <p className="notice">Customer must be present. Never leave items at the door, even when fully paid.</p>
- {blocked&&<p role="alert" className="notice error">Delivery blocked: pending additional work or Cancellation Requested / Production Hold.</p>}
+ {blocked&&<p role="alert" className="notice error">Delivery blocked: route paused, pending additional work or Cancellation Requested / Production Hold.</p>}
  {status==="Requested"&&<p className="notice">Provisional reservation · Pending. The second-attempt fee must be paid and verified before this stop can start. Items stay at the shop. {retryExpires&&`Reservation expires ${denverDateTime(retryExpires)} or at the route payment cutoff.`}</p>}
  {status==="Scheduled"&&<button disabled={pending||blocked} onClick={()=>run("en-route")}>Start · Return En Route</button>}
  {status==="En Route"&&<button disabled={pending||blocked} onClick={()=>run("arrived")}>Arrived</button>}

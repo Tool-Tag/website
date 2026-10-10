@@ -9,7 +9,7 @@ const admin = "90000000-0000-0000-0000-000000000091";
 
 async function value<T = string>(sql: string, args: unknown[] = []): Promise<T> {
   const result = await db.query<Record<string, T>>(sql, args);
-  return Object.values(result.rows[0])[0];
+  return Object.values(result.rows[0]??{})[0];
 }
 
 async function rpc(name: string, payload: unknown) {
@@ -1164,3 +1164,97 @@ for(const leg of ["Pickup","Return"]){
  try{await assert.rejects(value("select public.driver_route_estimate_context($1)",[route]));await assert.rejects(value("select public.update_driver_route_estimates($1,'[]'::jsonb)",[route]));}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
  });
 }
+
+let incidentDay=0;
+async function freshIncidentRoute(f:{job:string;token:string;stop:string},leg:string){
+ const day=await value<string>("select ((now() at time zone 'America/Denver')::date+$1::integer)::text",[700+7*incidentDay++]);
+ const available=await value<{day:string;slots:{eta:string}[]}>("select public.route_availability($1,$2,$3,$4)",[f.job,leg,day,f.token]);
+ f.stop=await value<string>("select public.route_schedule($1,$2,$3,$4,$5)",[f.job,leg,available.day,available.slots[0].eta,f.token]);
+ return value<string>("select route_id from public.pick_return_stops where id=$1",[f.stop]);
+}
+async function incidentFixture(leg:string,suffix:string){
+ const f=leg==='Pickup'?await driverPickupFixture(suffix):await driverReturnFixture(suffix);
+ const route=await freshIncidentRoute(f,leg);
+ const incident=await value<string>('select public.report_driver_incident($1)',[route]);return {...f,route,incident};
+}
+test('Pickup driver breakdown pauses the route, timeout reschedules next Saturday free with a $10 refund due',async()=>{
+ const f=await incidentFixture('Pickup','incident-pickup');
+ await assert.rejects(value("select public.pickup_driver_action($1,'en-route')",[f.stop]),/paused/);
+ assert.equal(await value('select public.report_driver_incident($1)',[f.route]),f.incident);
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",[`route-incident:${f.incident}:${f.job}`])),1);
+ await db.query("update public.route_incidents set deadline=now()-interval '1 second' where id=$1",[f.incident]);
+ await db.query("select set_config('request.jwt.claim.sub','',false),set_config('request.jwt.claim.role','service_role',false)");
+ try{await value('select private.reconcile_driver_exceptions()');}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.role','authenticated',false)",[admin]);}
+ assert.equal(await value('select status from public.route_incidents where id=$1',[f.incident]),'Rescheduled');
+ assert.equal(await value('select status from public.pick_return_stops where id=$1',[f.stop]),'Cancelled');
+ assert.equal(Number(await value('select amount from public.route_compensations where incident_id=$1 and job_id=$2',[f.incident,f.job])),10);
+ assert.equal(Number(await value("select count(*) from public.pick_return_stops s join public.pick_return_routes r on r.id=s.route_id where s.job_id=$1 and r.leg='Pickup' and r.route_date>(select route_date from public.pick_return_routes where id=$2) and s.status='Scheduled'",[f.job,f.route])),1);
+ assert.notEqual(await value('select delivery_payment_status from public.pick_return_orders where job_id=$1',[f.job]),'Shop Pickup');
+ await value('select public.resolve_driver_incident($1,$2)',[f.incident,'Continued']);
+ assert.equal(await value('select status from public.route_incidents where id=$1',[f.incident]),'Rescheduled');
+});
+test('No replacement Return offers free shop pickup without counting a customer miss or creating a retry fee',async()=>{
+ const f=await incidentFixture('Return','incident-return-shop');
+ const before=Number(await value('select delivery_attempts from public.pick_return_orders where job_id=$1',[f.job]));
+ await value('select public.resolve_driver_incident($1,$2)',[f.incident,'NoDriver']);
+ assert.equal(await value('select delivery_payment_status from public.pick_return_orders where job_id=$1',[f.job]),'Shop Pickup');
+ assert.equal(Number(await value('select delivery_attempts from public.pick_return_orders where job_id=$1',[f.job])),before);
+ assert.equal(Number(await value('select count(*) from public.delivery_attempt_fees where job_id=$1',[f.job])),0);
+ assert.equal(Number(await value('select amount from public.route_compensations where incident_id=$1 and job_id=$2',[f.incident,f.job])),10);
+});
+test('Replacement continues with $5 compensation; customer may reschedule and upgrade total to $10, never duplicate',async()=>{
+ const f=await incidentFixture('Return','incident-replacement');
+ await value('select public.resolve_driver_incident($1,$2)',[f.incident,'Continued']);
+ assert.equal(Number(await value('select amount from public.route_compensations where incident_id=$1 and job_id=$2',[f.incident,f.job])),5);
+ await assert.rejects(value('select public.driver_incident_choice($1,$2,$3)',[f.job,'foreign','Reschedule']),/denied|unavailable/i);
+ await value('select public.driver_incident_choice($1,$2,$3)',[f.job,f.token,'Reschedule']);
+ await value('select public.driver_incident_choice($1,$2,$3)',[f.job,f.token,'Reschedule']);
+ assert.equal(Number(await value('select amount from public.route_compensations where incident_id=$1 and job_id=$2',[f.incident,f.job])),10);
+ assert.equal(Number(await value('select count(*) from public.route_compensations where incident_id=$1 and job_id=$2',[f.incident,f.job])),1);
+});
+
+test('Manual-method compensation requires actual refund proof and records one original-method financial refund',async()=>{
+ const f=await driverReturnFixture('incident-manual-refund');
+ const due=await value<number>('select balance_due from public.job_commercial_totals where id=$1',[f.job]);
+ const payment=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',$3,'Final Balance') returning id",[unit,f.job,due]);
+ await value('select public.confirm_payment_request($1)',[payment]);
+ const route=await freshIncidentRoute(f,'Return');
+ const incident=await value<string>('select public.report_driver_incident($1)',[route]);
+ await value('select public.resolve_driver_incident($1,$2)',[incident,'Continued']);
+ const id=await value<string>('select id from public.route_compensations where incident_id=$1 and job_id=$2',[incident,f.job]);
+ assert.equal(await value('select status from public.route_compensations where id=$1',[id]),'ManualRequired');
+ await assert.rejects(value('select public.confirm_route_refund($1,$2)',[id,'']),/proof/);
+ await value('select public.confirm_route_refund($1,$2)',[id,'ZELLE-REFUND-TEST']);
+ await value('select public.confirm_route_refund($1,$2)',[id,'ZELLE-REFUND-TEST']);
+ assert.equal(Number(await value('select paid_amount from public.route_compensations where id=$1',[id])),5);
+ assert.equal(Number(await value("select count(*) from public.transactions where reference='ZELLE-REFUND-TEST' and type='REFUND'")),1);
+});
+test('Card refund pending is never recorded paid; retry and later $10 upgrade issue only the remaining amount',async()=>{
+ const f=await driverReturnFixture('incident-card-refund');
+ const due=await value<number>('select balance_due from public.job_commercial_totals where id=$1',[f.job]);
+ const payment=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',$3,'Final Balance') returning id",[unit,f.job,due]);
+ await value('select public.confirm_payment_request($1)',[payment]);
+ await db.query("update public.transactions set payment_method='Card',reference='STRIPE:cs_refund_test' where id in (select c.transaction_id from public.collections c join public.sales s on s.transaction_id=c.sale_id where s.job_id=$1)",[f.job]);
+ const route=await freshIncidentRoute(f,'Return');const incident=await value<string>('select public.report_driver_incident($1)',[route]);
+ await value('select public.resolve_driver_incident($1,$2)',[incident,'Continued']);
+ const id=await value<string>('select id from public.route_compensations where incident_id=$1 and job_id=$2',[incident,f.job]);
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+ let claimed=(await value<{id:string;claim:string;amount:number}[]>('select public.claim_route_refunds()')).find(x=>x.id===id)!;
+ assert.equal(Number(claimed.amount),5);
+ await value('select public.finish_route_refund($1,$2,$3,$4)',[id,claimed.claim,'re_test_pending','pending']);
+ assert.equal(Number(await value('select paid_amount from public.route_compensations where id=$1',[id])),0);
+ await db.query("select set_config('request.jwt.claim.role','authenticated',false)");
+ await value('select public.driver_incident_choice($1,$2,$3)',[f.job,f.token,'Reschedule']);
+ await db.query("update public.route_compensations set claim_until=now()-interval '1 second' where id=$1",[id]);
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+ try{
+ claimed=(await value<{id:string;claim:string;amount:number}[]>('select public.claim_route_refunds()')).find(x=>x.id===id)!;
+ assert.equal(Number(claimed.amount),5);
+ await value('select public.finish_route_refund($1,$2,$3,$4)',[id,claimed.claim,'re_test_pending','succeeded']);
+ await assert.rejects(value('select public.finish_route_refund($1,$2,$3,$4)',[id,claimed.claim,'re_test_pending','succeeded']),/claim/);
+ const second=(await value<{id:string;claim:string;amount:number}[]>('select public.claim_route_refunds()')).find(x=>x.id===id)!;
+ assert.equal(Number(second.amount),5);await value('select public.finish_route_refund($1,$2,$3,$4)',[id,second.claim,'re_test_second','succeeded']);
+ assert.equal(Number(await value('select paid_amount from public.route_compensations where id=$1',[id])),10);
+ assert.equal(await value('select status from public.route_compensations where id=$1',[id]),'Completed');
+ }finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
+});

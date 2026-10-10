@@ -302,7 +302,7 @@ export function Nav({
           path: "refunds",
           label: "Refunds",
           count: liveAttention.refunds,
-          title: "Cancellation refunds waiting to be issued",
+          title: "Refunds waiting to be issued",
           attentionKey: "refunds",
         },
         { path: "equipment", label: "Equipment" },

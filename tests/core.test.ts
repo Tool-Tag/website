@@ -252,3 +252,18 @@ test("Missing intermediate coordinates make downstream ETA unavailable and trave
  await refreshRouteEstimates(db as unknown as import("@supabase/supabase-js").SupabaseClient,"route",{latitude:40,longitude:-111},{minutes:async()=>[7]});
  assert.deepEqual((saved.value as {minutes:number|null}[]).map(e=>e.minutes),[7,null,null]);
 });
+
+import {StripeRouteRefundTransport} from '../src/lib/payments/route-refunds';
+test('Automatic refunds are gated, use original Stripe payment and durable part keys, and do not call pending success',async()=>{
+ let posts=0;let reused=false;
+ const request=(async(url:unknown,init?:RequestInit)=>{
+ const path=String(url);if(path.includes('checkout/sessions/'))return new Response(JSON.stringify({payment_intent:'pi_original',payment_status:'paid'}));
+ if(init?.method==='POST'){posts++;assert.equal(new Headers(init.headers).get('Idempotency-Key'),'route-refund:comp:0.00');assert.equal(new URLSearchParams(String(init.body)).get('amount'),'500');assert.equal(new URLSearchParams(String(init.body)).get('payment_intent'),'pi_original');return new Response(JSON.stringify({id:'re_pending',status:'pending',amount:500,currency:'usd',payment_intent:'pi_original'}));}
+ return new Response(JSON.stringify({data:reused?[{id:'re_pending',status:'succeeded',amount:500,currency:'usd',payment_intent:'pi_original',metadata:{route_part:'route-refund:comp:0.00'}}]:[],has_more:false}));
+ }) as typeof fetch;
+ const disabled=new StripeRouteRefundTransport(request,{STRIPE_SECRET_KEY:'sk_live_example',TOOLTAG_REFUND_MODE:'live',VERCEL_ENV:'preview'});
+ assert.equal(disabled.configured(),false);await assert.rejects(disabled.refund({id:'comp',offset:0,amount:5,session:'cs_original'}),/not enabled/);assert.equal(posts,0);
+ const enabled=new StripeRouteRefundTransport(request,{STRIPE_SECRET_KEY:'sk_test_example',TOOLTAG_REFUND_MODE:'test'});
+ assert.equal((await enabled.refund({id:'comp',offset:0,amount:5,session:'cs_original'})).status,'pending');
+ reused=true;assert.equal((await enabled.refund({id:'comp',offset:0,amount:5,session:'cs_original'})).status,'succeeded');assert.equal(posts,1);
+});
