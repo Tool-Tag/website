@@ -1,3 +1,4 @@
+import {PickupMissChoice} from "@/components/pickup-miss-choice";
 import {ReturnChoice} from "@/components/return-choice";
 import {PaymentForm} from "@/components/payment-form";
 import {cardPaymentsConfigured} from "@/lib/payments";
@@ -100,6 +101,7 @@ export default async function JobStatusPage({
     );
   }
 
+  const {data:pickupMissed}=await db.rpc("pickup_miss_state",{p_job:data.id,p_token:token});
   const cancellationFinance = data.cancelled
     ? (
         await db.rpc("public_status_cancellation_finance", {
@@ -190,6 +192,7 @@ export default async function JobStatusPage({
         <StatusTimeline steps={steps} current={activeStage} updated={data.updated_at} finished={itemsCompleted} total={itemsTotal} />
       </section>
 
+      {pickupMissed && !data.cancelled && <PickupMissChoice job={data.id} token={token} />}
       {pickup?.delivery_attempts === 1 && pickup.delivery_payment_status !== "Shop Pickup" && !pickup.return_window_start && <ReturnChoice token={token} job={data.id} fee={Number(data.second_return_fee)} chosen={Boolean(data.second_return_chosen)} />}
       {pickup?.production_ready_at && !pickup.returned_at && Number(data.payment?.balance_due || 0)>0 && <PaymentForm token={token} balanceDue={data.payment.balance_due} zelleEmail={data.payment.methods?.zelle_email} venmoHandle={data.payment.methods?.venmo_handle} cardConfigured={cardPaymentsConfigured()} routePayment />}
       {Array.isArray(data.payment_proofs) && data.payment_proofs.length>0 && <section className="panel"><h2>Payment proofs</h2>{data.payment_proofs.map((proof:{id:string;submitted_at:string})=><form key={proof.id} method="post" action={`/app/proofpayment/${encodeURIComponent(data.code)}`}><input type="hidden" name="token" value={token}/><input type="hidden" name="payment" value={proof.id}/><button>View payment proof · {denverDateTime(proof.submitted_at)}</button></form>)}</section>}

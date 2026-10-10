@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import {useRouter} from "next/navigation";
+import { useEffect, useActionState } from "react";
 import {
   registerEvidenceAction,
   type EvidenceRegistration,
@@ -20,6 +21,8 @@ export function EvidenceUpload({
     {},
   );
 
+  const router=useRouter();
+  useEffect(()=>{if(state.ok)router.refresh();},[state.ok,router]);
   return (
     <form action={action} className="evidence-upload">
       <label>

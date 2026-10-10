@@ -1599,3 +1599,5 @@ body:has(.get-tagged-react-dialog[open]) {
 .driver-open{display:flex;justify-content:space-between;padding:16px;border-radius:12px;background:#306cff;font-weight:700;min-height:56px;align-items:center}
 .driver-return .driver-open{background:#e7b343;color:#101722}
 @media(min-width:720px){.driver-cards{grid-template-columns:1fr 1fr}.driver-workspace .content{padding:28px}}
+
+.pickup-route{max-width:680px}.pickup-stop{margin:22px 0}.pickup-stop .driver-card-heading h2{font-size:24px}.pickup-stop .driver-card-heading p{margin:6px 0}.pickup-address{font-size:21px;font-weight:600;margin:24px 0;overflow-wrap:anywhere}.pickup-controls{display:grid;gap:12px;margin-top:20px}.pickup-controls button,.pickup-controls a,.pickup-route-end button,.pickup-photos summary{min-height:56px;width:100%;font-size:16px}.pickup-timer{font-variant-numeric:tabular-nums;font-size:28px;font-weight:700;text-align:center}.pickup-route-end{margin:28px 0}.pickup-photos{margin-top:18px}.pickup-stop button:disabled{opacity:.55;cursor:not-allowed}

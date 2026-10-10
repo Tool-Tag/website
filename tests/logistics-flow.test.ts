@@ -972,3 +972,71 @@ test("Stops advance sequentially, but route closure requires explicit confirmati
  await value("select public.confirm_pick_return_route($1)",[route]);
  assert.equal(await value("select status from public.pick_return_routes where id=$1",[route]),"Completed");
 });
+
+async function driverPickupFixture(suffix:string){
+ await db.query("update public.unit_settings set max_pickup_stops_per_saturday=10 where unit_id=$1",[unit]);
+ const customer=await createCustomer(suffix,suffix);const quote=await createQuote(customer.id);
+ const review=await value<string>("select public.send_quote($1)",[quote]);
+ const accepted=await acceptWithLogistics(review,{option_code:"pickup_delivery",pickup_address:"101 Pickup Way",saturday_date:futureSaturday()});
+ const job=accepted.job_id;const token=await value<string>("select private.ensure_job_status_link($1)",[job]);
+ await db.query("update public.pick_return_orders set fee_status='Confirmed' where job_id=$1",[job]);
+ await db.query("update public.quote_logistics set payment_status='paid_confirmed' where quote_id=$1",[quote]);
+ const day=await value<string>("select ((now() at time zone 'America/Denver')::date+150)::text");
+ const a=await value<{day:string;slots:{eta:string}[]}>("select public.route_availability($1,'Pickup',$2,$3)",[job,day,token]);
+ const stop=await value<string>("select public.route_schedule($1,'Pickup',$2,$3,$4)",[job,a.day,a.slots[0].eta,token]);
+ return {job,token,stop};
+}
+
+test("Pickup arrival notifies once, enforces five minutes and persists customer-coming / wait-more",async()=>{
+ const {job,token,stop}=await driverPickupFixture("driver-wait");
+ await value("select public.pickup_driver_action($1,'en-route')",[stop]);
+ await value("select public.pickup_driver_action($1,'arrived')",[stop]);
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",['pickup-arrived:'+stop])),1);
+ await assert.rejects(value("select public.pickup_driver_action($1,'pickup-miss')",[stop]),/five-minute/);
+ await value("select public.pickup_driver_action($1,'customer-coming')",[stop]);
+ assert.equal(await value("select pickup_wait_until is null and customer_coming_at is not null from public.pick_return_stops where id=$1",[stop]),true);
+ await assert.rejects(value("select public.pickup_driver_action($1,'pickup-miss')",[stop]),/five-minute/);
+ await value("select public.pickup_driver_action($1,'wait-more')",[stop]);
+ await db.query("update public.pick_return_stops set pickup_wait_until=now()-interval '1 second' where id=$1",[stop]);
+ await value("select public.pickup_driver_action($1,'pickup-miss')",[stop]);
+ assert.equal(await value("select public.pickup_miss_state($1,$2)",[job,token]),true);
+ assert.equal(await value("select fee_status from public.pick_return_orders where job_id=$1",[job]),"Confirmed");
+ const oldDay=await value<string>("select r.route_date::text from public.pick_return_routes r join public.pick_return_stops s on s.route_id=r.id where s.id=$1",[stop]);
+ const rescheduled=await value<{day:string}>("select public.pickup_miss_choice($1,$2,'reschedule')",[job,token]);
+ assert.ok(rescheduled.day>oldDay);
+ assert.equal(await value("select public.pickup_miss_state($1,$2)",[job,token]),false);
+ assert.equal(Number(await value("select count(*) from public.pick_return_stops where job_id=$1 and status='Scheduled'",[job])),1);
+});
+
+test("Pickup hold blocks collection through new and original RPC; pickup miss cancellation retains fee",async()=>{
+ const {job,token,stop}=await driverPickupFixture("driver-hold");
+ await value("select public.pickup_driver_action($1,'en-route')",[stop]);
+ await value("select public.pickup_driver_action($1,'arrived')",[stop]);
+ await db.query("update public.jobs set work_stage='Cancellation Requested / Production Hold' where id=$1",[job]);
+ await assert.rejects(value("select public.pickup_driver_action($1,'picked-up')",[stop]),/hold/);
+ await assert.rejects(db.query("update public.pick_return_stops set status='Completed' where id=$1",[stop]),/Hold/);
+ await db.query("update public.jobs set work_stage='Not Started' where id=$1",[job]);
+ await db.query("update public.pick_return_stops set pickup_wait_until=now()-interval '1 second' where id=$1",[stop]);
+ await value("select public.pickup_driver_action($1,'pickup-miss')",[stop]);
+ const cancelled=await value<{cancelled:boolean;assessment:{pickup_fee_refundable:boolean}}>("select public.pickup_miss_choice($1,$2,'cancel')",[job,token]);
+ assert.equal(cancelled.cancelled,true);assert.equal(cancelled.assessment.pickup_fee_refundable,false);
+});
+
+test("Picked Up starts the next Pickup stop, notifies its customer, and leaves route open until shop confirmation",async()=>{
+ const a=await driverPickupFixture("driver-sequence-a"),b=await driverPickupFixture("driver-sequence-b");
+ await value("select public.pickup_driver_action($1,'en-route')",[a.stop]);
+ await value("select public.pickup_driver_action($1,'arrived')",[a.stop]);
+ await assert.rejects(value("select public.pickup_driver_action($1,'picked-up')",[a.stop]),/receiving photos/);
+ await db.query("insert into public.documents(unit_id,type,file_name,job_id,pick_return_stop_id,status) values($1,'Receiving Evidence','pickup-test.jpg',$2,$3,'Available')",[unit,a.job,a.stop]);
+ await value("select public.pickup_driver_action($1,'picked-up')",[a.stop]);
+ assert.equal(await value("select status from public.pick_return_stops where id=$1",[b.stop]),"En Route");
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",['pickup-en-route:'+b.stop])),1);
+ const route=await value<string>("select route_id from public.pick_return_stops where id=$1",[a.stop]);
+ await assert.rejects(value("select public.confirm_pick_return_route($1)",[route]),/Resolve every stop/);
+ await value("select public.pickup_driver_action($1,'arrived')",[b.stop]);
+ await db.query("insert into public.documents(unit_id,type,file_name,job_id,pick_return_stop_id,status) values($1,'Receiving Evidence','pickup-test-b.jpg',$2,$3,'Available')",[unit,b.job,b.stop]);
+ await value("select public.pickup_driver_action($1,'picked-up')",[b.stop]);
+ assert.equal(await value("select confirmed_at is null from public.pick_return_routes where id=$1",[route]),true);
+ await value("select public.confirm_pick_return_route($1)",[route]);
+ assert.equal(await value("select status from public.pick_return_routes where id=$1",[route]),"Completed");
+});
