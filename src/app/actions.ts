@@ -197,9 +197,6 @@ export async function mutate(
       case "asset":
         name = "create_asset";
         break;
-      case "document":
-        name = "add_document";
-        break;
       case "update-transaction":
         name = "update_transaction";
         break;
