@@ -205,9 +205,9 @@ export async function Quotes({
           </p>
         )}
         {jobs.map((j) => (
-          <Panel key={j.id}>
-            <Link href={`/app/jobs/${j.id}`}>Open {j.code} →</Link>
-          </Panel>
+          <Link key={j.id} className="button" href={`/app/jobs/${j.id}`}>
+            Open {j.code} →
+          </Link>
         ))}
       </>
     );
