@@ -16,7 +16,15 @@ import {
 
 const SESSION_KEY = "tooltag-public-request-v2";
 
-export function GetTaggedForm() {
+type GetTaggedFormProps = {
+  modal?: boolean;
+  onSuccess?: (reference: string) => void;
+};
+
+export function GetTaggedForm({
+  modal = false,
+  onSuccess,
+}: GetTaggedFormProps = {}) {
   const [request, setRequest] = useState<GetTaggedRequest>(emptyGetTaggedRequest);
   const [token, setToken] = useState("");
   const [pending, setPending] = useState(false);
@@ -140,8 +148,16 @@ export function GetTaggedForm() {
         sessionStorage.removeItem(SESSION_KEY);
       } catch {}
 
+      const reference = String(body.reference || "");
+      if (onSuccess) {
+        setPending(false);
+        submitting.current = false;
+        onSuccess(reference);
+        return;
+      }
+
       router.push(
-        "/get-tagged/thanks?reference=" + encodeURIComponent(body.reference),
+        "/get-tagged/thanks?reference=" + encodeURIComponent(reference),
       );
     } catch (err) {
       setError(
@@ -155,7 +171,10 @@ export function GetTaggedForm() {
   }
 
   return (
-    <form onSubmit={submit} className="intake-form">
+    <form
+      onSubmit={submit}
+      className={modal ? "intake-form intake-form-modal" : "intake-form"}
+    >
       <fieldset disabled={pending} className="intake-section">
         <legend>1. Your details</legend>
         <div className="intake-grid">
@@ -692,9 +711,11 @@ export function GetTaggedForm() {
         </div>
       )}
 
-      <button type="submit" disabled={pending || !token}>
-        {pending ? "Submitting…" : "Submit Request"}
-      </button>
+      <div className={modal ? "intake-submit intake-submit-sticky" : "intake-submit"}>
+        <button type="submit" disabled={pending || !token}>
+          {pending ? "Submitting…" : "Submit Request"}
+        </button>
+      </div>
     </form>
   );
 }

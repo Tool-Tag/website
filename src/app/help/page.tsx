@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GetTaggedModalLink } from "@/components/get-tagged-modal-link";
 
 export const dynamic = "force-dynamic";
 
@@ -28,9 +29,9 @@ export default function HelpPage() {
           Send ToolTag the items, marking details, and service method you want us
           to review.
         </p>
-        <Link className="button secondary" href="/get-tagged">
+        <GetTaggedModalLink className="button secondary">
           Get Tagged
-        </Link>
+        </GetTaggedModalLink>
       </section>
 
       <section className="panel">
