@@ -261,7 +261,7 @@ export async function Quotes({
                 </td>
                 <td>
                   {q.expires_at
-                    ? new Date(q.expires_at).toLocaleDateString("en-US")
+                    ? new Date(q.expires_at).toLocaleDateString("en-US", {timeZone:"America/Denver"})
                     : q.status === "Draft"
                       ? "Not sent"
                       : "—"}

@@ -1,3 +1,4 @@
+import {cardPaymentsConfigured} from "@/lib/payments";
 import Link from "next/link";
 import { PaymentForm } from "@/components/payment-form";
 import { money } from "@/lib/domain/money";
@@ -54,6 +55,7 @@ export default async function PaymentPage({
         Delivery has been accepted. Choose how you would like to pay.
       </p>
       <PaymentForm
+        cardConfigured={cardPaymentsConfigured()}
         token={token}
         balanceDue={payment?.balance_due ?? 0}
         zelleEmail={payment?.methods?.zelle_email}

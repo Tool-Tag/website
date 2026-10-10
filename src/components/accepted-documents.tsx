@@ -1,3 +1,4 @@
+import {denverDateTime} from "@/lib/domain/time";
 import { Form } from "./form";
 import { context } from "@/lib/domain/context";
 import { Panel } from "@/components/ui";
@@ -94,7 +95,7 @@ export async function AcceptedDocuments({
             <Panel key={d.id} title={`Agreement · ${d.acceptance_folio}`}>
               <p>
                 Version {d.agreement_version} · Accepted:{" "}
-                {new Date(d.accepted_at).toLocaleString("en-US")}
+                {denverDateTime(d.accepted_at)}
               </p>
               <p>Original Recipient: {d.customer_recipient_email}</p>
               <p>PDF: {status?.pdf_status || "Pending"}</p>

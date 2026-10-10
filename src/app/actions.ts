@@ -1,4 +1,5 @@
 "use server";
+import {storageAdmin} from "@/lib/storage/admin";
 import { dispatchQuoteMail, dispatchWorkerMail } from "@/lib/integrations/mail-dispatch";
 import { after } from "next/server";
 import { processAcceptedDocument, processAcceptedWorker } from "@/lib/documents/accepted-delivery";
@@ -11,7 +12,7 @@ import { z } from "zod";
 import { createHash, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { loginFailure } from "@/lib/domain/auth-errors";
-import { paymentProvider, toolTagPublicUrl } from "@/lib/payments";
+import { paymentProvider, cardPaymentsConfigured, toolTagPublicUrl } from "@/lib/payments";
 import type { PaymentMethod, PaymentScope } from "@/lib/payments/provider";
 export type ActionState = { error?: string; ok?: boolean; link?: string; mailStatus?: string; mailRequestedAt?: string; data?: unknown };
 export async function login(
@@ -242,6 +243,14 @@ export async function mutate(
           p_eta: p.eta ?? null,
         };
         break;
+      case "route-cash":
+        name = "collect_route_cash"; args = {p_stop:p.stop_id};break;
+      case "shop-handover":
+        name = "confirm_shop_handover";args={p_job:p.id};break;
+      case "route-confirm":
+        name = "confirm_pick_return_route";
+        args = {p_route:p.route_id};
+        break;
       case "pick-return-stop":
         name = "advance_pick_return_stop";
         args = { p_stop: p.stop_id, p_action: p.action };
@@ -274,7 +283,7 @@ export async function mutate(
     if (error) return { error: error.message };
     revalidatePath("/app", "layout");
     if (operation === "send-quote" || operation === "resend-quote") return { mailRequestedAt: new Date().toISOString(), link: `/review/${data}`, mailStatus: await dispatchQuoteMail(db, String(p.id)) };
-    if (["job","job-item","complete-job-work","pick-return-schedule","pick-return-stop","document","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment","cancellation-refund"].includes(operation)) await dispatchWorkerMail();
+    if (["route-cash","shop-handover","route-confirm","job","job-item","complete-job-work","pick-return-schedule","pick-return-stop","document","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment","cancellation-refund"].includes(operation)) await dispatchWorkerMail();
     if (operation === "extension-send") return {link:`/extension/${data}`};
     if ((operation === "job" || operation === "complete-job-work") && data) return { link: `/completion/${data}` };
     if (operation === "get-tagged-approve" && data) destination = `/app/quotes/${data}`;
@@ -300,6 +309,31 @@ export async function customerAction(
   form: FormData,
 ): Promise<ActionState> {
   const db = await supabase();
+  if (kind === "return-choice") {
+    const choice = form.get("choice");
+    if (choice !== "shop" && choice !== "retry") return { error: "Select a Return option" };
+    const { error } = await db.rpc(choice === "shop" ? "choose_shop_pickup" : "choose_second_return", { p_job: String(form.get("job")), p_token: token });
+    if (error) return { error: error.message };
+    await dispatchWorkerMail();
+    revalidatePath(`/status/${token}`);
+    return { ok: true };
+  }
+  if ((kind === "payment" || kind === "route-payment") && form.get("method") === "Card") {
+    if (!cardPaymentsConfigured()) return { error: "Card payments are not configured yet" };
+    const attemptId = randomUUID();
+    const prepared = await db.rpc("prepare_route_payment",{p_token:token,p_method:"Card",p_attempt:attemptId});
+    if(prepared.error) return {error:prepared.error.message};
+    const provider=paymentProvider("Card");
+    if(!provider.isConfigured()) return {error:"Card payments are not configured yet."};
+    try {
+      const base=toolTagPublicUrl();
+      const result=await provider.start({attemptId,amountCents:Math.round(Number(prepared.data.amount)*100),currency:"usd",description:`ToolTag balance · ${prepared.data.job_code}`,customerEmail:prepared.data.customer_email,successUrl:`${base}/${kind === "route-payment" ? "status" : "payment"}/${encodeURIComponent(token)}`,cancelUrl:`${base}/${kind === "route-payment" ? "status" : "payment"}/${encodeURIComponent(token)}`,jobId:prepared.data.job_id,quoteId:prepared.data.quote_id,paymentScope:"full"});
+      if(!result.redirectUrl || !result.providerReference) return {error:"Card checkout unavailable."};
+      const attached=await db.rpc("attach_route_card_session",{p_token:token,p_attempt:attemptId,p_reference:result.providerReference});
+      if(attached.error)return {error:attached.error.message};
+      return {ok:true,link:result.redirectUrl};
+    } catch {return {error:"Could not start card checkout."};}
+  }
   if (kind === "logistics-payment") {
     const scope = String(form.get("scope") || "") as PaymentScope;
     const method = String(form.get("method") || "") as PaymentMethod;
@@ -357,11 +391,23 @@ export async function customerAction(
       });
 
       if (result.provider === "manual") {
+        let proofPath: string | null = null;
+        const proof = form.get("proof");
+        if (proof instanceof File && proof.size > 0) {
+          const types: Record<string,string> = {"image/png":"png", "image/jpeg":"jpg", "image/webp":"webp"};
+          if (!types[proof.type] || proof.size > 5 * 1024 * 1024) return {error:"Use a PNG, JPG or WebP screenshot up to 5 MB."};
+          proofPath = `${TOOLTAG}/${attemptId}.${types[proof.type]}`;
+          const upload = await storageAdmin().storage.from("payment-proofs").upload(proofPath, new Uint8Array(await proof.arrayBuffer()), {contentType:proof.type, upsert:false});
+          if (upload.error) return {error:"Could not upload payment proof. Your payment was not submitted."};
+        }
         const { data, error } = await db.rpc(
-          "mark_logistics_manual_submitted",
-          { p_token: token, p_attempt: attemptId },
+          "mark_logistics_manual_with_proof",
+          { p_token: token, p_attempt: attemptId, p_path:proofPath },
         );
-        if (error) return { error: error.message };
+        if (error) {
+          if (proofPath) await storageAdmin().storage.from("payment-proofs").remove([proofPath]);
+          return { error: error.message };
+        }
         await dispatchWorkerMail();
         revalidatePath(`/review/${token}/payment`);
         revalidatePath("/app", "layout");
@@ -405,6 +451,7 @@ export async function customerAction(
   }
   if (
     kind === "payment" ||
+    kind === "route-payment" ||
     kind === "pickup-payment" ||
     kind === "cancellation-payment"
   ) {
@@ -418,7 +465,7 @@ export async function customerAction(
     if (pickupFee ? !["Zelle", "Venmo"].includes(method) : !["Cash", "Zelle", "Venmo"].includes(method))
       return { error: pickupFee ? "Choose Zelle or Venmo." : "Choose Cash, Zelle or Venmo." };
 
-    if (method !== "Cash") {
+    if (method !== "Cash" && (!pickupFee || (file instanceof File && file.size > 0))) {
       if (!(file instanceof File) || file.size === 0)
         return { error: "Upload a screenshot of your Zelle or Venmo payment." };
       if (file.size > 5 * 1024 * 1024)
@@ -449,7 +496,9 @@ export async function customerAction(
       if (uploadError) return { error: "Could not upload payment proof." };
     }
 
-    const { error } = pickupFee
+    const { error } = kind === "route-payment"
+      ? await db.rpc("submit_route_payment",{p_token:token,p_method:method,p_request:requestKey,p_path:proofPath})
+      : pickupFee
       ? await db.rpc("public_submit_pickup_fee_payment", {
           p_token: token,
           p_request: requestKey,

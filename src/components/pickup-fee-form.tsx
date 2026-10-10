@@ -92,12 +92,11 @@ export function PickupFeeForm({
             <>
               <CopyValue value={zelleEmail} label="Zelle email" />
               <label>
-                Payment screenshot
+                Recommend Upload Proof · Payment screenshot (optional)
                 <input
                   type="file"
                   name="proof"
                   accept="image/png,image/jpeg,image/webp"
-                  required
                 />
               </label>
             </>
@@ -107,12 +106,11 @@ export function PickupFeeForm({
             <>
               <CopyValue value={venmoHandle} label="Venmo" />
               <label>
-                Payment screenshot
+                Recommend Upload Proof · Payment screenshot (optional)
                 <input
                   type="file"
                   name="proof"
                   accept="image/png,image/jpeg,image/webp"
-                  required
                 />
               </label>
             </>

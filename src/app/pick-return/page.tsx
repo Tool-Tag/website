@@ -1,3 +1,5 @@
+import {RouteCalendar} from "@/components/route-calendar";
+import {denverDateTime} from "@/lib/domain/time";
 import Link from "next/link";
 import { context } from "@/lib/domain/context";
 import { Form } from "@/components/form";
@@ -9,10 +11,12 @@ import { money } from "@/lib/domain/money";
 export const dynamic = "force-dynamic";
 
 function dateTime(value?: string | null) {
-  return value ? new Date(value).toLocaleString("en-US") : "—";
+  return value ? denverDateTime(value) : "—";
 }
 
-export default async function PickReturnPage() {
+export default async function PickReturnPage({searchParams}:{searchParams:Promise<{mode?:string;route?:string}>}) {
+  const query = await searchParams;
+  const mode = query.mode === "pickup" ? "Pickup" : query.mode === "return" ? "Return" : null;
   const { db, unit, role } = await context();
 
   const [{ data: orders }, { data: jobs }, { data: routes }, { data: stops }, { data: docs }] =
@@ -31,7 +35,7 @@ export default async function PickReturnPage() {
   const jobMap = new Map((jobs ?? []).map((job) => [job.id, job]));
   const routeMap = new Map((routes ?? []).map((route) => [route.id, route]));
   const activeStops = [...(stops ?? [])]
-    .filter((stop) => stop.status !== "Cancelled")
+    .filter((stop) => stop.status !== "Cancelled" && routeMap.get(stop.route_id)?.leg === mode && (!query.route || stop.route_id === query.route))
     .sort((a, b) => {
       const ar = routeMap.get(a.route_id);
       const br = routeMap.get(b.route_id);
@@ -60,11 +64,13 @@ export default async function PickReturnPage() {
         </Link>
       </div>
 
+      <div className="grid two"><Link className="panel" href="/pick-return?mode=pickup"><h2>Pick up</h2><p>Saturday routes</p></Link><Link className="panel" href="/pick-return?mode=return"><h2>Return</h2><p>Sunday routes</p></Link></div>
+      {mode && <section className="panel"><h2>{mode} routes</h2><div className="stack">{(routes ?? []).filter(r=>r.leg===mode).sort((a,b)=>a.route_date.localeCompare(b.route_date)).map(r=><div className="item" key={r.id}><Link href={`/pick-return?mode=${mode.toLowerCase()}&route=${r.id}`}>{r.route_date} · {r.status}</Link>{!r.confirmed_at && (stops ?? []).some(s=>s.route_id===r.id && ["Completed","Failed"].includes(s.status)) && !(stops ?? []).some(s=>s.route_id===r.id && !["Completed","Failed","Cancelled"].includes(s.status)) && <Form operation="route-confirm" hidden={{route_id:r.id}} fields={[]} back={`/pick-return?mode=${mode.toLowerCase()}`} button={mode === "Pickup" ? "Confirm arrival at shop" : "Confirm all delivered"} />}</div>)}</div></section>}
       <section className="panel">
         <h2>Service Queue</h2>
         {(orders ?? []).length ? (
           <div className="stack">
-            {(orders ?? []).map((order) => {
+            {(orders ?? []).filter(order => mode === "Pickup" ? order.pickup_status !== "Not Applicable" : mode === "Return" ? order.return_status !== "Not Applicable" : false).map((order) => {
               const job = jobMap.get(order.job_id);
               if (!job) return null;
               return (
@@ -93,65 +99,14 @@ export default async function PickReturnPage() {
                     !["Not Applicable", "Picked Up", "Cancelled"].includes(order.pickup_status) && (
                       <details>
                         <summary>Schedule / reschedule Pickup</summary>
-                        <p className="muted">
-                          Temporary manual scheduler. Enter ISO timestamps including the local UTC offset until the automatic calendar is enabled.
-                        </p>
-                        <Form
-                          operation="pick-return-schedule"
-                          hidden={{ job_id: order.job_id, leg: "Pickup" }}
-                          back="/pick-return"
-                          fields={[
-                            {
-                              name: "window_start",
-                              label: "Pickup window start",
-                              required: true,
-                              help: "Example: 2026-10-10T08:00:00-06:00",
-                            },
-                            {
-                              name: "window_end",
-                              label: "Pickup window end",
-                              required: true,
-                              help: "Example: 2026-10-10T12:00:00-06:00",
-                            },
-                            {
-                              name: "eta",
-                              label: "Initial ETA",
-                              help: "Optional ISO timestamp with offset",
-                            },
-                          ]}
-                          button="Schedule Pickup"
-                        />
+                        <RouteCalendar job={order.job_id} leg="Pickup" />
                       </details>
                     )}
 
                   {["Delivery In Progress", "Scheduled"].includes(order.return_status) && (
                     <details open={order.return_status === "Delivery In Progress"}>
                       <summary>Schedule / reschedule Return</summary>
-                      <Form
-                        operation="pick-return-schedule"
-                        hidden={{ job_id: order.job_id, leg: "Return" }}
-                        back="/pick-return"
-                        fields={[
-                          {
-                            name: "window_start",
-                            label: "Return window start",
-                            required: true,
-                            help: "Example: 2026-10-11T16:00:00-06:00",
-                          },
-                          {
-                            name: "window_end",
-                            label: "Return window end",
-                            required: true,
-                            help: "Example: 2026-10-11T18:00:00-06:00",
-                          },
-                          {
-                            name: "eta",
-                            label: "Initial ETA",
-                            help: "Optional ISO timestamp with offset",
-                          },
-                        ]}
-                        button="Schedule Return"
-                      />
+                      <RouteCalendar job={order.job_id} leg="Return" />
                     </details>
                   )}
                 </div>
@@ -169,6 +124,7 @@ export default async function PickReturnPage() {
           activeStops.map((stop) => {
             const route = routeMap.get(stop.route_id);
             const job = jobMap.get(stop.job_id);
+            const order = (orders ?? []).find(order => order.job_id === stop.job_id);
             if (!route || !job) return null;
             const isPickup = route.leg === "Pickup";
             const evidenceType = isPickup ? "Receiving Evidence" : "Delivery Evidence";
@@ -211,7 +167,7 @@ export default async function PickReturnPage() {
                     operation="pick-return-stop"
                     hidden={{ stop_id: stop.id, action: "en-route" }}
                     fields={[]}
-                    back="/pick-return"
+                    back={`/pick-return?mode=${mode?.toLowerCase() || "pickup"}${query.route ? `&route=${query.route}` : ""}`}
                     button="Start · En Route"
                   />
                 )}
@@ -221,13 +177,14 @@ export default async function PickReturnPage() {
                     operation="pick-return-stop"
                     hidden={{ stop_id: stop.id, action: "arrived" }}
                     fields={[]}
-                    back="/pick-return"
+                    back={`/pick-return?mode=${mode?.toLowerCase() || "pickup"}${query.route ? `&route=${query.route}` : ""}`}
                     button="Arrived"
                   />
                 )}
 
                 {stop.status === "Arrived" && (
                   <>
+                    {!isPickup && <>{order?.delivery_payment_method === "Cash" && <Form operation="route-cash" hidden={{stop_id:stop.id}} fields={[]} back={`/pick-return?mode=return&route=${route.id}`} button="Confirm cash collected" />}<label><input type="checkbox" /> Start recording before exiting the vehicle</label><p className="notice">Never leave items at the door. Confirm payment before handing over items.</p><Form operation="pick-return-stop" hidden={{stop_id:stop.id, action:"not-home"}} fields={[]} back={`/pick-return?mode=return&route=${route.id}`} button="Customer not home" /></>}
                     <div className="item">
                       <h3>{evidenceLabel}</h3>
                       <EvidenceGallery files={evidence} />
@@ -254,7 +211,7 @@ export default async function PickReturnPage() {
                           action: isPickup ? "picked-up" : "delivered",
                         }}
                         fields={[]}
-                        back="/pick-return"
+                        back={`/pick-return?mode=${mode?.toLowerCase() || "pickup"}${query.route ? `&route=${query.route}` : ""}`}
                         button={isPickup ? "Picked Up" : "Delivered"}
                       />
                     )}

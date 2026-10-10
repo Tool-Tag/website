@@ -236,6 +236,7 @@ export function LogisticsPaymentForm({
           </div>
         )}
 
+        {["Zelle", "Venmo"].includes(method) && <label>Payment screenshot (optional)<input type="file" name="proof" accept="image/png,image/jpeg,image/webp" /><small>Recommend Upload Proof</small></label>}
         {state.error && <p className="notice error">{state.error}</p>}
         {state.ok && !state.link && (
           <p className="notice">
