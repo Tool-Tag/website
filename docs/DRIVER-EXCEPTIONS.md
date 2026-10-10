@@ -32,5 +32,9 @@ Verification: typecheck, lint, automated tests and production build. Tests cover
 
 Stripe reference: https://docs.stripe.com/api/refunds/create
 
-## Configurable delivery weekday
+## Single delivery weekday (superseded by multiple-day settings below)
 Additive migration 20261010165438_configurable_delivery_route_day.sql (unapplied) adds unit_settings.delivery_route_iso_weekday: ISO 1=Monday through 7=Sunday, default 7. The admin Settings → Payments & Logistics → Delivery Route Day selector (authorized save_settings RPC) changes the weekly day used by availability, new/retry/interrupted delivery scheduling, customer calendar and driver landing. Pickup stays Saturday. The Return window remains 2–6 PM, including the final slot. Existing stops are not moved; no historical data is migrated. Notifications say “next available delivery route day” and scheduling messages include the actual selected date. No production setting was changed.
+
+## Multiple Pickup / Return days
+Additive migration 20261010170009_configurable_pickup_return_days.sql (unapplied) extends Settings → Payments & Logistics with Pickup Route Days and Return Route Days checkbox groups. At least one valid weekday per leg is required. Defaults remain Saturday / Sunday; the prior single Return setting is preserved on migration. The admin save RPC validates and canonicalizes the arrays. Existing single-day API inputs remain compatible; the new UI uses the arrays.
+Calendars, Quote acceptance Pickup dates, driver defaults, normal/retry/incident scheduling and Pickup cutoff rollovers use the enabled weekdays and current availability. Windows and capacity/cutoffs stay unchanged. Changing days affects future scheduling, never existing stops or accepted snapshots. A visible note instructs the operator to review and adjust the Customer Agreement when adding/changing days; the stored Agreement is never edited or republished automatically. Legacy field names saturday_date/available_saturdays are retained for compatibility but refer to configurable Pickup dates.

@@ -108,6 +108,7 @@ export async function Settings() {
         </Panel>
       </div>
       <Panel title="Payments & Logistics">
+        <p className="notice">If you change or add Pickup or Return days, review the Customer Agreement and update it as needed before offering the new schedule. ToolTag does not edit or republish the Agreement automatically.</p>
         <p className="muted">
           Zelle and Venmo identifiers are configuration only. Leave them blank
           until the real ToolTag accounts are ready. Card checkout is enabled
@@ -124,6 +125,7 @@ export async function Settings() {
         </p>
         <Form
           operation="settings"
+          hidden={{pickup_route_iso_weekdays_present:"1",return_route_iso_weekdays_present:"1"}}
           fields={[
             {
               name: "zelle_email",
@@ -137,13 +139,14 @@ export async function Settings() {
               value: s?.venmo_handle ?? "",
               help: "Placeholder/configurable until the ToolTag Venmo account is finalized.",
             },
-            {
-              name: "delivery_route_iso_weekday",
-              label: "Delivery Route Day",
-              value: String(s?.delivery_route_iso_weekday ?? 7),
+            ...(["pickup","return"] as const).map(leg=>({
+              name: `${leg}_route_iso_weekdays`,
+              label: leg==="pickup"?"Pickup Route Days":"Return Route Days",
+              value: (s?.[`${leg}_route_iso_weekdays`] ?? [leg==="pickup"?6:(s?.delivery_route_iso_weekday??7)]).join(","),
+              multiple: true,
               options: ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map((label,index)=>({value:String(index+1),label})),
-              help: "Sunday by default. Applies to new scheduling and rescheduling; existing bookings stay unchanged. Pickup remains Saturday.",
-            },
+              help: "Select at least one day. New availability updates automatically; existing bookings stay unchanged.",
+            })),
             {
               name: "max_delivery_stops_per_sunday",
               label: "Maximum Stops per Delivery Route Day",
@@ -159,11 +162,11 @@ export async function Settings() {
             },
             {
               name: "max_pickup_stops_per_saturday",
-              label: "Maximum Pickup Stops per Saturday",
+              label: "Maximum Stops per Pickup Route Day",
               type: "number",
               required: true,
               value: String(s?.max_pickup_stops_per_saturday ?? 10),
-              help: "Review & Accept hides Saturdays once this capacity is reached.",
+              help: "Review & Accept hides configured Pickup days once this capacity is reached.",
             },
           ]}
           back="/app/settings"

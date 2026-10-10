@@ -269,6 +269,9 @@ export async function mutate(
         args = { p_unit: unit, p_month: p.month };
         break;
       case "settings":
+        for(const key of ["pickup_route_iso_weekdays","return_route_iso_weekdays"]) {
+          if(form.has(`${key}_present`)) p[key]=form.getAll(key).map(v=>Number(String(v)));
+        }
         name = "save_settings";
         break;
       case "mileage":

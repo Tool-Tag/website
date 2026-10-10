@@ -1279,3 +1279,32 @@ test("Configured delivery weekday drives next-route rescheduling without changin
  await assert.rejects(db.query("update public.unit_settings set delivery_route_iso_weekday=8 where unit_id=$1",[unit]),/check constraint/);
  }finally{await db.query("update public.unit_settings set delivery_route_iso_weekday=7 where unit_id=$1",[unit]);}
 });
+
+
+test("Multiple route days enable Pickup acceptance and both calendars; disabled/empty days are rejected",async()=>{
+ const payload={unit_id:unit,pickup_route_iso_weekdays:[6,2,2],return_route_iso_weekdays:[7,3]};
+ await value('select public.save_settings($1::jsonb)',[JSON.stringify(payload)]);
+ try{
+ assert.deepEqual(await value('select pickup_route_iso_weekdays from public.unit_settings where unit_id=$1',[unit]),[2,6]);
+ const customer=await createCustomer('Multiple pickup days','multiple-days');
+ const quote=await createQuote(customer.id);const token=await value<string>('select public.send_quote($1)',[quote]);
+ const ctx=await value<{available_saturdays:{date:string}[]}>('select private.quote_logistics_context($1)',[quote]);
+ assert.ok(ctx.available_saturdays.length>0);
+ assert.ok(ctx.available_saturdays.every(d=>[2,6].includes(new Date(d.date+'T12:00:00Z').getUTCDay())));
+ const tuesday=ctx.available_saturdays.find(d=>new Date(d.date+'T12:00:00Z').getUTCDay()===2)!.date;
+ const disabled=new Date(tuesday+'T12:00:00Z');disabled.setUTCDate(disabled.getUTCDate()+1);
+ await assert.rejects(acceptWithLogistics(token,{option_code:'pickup_only',pickup_address:'101 Multiple Days',saturday_date:disabled.toISOString().slice(0,10)}),/available Pickup date/);
+ const accepted=await acceptWithLogistics(token,{option_code:'pickup_only',pickup_address:'101 Multiple Days',saturday_date:tuesday});
+ const job=accepted.job_id;const status=await value<string>('select private.ensure_job_status_link($1)',[job]);
+ const a=await value<{day:string;route_iso_weekdays:number[]}>('select public.route_availability($1,$2,$3,$4)',[job,'Pickup',tuesday,status]);
+ assert.deepEqual(a.route_iso_weekdays,[2,6]);assert.ok([2,6].includes(new Date(a.day+'T12:00:00Z').getUTCDay()));
+ const r=await value<{day:string;route_iso_weekdays:number[]}>('select public.route_availability($1,$2,$3,$4)',[job,'Return',tuesday,status]);
+ assert.deepEqual(r.route_iso_weekdays,[3,7]);assert.equal(new Date(r.day+'T12:00:00Z').getUTCDay(),3);
+ // Full configured day advances to the next enabled day, not a hardcoded week later.
+ await db.query('update public.unit_settings set max_pickup_stops_per_saturday=1 where unit_id=$1',[unit]);
+ const other=await createCustomer('Next configured day','next-configured-day');const oq=await createQuote(other.id);const ot=await value<string>('select public.send_quote($1)',[oq]);
+ await assert.rejects(acceptWithLogistics(ot,{option_code:'pickup_only',pickup_address:'102 Multiple Days',saturday_date:tuesday}),/capacity/);
+ await assert.rejects(value('select public.save_settings($1::jsonb)',[JSON.stringify({unit_id:unit,pickup_route_iso_weekdays:[]})]),/check constraint/);
+ await assert.rejects(value('select public.save_settings($1::jsonb)',[JSON.stringify({unit_id:unit,return_route_iso_weekdays:[0,8]})]),/check constraint/);
+ }finally{await value('select public.save_settings($1::jsonb)',[JSON.stringify({unit_id:unit,pickup_route_iso_weekdays:[6],return_route_iso_weekdays:[7],max_pickup_stops_per_saturday:10})]);}
+});

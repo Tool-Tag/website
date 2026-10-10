@@ -274,3 +274,9 @@ test("Driver route defaults use Sunday; configured delivery day changes only Ret
  assert.equal(driverDates("2026-10-11",new Date(),1).return,"2026-10-12");
  assert.equal(driverDates("2026-10-11",new Date(),1).pickup,"2026-10-17");
 });
+
+test("Driver defaults choose the nearest of multiple configured route days",()=>{
+ const dates=driverDates("2026-10-12",new Date(),[3,7],[2,6]);
+ assert.equal(dates.pickup,"2026-10-13");assert.equal(dates.return,"2026-10-14");
+ assert.equal(driverDates("2026-10-13",new Date(),[3,7],[2,6]).pickup,"2026-10-13");
+});

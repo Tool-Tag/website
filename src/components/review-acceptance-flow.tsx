@@ -264,13 +264,13 @@ export function ReviewAcceptanceFlow({
               onChange={setPickupAddress}
             />
             <label>
-              Requested Saturday
+              Requested Pickup date
               <select
                 required
                 value={saturdayDate}
                 onChange={(event) => setSaturdayDate(event.target.value)}
               >
-                <option value="">Choose an available Saturday…</option>
+                <option value="">Choose an available Pickup date…</option>
                 {(logistics.available_saturdays ?? []).map((day) => (
                   <option key={day.date} value={day.date}>
                     {new Date(day.date + "T12:00:00").toLocaleDateString(
@@ -290,7 +290,7 @@ export function ReviewAcceptanceFlow({
             </label>
             {!(logistics.available_saturdays ?? []).length && (
               <p className="notice error">
-                No Saturday Pickup capacity is currently available. Contact
+                No Pickup capacity is currently available. Contact
                 ToolTag before accepting.
               </p>
             )}

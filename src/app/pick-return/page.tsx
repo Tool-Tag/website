@@ -6,9 +6,9 @@ export const dynamic = "force-dynamic";
 export default async function PickReturnPage({searchParams}:{searchParams:Promise<{date?:string;mode?:string;route?:string}>}) {
  const query=await searchParams;
  const {db,unit}=await context();
- const {data:settings,error:settingsError}=await db.from("unit_settings").select("delivery_route_iso_weekday").eq("unit_id",unit).single();
+ const {data:settings,error:settingsError}=await db.from("unit_settings").select("pickup_route_iso_weekdays,return_route_iso_weekdays").eq("unit_id",unit).single();
  if(settingsError)throw new Error("Could not load delivery route settings");
- const dates=driverDates(query.date,new Date(),settings.delivery_route_iso_weekday);
+ const dates=driverDates(query.date,new Date(),settings.return_route_iso_weekdays,settings.pickup_route_iso_weekdays);
  if(query.mode==="pickup"||query.mode==="return") redirect(`/pick-return/${query.mode}?date=${query.mode==="pickup"?dates.pickup:dates.return}${query.route?`&route=${encodeURIComponent(query.route)}`:""}`);
  const {data:routes,error}=await db.from("pick_return_routes").select("id,leg,route_date").eq("unit_id",unit).in("route_date",[dates.pickup,dates.return]);
  if(error) throw new Error("Could not load daily routes");
