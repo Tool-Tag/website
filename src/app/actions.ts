@@ -1,4 +1,5 @@
 "use server";
+import {storageAdmin} from "@/lib/storage/admin";
 import { dispatchQuoteMail, dispatchWorkerMail } from "@/lib/integrations/mail-dispatch";
 import { after } from "next/server";
 import { processAcceptedDocument, processAcceptedWorker } from "@/lib/documents/accepted-delivery";
@@ -11,7 +12,9 @@ import { z } from "zod";
 import { createHash, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { loginFailure } from "@/lib/domain/auth-errors";
-export type ActionState = { error?: string; ok?: boolean; link?: string; mailStatus?: string; mailRequestedAt?: string };
+import { paymentProvider, cardPaymentsConfigured, toolTagPublicUrl } from "@/lib/payments";
+import type { PaymentMethod, PaymentScope } from "@/lib/payments/provider";
+export type ActionState = { error?: string; ok?: boolean; link?: string; mailStatus?: string; mailRequestedAt?: string; data?: unknown };
 export async function login(
   _: ActionState,
   form: FormData,
@@ -57,7 +60,7 @@ export async function mutate(
   let destination: string | undefined;
   try {
     const { db, unit, role } = await context();
-    if (role !== "admin") return { error: "Esta cuenta es de consulta." };
+    if (role !== "admin") return { error: "This account has read-only access." };
     const p: Record<string, unknown> = {
       ...Object.fromEntries(form.entries()),
       unit_id: unit,
@@ -72,7 +75,7 @@ export async function mutate(
         const id = z.uuid().parse(p.id);
         const part = String(p.part || "process");
         if (part === "authorize-live") {
-          if (form.get("reconciled")!=="on") return {error:"Confirma el envío al destinatario real antes de autorizar."};
+          if (form.get("reconciled")!=="on") return {error:"Confirm delivery to the real recipient before authorizing."};
           const {error}=await db.rpc("authorize_document_live_copies",{p_id:id});
           if(error) return {error:error.message};
         } else if (part !== "process") {
@@ -90,7 +93,7 @@ export async function mutate(
         revalidatePath("/app","layout");return {ok:true,mailStatus};
       }
       case "activate-live-mail":
-        if (form.get("confirm")!=="on") return {error:"Confirma la activación solo para avisos nuevos."};
+        if (form.get("confirm")!=="on") return {error:"Confirm activation for new notifications only."};
         name="activate_customer_mail"; args={}; break;
       case "retry-notification":
         name="retry_customer_notification"; args={p_id:p.id,p_reconciled:form.get("reconciled")==="on"}; break;
@@ -115,6 +118,7 @@ export async function mutate(
         }).parse(p);
         name = "save_customer";
         break;
+      case "get-tagged-review":
       case "extension-scope":
       case "quote":
         p.items = z
@@ -167,14 +171,25 @@ export async function mutate(
           .parse(JSON.parse(String(p.items)))
           .map((item, index) => {
             if (item.engraving_type !== "Fee" && !item.marks.length)
-              throw new Error("Agrega al menos un grabado con su ubicación.");
+              throw new Error("Add at least one engraving with its location.");
             for (const mark of item.marks) {
               if (mark.paint_fill && (!mark.paint_details || (mark.paint_details.mode === "single" ? !mark.paint_details.color.trim() : !mark.paint_details.instructions.trim())))
-                throw new Error("Especifica el color o las instrucciones de pintura del grabado.");
+                throw new Error("Specify the engraving paint color or paint instructions.");
             }
             return { ...item, sort_order: index };
           });
-        name = operation === "extension-scope" ? "save_job_extension" : "create_quote";
+        if (operation === "get-tagged-review") {
+          name = "review_get_tagged_quote";
+          args = {
+            p: {
+              id: p.id,
+              items: p.items,
+              notes: p.notes ?? "",
+            },
+          };
+        } else {
+          name = operation === "extension-scope" ? "save_job_extension" : "create_quote";
+        }
         break;
       case "movement":
         cents(String(p.amount));
@@ -182,9 +197,6 @@ export async function mutate(
         break;
       case "asset":
         name = "create_asset";
-        break;
-      case "document":
-        name = "add_document";
         break;
       case "update-transaction":
         name = "update_transaction";
@@ -197,6 +209,14 @@ export async function mutate(
         name = "resend_quote";
         args = { p_id: p.id };
         break;
+      case "get-tagged-approve":
+        name = "approve_get_tagged";
+        args = { p_id: p.id, p_customer: p.customer_id ?? null };
+        break;
+      case "get-tagged-reject":
+        name = "reject_get_tagged";
+        args = { p_id: p.id, p_reason: p.reason ?? null };
+        break;
       case "send-quote":
         name = form.get("resend") === "true" ? "resend_quote" : "send_quote_to";
         args = form.get("resend") === "true" ? { p_id: p.id } : { p_id: p.id, p_recipient: String(form.get("recipient") || "").trim(), p_regenerate: form.get("regenerate") === "on" };
@@ -207,15 +227,38 @@ export async function mutate(
         break;
       case "job-item":
         name = "advance_job_item";
-        args = { p_item: p.id, p_action: p.action };
+        args = { p_item: p.item_id ?? p.id, p_action: p.action };
         break;
       case "complete-production":
+      case "complete-job-work":
         name = "complete_job_production";
         args = { p_id: p.id };
         break;
+      case "pick-return-schedule":
+        name = "schedule_pick_return";
+        args = {
+          p_job: p.job_id,
+          p_leg: p.leg,
+          p_window_start: p.window_start,
+          p_window_end: p.window_end,
+          p_eta: p.eta ?? null,
+        };
+        break;
+      case "route-cash":
+        name = "collect_route_cash"; args = {p_stop:p.stop_id};break;
+      case "shop-handover":
+        name = "confirm_shop_handover";args={p_job:p.id};break;
+      case "route-confirm":
+        name = "confirm_pick_return_route";
+        args = {p_route:p.route_id};
+        break;
       case "pick-return-stop":
         name = "advance_pick_return_stop";
-        args = { p_stop: p.id, p_action: p.action };
+        args = { p_stop: p.stop_id ?? p.id, p_action: p.action };
+        break;
+      case "cancellation-refund":
+        name = "confirm_cancellation_refund";
+        args = { p_request: p.request_id, p_method: p.method, p_reference: p.reference ?? null };
         break;
       case "notified":
         name = "confirm_completion_notified";
@@ -235,24 +278,27 @@ export async function mutate(
         name = "save_category";
         break;
       default:
-        return { error: "Acción desconocida" };
+        return { error: "Unknown action" };
     }
     const { data, error } = await db.rpc(name, args);
     if (error) return { error: error.message };
     revalidatePath("/app", "layout");
     if (operation === "send-quote" || operation === "resend-quote") return { mailRequestedAt: new Date().toISOString(), link: `/review/${data}`, mailStatus: await dispatchQuoteMail(db, String(p.id)) };
-    if (["job","job-item","complete-production","pick-return-stop","document","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment"].includes(operation)) await dispatchWorkerMail();
+    if (["route-cash","shop-handover","route-confirm","job","job-item","complete-job-work","complete-production","pick-return-schedule","pick-return-stop","document","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment","cancellation-refund"].includes(operation)) await dispatchWorkerMail();
     if (operation === "extension-send") return {link:`/extension/${data}`};
-    if ((operation === "job" || operation === "complete-production") && data) return { link: `/completion/${data}` };
-    if (operation === "customer") destination = `/app/customers/${data}`;
+    if ((operation === "job" || operation === "complete-job-work") && data) return { link: `/completion/${data}` };
+    if (operation === "get-tagged-approve" && data) destination = `/app/quotes/${data}`;
+    else if (operation === "get-tagged-reject") destination = "/app/get-tagged";
+    else if (operation === "get-tagged-review") destination = back;
+    else if (operation === "customer") destination = `/app/customers/${data}`;
     else if (operation === "request-extension") destination=`/app/job-extensions/${data}`;
     else if (operation === "extension-scope") destination=`/app/job-extensions/${data}`;
     else if (operation === "quote") destination = `/app/quotes/${data}`;
     else if (operation === "movement" && p.type === "EXPENSE")
       destination = `/app/finance/expenses?created=${data}`;
-    else if (back.startsWith("/app")) destination = back;
+    else if (back.startsWith("/app") || back.startsWith("/pick-return")) destination = back;
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "No se pudo guardar" };
+    return { error: e instanceof Error ? e.message : "Could not save" };
   }
   if (destination) redirect(destination);
   return { ok: true };
@@ -299,6 +345,138 @@ export async function customerAction(
     revalidatePath("/app", "layout");
     return { ok: true };
   }
+  if (kind === "return-choice") {
+    const choice = form.get("choice");
+    if (choice !== "shop" && choice !== "retry") return { error: "Select a Return option" };
+    const { error } = await db.rpc(choice === "shop" ? "choose_shop_pickup" : "choose_second_return", { p_job: String(form.get("job")), p_token: token });
+    if (error) return { error: error.message };
+    await dispatchWorkerMail();
+    revalidatePath(`/status/${token}`);
+    return { ok: true };
+  }
+  if ((kind === "payment" || kind === "route-payment") && form.get("method") === "Card") {
+    if (!cardPaymentsConfigured()) return { error: "Card payments are not configured yet" };
+    const attemptId = randomUUID();
+    const prepared = await db.rpc("prepare_route_payment",{p_token:token,p_method:"Card",p_attempt:attemptId});
+    if(prepared.error) return {error:prepared.error.message};
+    const provider=paymentProvider("Card");
+    if(!provider.isConfigured()) return {error:"Card payments are not configured yet."};
+    try {
+      const base=toolTagPublicUrl();
+      const result=await provider.start({attemptId,amountCents:Math.round(Number(prepared.data.amount)*100),currency:"usd",description:`ToolTag balance · ${prepared.data.job_code}`,customerEmail:prepared.data.customer_email,successUrl:`${base}/${kind === "route-payment" ? "status" : "payment"}/${encodeURIComponent(token)}`,cancelUrl:`${base}/${kind === "route-payment" ? "status" : "payment"}/${encodeURIComponent(token)}`,jobId:prepared.data.job_id,quoteId:prepared.data.quote_id,paymentScope:"full"});
+      if(!result.redirectUrl || !result.providerReference) return {error:"Card checkout unavailable."};
+      const attached=await db.rpc("attach_route_card_session",{p_token:token,p_attempt:attemptId,p_reference:result.providerReference});
+      if(attached.error)return {error:attached.error.message};
+      return {ok:true,link:result.redirectUrl};
+    } catch {return {error:"Could not start card checkout."};}
+  }
+  if (kind === "logistics-payment") {
+    const scope = String(form.get("scope") || "") as PaymentScope;
+    const method = String(form.get("method") || "") as PaymentMethod;
+    if (!["full", "fee_only"].includes(scope))
+      return { error: "Choose how much you would like to pay now." };
+    if (!["Card", "Zelle", "Venmo"].includes(method))
+      return { error: "Choose Card, Zelle, or Venmo." };
+
+    const attemptId = randomUUID();
+    const { data: prepared, error: prepareError } = await db.rpc(
+      "prepare_logistics_payment",
+      {
+        p_token: token,
+        p_scope: scope,
+        p_method: method,
+        p_attempt: attemptId,
+      },
+    );
+    if (prepareError || !prepared)
+      return {
+        error: prepareError?.message || "Could not prepare the payment.",
+      };
+
+    const destination =
+      method === "Zelle"
+        ? prepared.zelle
+        : method === "Venmo"
+          ? prepared.venmo
+          : null;
+    const provider = paymentProvider(method, destination);
+    if (!provider.isConfigured())
+      return {
+        error:
+          method === "Card"
+            ? "Card payments are not configured yet. Choose Zelle or Venmo."
+            : `${method} is not configured yet.`,
+      };
+
+    try {
+      const base = toolTagPublicUrl();
+      const result = await provider.start({
+        attemptId,
+        amountCents: Math.round(Number(prepared.amount) * 100),
+        currency: "usd",
+        description:
+          scope === "full"
+            ? `ToolTag full prepayment · ${prepared.job_code}`
+            : `ToolTag logistics fee · ${prepared.job_code}`,
+        customerEmail: String(prepared.customer_email || ""),
+        successUrl: `${base}/review/${encodeURIComponent(token)}/payment?card=success`,
+        cancelUrl: `${base}/review/${encodeURIComponent(token)}/payment?card=cancelled`,
+        jobId: String(prepared.job_id),
+        quoteId: String(prepared.quote_id),
+        paymentScope: scope,
+      });
+
+      if (result.provider === "manual") {
+        let proofPath: string | null = null;
+        const proof = form.get("proof");
+        if (proof instanceof File && proof.size > 0) {
+          const types: Record<string,string> = {"image/png":"png", "image/jpeg":"jpg", "image/webp":"webp"};
+          if (!types[proof.type] || proof.size > 5 * 1024 * 1024) return {error:"Use a PNG, JPG or WebP screenshot up to 5 MB."};
+          proofPath = `${TOOLTAG}/${attemptId}.${types[proof.type]}`;
+          const upload = await storageAdmin().storage.from("payment-proofs").upload(proofPath, new Uint8Array(await proof.arrayBuffer()), {contentType:proof.type, upsert:false});
+          if (upload.error) return {error:"Could not upload payment proof. Your payment was not submitted."};
+        }
+        const { data, error } = await db.rpc(
+          "mark_logistics_manual_with_proof",
+          { p_token: token, p_attempt: attemptId, p_path:proofPath },
+        );
+        if (error) {
+          if (proofPath) await storageAdmin().storage.from("payment-proofs").remove([proofPath]);
+          return { error: error.message };
+        }
+        await dispatchWorkerMail();
+        revalidatePath(`/review/${token}/payment`);
+        revalidatePath("/app", "layout");
+        return { ok: true, data };
+      }
+
+      if (!result.providerReference || !result.redirectUrl)
+        return {
+          error: "Card checkout did not return a secure payment link.",
+        };
+
+      const { error } = await db.rpc("attach_logistics_card_session", {
+        p_token: token,
+        p_attempt: attemptId,
+        p_provider_reference: result.providerReference,
+      });
+      if (error) return { error: error.message };
+
+      return {
+        ok: true,
+        link: result.redirectUrl,
+        data: { status: result.state },
+      };
+    } catch (error) {
+      return {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Payment could not be started.",
+      };
+    }
+  }
+
   if (["work-ready","work-additional","extension-accept"].includes(kind)) {
     if(kind==="extension-accept" && form.get("confirmed")!=="on") return {error:"Confirm the additional scope and price."};
     const {error}= kind==="extension-accept"
@@ -307,16 +485,23 @@ export async function customerAction(
     if(error) return {error:error.message};
     revalidatePath(`/work/${token}`);revalidatePath(`/extension/${token}`);revalidatePath("/app","layout");return {ok:true};
   }
-  if (kind === "payment") {
+  if (
+    kind === "payment" ||
+    kind === "route-payment" ||
+    kind === "pickup-payment" ||
+    kind === "cancellation-payment"
+  ) {
+    const pickupFee = kind === "pickup-payment";
+    const cancellationBalance = kind === "cancellation-payment";
     const method = String(form.get("method") || "");
     const requestKey = randomUUID();
     let proofPath: string | null = null;
     const file = form.get("proof");
 
-    if (!["Cash", "Zelle", "Venmo"].includes(method))
-      return { error: "Choose Cash, Zelle or Venmo." };
+    if (pickupFee ? !["Zelle", "Venmo"].includes(method) : !["Cash", "Zelle", "Venmo"].includes(method))
+      return { error: pickupFee ? "Choose Zelle or Venmo." : "Choose Cash, Zelle or Venmo." };
 
-    if (method !== "Cash") {
+    if (method !== "Cash" && (!pickupFee || (file instanceof File && file.size > 0))) {
       if (!(file instanceof File) || file.size === 0)
         return { error: "Upload a screenshot of your Zelle or Venmo payment." };
       if (file.size > 5 * 1024 * 1024)
@@ -331,7 +516,9 @@ export async function customerAction(
       if (!ext) return { error: "Use a PNG, JPG, or WebP screenshot." };
 
       const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const key =
+        process.env.SUPABASE_SECRET_KEY ??
+        process.env.SUPABASE_SERVICE_ROLE_KEY;
       if (!url || !key) return { error: "Payment upload is not configured." };
 
       const admin = createClient(url, key, {
@@ -345,17 +532,35 @@ export async function customerAction(
       if (uploadError) return { error: "Could not upload payment proof." };
     }
 
-    const { error } = await db.rpc("public_submit_payment_request", {
-      p_token: token,
-      p_request: requestKey,
-      p_method: method,
-      p_proof_path: proofPath,
-    });
+    const { error } = kind === "route-payment"
+      ? await db.rpc("submit_route_payment",{p_token:token,p_method:method,p_request:requestKey,p_path:proofPath})
+      : pickupFee
+      ? await db.rpc("public_submit_pickup_fee_payment", {
+          p_token: token,
+          p_request: requestKey,
+          p_method: method,
+          p_proof_path: proofPath,
+        })
+      : cancellationBalance
+        ? await db.rpc("public_status_submit_cancellation_payment", {
+            p_token: token,
+            p_request: requestKey,
+            p_method: method,
+            p_proof_path: proofPath,
+          })
+        : await db.rpc("public_submit_payment_request", {
+            p_token: token,
+            p_request: requestKey,
+            p_method: method,
+            p_proof_path: proofPath,
+          });
 
     if (error) {
       if (proofPath) {
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const key =
+        process.env.SUPABASE_SECRET_KEY ??
+        process.env.SUPABASE_SERVICE_ROLE_KEY;
         if (url && key) {
           const admin = createClient(url, key, {
             auth: { persistSession: false, autoRefreshToken: false },
@@ -367,32 +572,56 @@ export async function customerAction(
     }
 
     await dispatchWorkerMail();
+    if (pickupFee) {
+      revalidatePath(`/pickup/${token}/payment`);
+      revalidatePath("/app", "layout");
+      return { ok: true };
+    }
+    if (cancellationBalance) {
+      revalidatePath(`/status/${token}`);
+      revalidatePath("/app", "layout");
+      return { ok: true };
+    }
     revalidatePath(`/completion/${token}`);
     revalidatePath("/app", "layout");
     return { ok: true, link: `/payment/${token}/confirmation` };
   }
   if (kind === "review") {
-    const { error } = await db.rpc("accept_review", {
+    let logistics: unknown;
+    try {
+      logistics = JSON.parse(String(form.get("logistics") || "null"));
+    } catch {
+      return { error: "Review your logistics selection and try again." };
+    }
+
+    const { data, error } = await db.rpc("accept_review_with_logistics", {
       p_token: token,
       p_quote_confirmed: form.get("quote_confirmed") === "on",
       p_agreement_confirmed: form.get("agreement_confirmed") === "on",
-      p_name: String(form.get("name") ?? "").trim(),
-      p_email: String(form.get("email") ?? "").trim(),
-      p_phone: String(form.get("phone") ?? "").trim(),
+      p_logistics: logistics,
     });
     if (error) return { error: error.message };
+
     after(async () => {
       await processAcceptedWorker();
       await dispatchWorkerMail();
     });
+
     revalidatePath(`/review/${token}`);
+    revalidatePath(`/review/${token}/payment`);
     revalidatePath(`/accept/${token}`);
     revalidatePath("/app", "layout");
-    return { ok: true };
+
+    return {
+      ok: true,
+      link: data?.payment_path || undefined,
+      data,
+    };
   }
+
   if (!["accept", "issue"].includes(kind))
     return { error: "Use the combined quote and Agreement review page." };
-  const { error } = await db.rpc("public_completion", {
+  const { data, error } = await db.rpc("public_completion", {
     p_token: token,
     p_decision: kind,
   });
@@ -400,6 +629,11 @@ export async function customerAction(
   await dispatchWorkerMail();
   revalidatePath(`/completion/${token}`);
   return kind === "accept"
-    ? { ok: true, link: `/payment/${token}` }
+    ? {
+        ok: true,
+        link: data?.payment?.paid_in_full
+          ? `/payment/${token}/confirmation`
+          : `/payment/${token}`,
+      }
     : { ok: true };
 }

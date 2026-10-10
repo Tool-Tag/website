@@ -37,9 +37,6 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "src/components/movement-form 2.tsx",
-    "src/features/finance 2.tsx",
-    "src/features/settings 2.tsx"
+    "node_modules"
   ]
 }

@@ -1,0 +1,50 @@
+
+> tooltag-core@0.1.0 test
+> node --test tests/*.test.cjs && node --import tsx --test tests/core.test.ts
+
+✔ images use image references and scale frame area (1.544458ms)
+✔ letters separate Fill and Line and scale count/height (0.372098ms)
+✔ exact references preferred; missing types and distant measures not used (0.269986ms)
+✔ reports spread and rejects invalid queries (0.477858ms)
+✔ seven supplied records, exact values and blank machine/date; seeds only on first visit (26.64015ms)
+✔ existing records and an intentionally empty table are preserved (3.365712ms)
+✔ corrupt or inaccessible storage does not get overwritten (2.385371ms)
+✔ search and status filter combine and expose empty results (1.351562ms)
+✔ export preserves all rows; import merges, deduplicates and rejects invalid files atomically (7.377688ms)
+✔ schema rejects invalid dates, units, speeds and fractional passes (1.900245ms)
+✔ optional dimensions survive editing, reload and JSON export/import; old records remain valid (5.999412ms)
+✔ title opens details, Edit switches dialogs and cancel restores details without changing data (2.131741ms)
+✔ wizard stores independent logo and text only when finished, and detail/edit/reload/export retain them (6.224329ms)
+✔ wizard back, canceled element, removal and canceled edit never partially save (2.021571ms)
+✔ wizard validation rejects invalid elements and bad imports atomically (2.206595ms)
+✔ links and assets resolve correctly from /hub (2.24448ms)
+✔ links and assets resolve correctly from /hub/ (0.431349ms)
+✔ links and assets resolve correctly from /hub/falcon (1.067185ms)
+✔ links and assets resolve correctly from /hub/falcon/ (1.843396ms)
+✔ Hub logo asset exists and styles match ToolTag colors (1.930503ms)
+✔ duration and dimensions validate without inventing values (3.386672ms)
+✔ create, detail, edit, persistence, search, export, import, delete (10.808694ms)
+✔ bad imports, corrupt storage and failed saves preserve data (3.034722ms)
+✔ root-relative routes work with and without trailing slash (1.318691ms)
+✔ Letras enables Fill/Line; Imagen disables mode and saves without letter dimensions (3.876115ms)
+ℹ tests 25
+ℹ suites 0
+ℹ pass 25
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 164.190934
+✔ Money calculations use integer cents, including fractional unit prices (1.323902ms)
+✔ Adapters never pretend an upload or message succeeded (0.638178ms)
+✔ Login errors distinguish configuration from credentials without leaking raw messages (0.346825ms)
+✔ Logo adaptation charges once per distinct link, across quantities and articles (0.515849ms)
+✔ Paint charges $2 per colored piece, not per engraving, and excludes manual fees (0.307632ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 266.075605

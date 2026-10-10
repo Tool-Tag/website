@@ -20,6 +20,7 @@ export function QuoteBuilder({
   initial,
   notes,
   extensionId,
+  getTaggedQuoteId,
 }: {
   customers: { id: string; name: string }[];
   customer?: string;
@@ -27,6 +28,7 @@ export function QuoteBuilder({
   initial?: QuoteItem[];
   notes?: string;
   extensionId?: string;
+  getTaggedQuoteId?: string;
 }) {
   const [items, setItems] = useState<QuoteItem[]>(
     (initial ?? []).filter((i) => !i.adaptation_fee && !i.paint_fee && !i.additional_engraving_fee).map((item) => ({ ...item, marks: item.marks?.map((m) => ({ ...m, paint_fill: m.paint_fill ?? item.paint_fill, paint_details: m.paint_details ?? (item.paint_fill ? item.paint_details : undefined) })) })),
@@ -42,8 +44,18 @@ export function QuoteBuilder({
     instructions: "",
   });
   const dialog = useRef<HTMLDialogElement>(null);
+  const operation = extensionId
+    ? "extension-scope"
+    : getTaggedQuoteId
+      ? "get-tagged-review"
+      : "quote";
+  const back = extensionId
+    ? `/app/job-extensions/${extensionId}`
+    : getTaggedQuoteId
+      ? `/app/quotes/${getTaggedQuoteId}`
+      : "/app/quotes";
   const [state, action, pending] = useActionState(
-    mutate.bind(null, extensionId ? "extension-scope" : "quote", extensionId ? `/app/job-extensions/${extensionId}` : "/app/quotes"),
+    mutate.bind(null, operation, back),
     {},
   );
   function open(index: number | null) {
@@ -88,17 +100,18 @@ export function QuoteBuilder({
     <>
       <form action={action}>
         {extensionId && <input type="hidden" name="id" value={extensionId}/>}
+        {getTaggedQuoteId && <input type="hidden" name="id" value={getTaggedQuoteId}/>}
         <input type="hidden" name="items" value={JSON.stringify(items)} />
         {revises && <input type="hidden" name="revises_id" value={revises} />}
         <label>
-          Cliente
+          Customer
           <select
             name="customer_id"
             required
             defaultValue={customer}
-            disabled={!!revises || !!extensionId}
+            disabled={!!revises || !!extensionId || !!getTaggedQuoteId}
           >
-            <option value="">Seleccionar cliente…</option>
+            <option value="">Select Customer…</option>
             {customers.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -107,8 +120,8 @@ export function QuoteBuilder({
           </select>
         </label>
         <p className="muted">
-          Precio manual por artículo. Adaptación para Falcon: $3 por imagen/logo
-          diferente, una sola vez por cotización. Primer grabado incluido; cada adicional cuesta $5 por pieza. Pintura: $2 extra por pieza coloreada.
+          Manual price per item. Falcon adaptation: $3 per image/logo
+          different, charged once per Quote. First engraving included; each additional engraving is $5 per piece. Paint fill: $2 extra per colored piece.
         </p>
         <div className="actions">
           <button
@@ -116,7 +129,7 @@ export function QuoteBuilder({
             className="secondary"
             onClick={() => open(null)}
           >
-            Agregar artículo
+            Add Item
           </button>
         </div>
         {items.map((item, i) => (
@@ -128,14 +141,14 @@ export function QuoteBuilder({
                 className="secondary"
                 onClick={() => open(i)}
               >
-                Editar artículo
+                Edit Item
               </button>
               <button
                 type="button"
                 className="secondary"
                 onClick={() => setItems((old) => old.filter((_, n) => n !== i))}
               >
-                Quitar artículo
+                Remove Item
               </button>
             </div>
           </section>
@@ -143,15 +156,15 @@ export function QuoteBuilder({
 
         {designs.length > 0 && (
           <p>
-            Adaptación para Falcon: {designs.length} diseño(s) × $3 ={" "}
+            Falcon Adaptation: {designs.length} design(s) × $3 ={" "}
             {money(String(designs.length * 3))}
           </p>
         )}
-        {paintedQuantity(items) > 0 && <p>Relleno de pintura: {paintedQuantity(items)} pieza(s) × $2 = {money(String(paintedQuantity(items) * 2))}. Una vez por pieza, aunque tenga varios grabados con color.</p>}
-        {additionalEngravings(items)>0 && <p>Grabados adicionales: {additionalEngravings(items)} × $5 = {money(String(additionalEngravings(items)*5))}</p>}
+        {paintedQuantity(items) > 0 && <p>Paint Fill: {paintedQuantity(items)} piece(s) × $2 = {money(String(paintedQuantity(items) * 2))}. Charged once per piece, even when the piece has multiple colored engravings.</p>}
+        {additionalEngravings(items)>0 && <p>Additional Engravings: {additionalEngravings(items)} × $5 = {money(String(additionalEngravings(items)*5))}</p>}
         <h3>Total: {money(total)}</h3>
         <label style={{ margin: "20px 0" }}>
-          Notas generales
+          General Notes
           <textarea name="notes" defaultValue={notes} />
         </label>
         {state.error && (
@@ -161,10 +174,14 @@ export function QuoteBuilder({
         )}
         <button disabled={pending || !items.length}>
           {pending
-            ? "Guardando…"
-            : revises
-              ? "Crear revisión"
-              : extensionId ? "Guardar propuesta de extensión" : "Guardar cotización"}
+            ? "Saving…"
+            : getTaggedQuoteId
+              ? "Complete Request Review"
+              : revises
+                ? "Create Revision"
+                : extensionId
+                  ? "Save Extension Proposal"
+                  : "Save Quote"}
         </button>
       </form>
       <dialog
@@ -192,7 +209,7 @@ export function QuoteBuilder({
                     : "Text",
               engraving_text: marks
                 .map((m) =>
-                  m.type === "Text" ? m.text : `Imagen / Logo: ${m.url}`,
+                  m.type === "Text" ? m.text : `Image / Logo: ${m.url}`,
                 )
                 .join("\n"),
             };
@@ -211,39 +228,39 @@ export function QuoteBuilder({
         >
           <div className="actions">
             <h2 id="article-title">
-              {editing === null ? "Agregar artículo" : "Editar artículo"}
+              {editing === null ? "Add Item" : "Edit Item"}
             </h2>
             <button
               type="button"
               className="secondary"
-              aria-label="Cerrar"
+              aria-label="Close"
               onClick={() => dialog.current?.close()}
             >
-              Cerrar
+              Close
             </button>
           </div>
           {confirming ? (
             <>
-              <h3>Confirma el trabajo antes de guardar</h3>
+              <h3>Confirm the Work Before Saving</h3>
               <QuoteScope items={[draft]} />
-              {additionalEngravings([draft])>0 && <p>Grabados adicionales: {money(String(additionalEngravings([draft])*5))}</p>}
-              {paintedQuantity([draft]) > 0 && <p>Pintura: {draft.quantity} pieza(s) × $2 = {money(String(draft.quantity * 2))} adicionales.</p>}
+              {additionalEngravings([draft])>0 && <p>Additional Engravings: {money(String(additionalEngravings([draft])*5))}</p>}
+              {paintedQuantity([draft]) > 0 && <p>Paint: {draft.quantity} piece(s) × $2 = {money(String(draft.quantity * 2))} additional.</p>}
               <div className="actions">
                 <button
                   type="button"
                   className="secondary"
                   onClick={() => setConfirming(false)}
                 >
-                  Volver a editar
+                  Back to Edit
                 </button>
-                <button>Confirmar y guardar</button>
+                <button>Confirm & Save</button>
               </div>
             </>
           ) : (
             <>
               <div className="formgrid">
                 <label>
-                  Artículo / modelo
+                  Item / Model
                   <input
                     autoFocus
                     required
@@ -252,7 +269,7 @@ export function QuoteBuilder({
                   />
                 </label>
                 <label>
-                  Cantidad
+                  Quantity
                   <input
                     type="number"
                     min="1"
@@ -263,7 +280,7 @@ export function QuoteBuilder({
                   />
                 </label>
                 <label>
-                  Precio unitario (USD)
+                  Unit Price (USD)
                   <input
                     type="number"
                     min="0"
@@ -274,7 +291,7 @@ export function QuoteBuilder({
                   />
                 </label>
                 <label>
-                  Concepto
+                  Type
                   <select
                     value={draft.engraving_type === "Fee" ? "Fee" : "Engraving"}
                     onChange={(e) =>
@@ -284,14 +301,14 @@ export function QuoteBuilder({
                       )
                     }
                   >
-                    <option value="Engraving">Grabado</option>
-                    <option value="Fee">Cargo adicional</option>
+                    <option value="Engraving">Engraving</option>
+                    <option value="Fee">Additional Fee</option>
                   </select>
                 </label>
                 {draft.engraving_type !== "Fee" && (
                   <>
                     <label>
-                      Ancho (mm)
+                      Width (mm)
                       <input
                         type="number"
                         min="0.01"
@@ -301,7 +318,7 @@ export function QuoteBuilder({
                       />
                     </label>
                     <label>
-                      Alto (mm)
+                      Height (mm)
                       <input
                         type="number"
                         min="0.01"
@@ -316,39 +333,39 @@ export function QuoteBuilder({
               {draft.engraving_type !== "Fee" && (
                 <>
                   <p>
-                    {draft.marks?.length ?? 0} grabado(s) por artículo. Agrega
-                    uno por cada ubicación.
+                    {draft.marks?.length ?? 0} engraving(s) per item. Add
+                    one for each location.
                   </p>
                   {draft.marks?.map((m, i) => (
                     <fieldset className="item" key={i}>
-                      <legend>Marca / grabado {i + 1}</legend>
+                      <legend>Mark / Engraving {i + 1}</legend>
                       <label>
-                        Tipo
+                        Type
                         <select
                           value={m.type}
                           onChange={(e) =>
                             mark(i, { type: e.target.value as Mark["type"] })
                           }
                         >
-                          <option value="Text">Letras</option>
-                          <option value="Image / Logo">Imagen / Logo</option>
+                          <option value="Text">Text</option>
+                          <option value="Image / Logo">Image / Logo</option>
                         </select>
                       </label>
                       <label>
-                        Ubicación del grabado
+                        Engraving Location
                         <input
                           required
                           value={m.location ?? ""}
                           onChange={(e) =>
                             mark(i, { location: e.target.value })
                           }
-                          placeholder="Lado izquierdo, derecho, arriba…"
+                          placeholder="Left side, right side, top…"
                         />
                       </label>
                       {m.type === "Text" ? (
                         <label>
-                          Texto a grabar · {Array.from(m.text).length}{" "}
-                          caracteres
+                          Text to Engrave · {Array.from(m.text).length}{" "}
+                          characters
                           <input
                             required
                             value={m.text}
@@ -358,7 +375,7 @@ export function QuoteBuilder({
                       ) : (
                         <>
                           <label>
-                            Descripción del logo
+                            Logo Description
                             <input
                               value={m.description ?? ""}
                               onChange={(e) =>
@@ -369,7 +386,7 @@ export function QuoteBuilder({
                           <QuoteImageInput value={m.url} onChange={(url) => mark(i, { url })} />
                           {designs.length > 0 && (
                             <label>
-                              Reutilizar un diseño
+                              Reuse a Design
                               <select
                                 value=""
                                 onChange={(e) =>
@@ -377,19 +394,19 @@ export function QuoteBuilder({
                                 }
                               >
                                 <option value="">
-                                  Seleccionar diseño existente…
+                                  Select Existing Design…
                                 </option>
                                 {designs.map((url, n) => (
                                   <option key={url} value={url}>
-                                    Diseño {n + 1}: {url}
+                                    Design {n + 1}: {url}
                                   </option>
                                 ))}
                               </select>
                             </label>
                           )}
                           <small>
-                            Usa el mismo enlace para repetir un diseño sin
-                            cobrar otra adaptación.
+                            Use the same link to repeat a design without
+                            charging another adaptation fee.
                           </small>
                         </>
                       )}
@@ -401,13 +418,13 @@ export function QuoteBuilder({
                             paintDialog.current?.showModal();
                           } else mark(i, { paint_fill: false, paint_details: undefined });
                         }} />
-                        Relleno de pintura · $2 extra por pieza
+                        Paint Fill · $2 extra per piece
                       </label>
                       {m.paint_fill && <button type="button" className="secondary" onClick={() => {
                         setPaintIndex(i);
                         setPaint(m.paint_details ?? { mode: "single", color: "", instructions: "" });
                         paintDialog.current?.showModal();
-                      }}>Editar pintura de este grabado</button>}
+                      }}>Edit Paint for This Engraving</button>}
                       {(draft.marks?.length ?? 0) > 1 && (
                         <button
                           type="button"
@@ -419,7 +436,7 @@ export function QuoteBuilder({
                             }))
                           }
                         >
-                          Quitar grabado
+                          Remove Engraving
                         </button>
                       )}
                     </fieldset>
@@ -437,12 +454,12 @@ export function QuoteBuilder({
                       }))
                     }
                   >
-                    Agregar otra marca / grabado
+                    Add Another Mark / Engraving
                   </button>
                 </>
               )}
               <label style={{ margin: "16px 0" }}>
-                Notas
+                Notes
                 <textarea
                   value={draft.notes}
                   onChange={(e) => update("notes", e.target.value)}
@@ -454,9 +471,9 @@ export function QuoteBuilder({
                   className="secondary"
                   onClick={() => dialog.current?.close()}
                 >
-                  Cancelar
+                  Cancel
                 </button>
-                <button>Guardar artículo</button>
+                <button>Save Item</button>
               </div>
             </>
           )}
@@ -474,9 +491,9 @@ export function QuoteBuilder({
             paintDialog.current?.close();
           }}
         >
-          <h2 id="paint-title">Relleno de pintura</h2>
+          <h2 id="paint-title">Paint Fill</h2>
           <label>
-            Coloreado
+            Paint Mode
             <select
               value={paint.mode}
               onChange={(e) =>
@@ -486,13 +503,13 @@ export function QuoteBuilder({
                 }))
               }
             >
-              <option value="single">Un color</option>
-              <option value="multiple">Varios colores</option>
+              <option value="single">One Color</option>
+              <option value="multiple">Multiple Colors</option>
             </select>
           </label>
           {paint.mode === "single" ? (
             <label>
-              ¿Qué color?
+              What Color?
               <input
                 required
                 value={paint.color}
@@ -503,7 +520,7 @@ export function QuoteBuilder({
             </label>
           ) : (
             <label>
-              Instrucciones del coloreado
+              Paint Instructions
               <textarea
                 required
                 value={paint.instructions}
@@ -519,9 +536,9 @@ export function QuoteBuilder({
               className="secondary"
               onClick={() => paintDialog.current?.close()}
             >
-              Cancelar
+              Cancel
             </button>
-            <button>Guardar pintura</button>
+            <button>Save Paint</button>
           </div>
         </form>
       </dialog>

@@ -46,19 +46,19 @@ Each approved extension creates exactly one additional SALE ledger component, li
 
 A successful physical-delivery acknowledgment stores one immutable record and scope hash, confirms receipt only, and never asserts payment or waives rights. Administrative deemed acceptance remains distinct and never creates an explicit customer acknowledgment.
 
-The final job receipt freezes the base scope, approved extensions, payment history, grand total, amount collected, refunds and balance. It reports PAID IN FULL only when the current balance is zero and there are no refund adjustments. Its date uses the last qualifying collection date. Same snapshot means same logical receipt. It is generated/queued at delivery, after a new collection on a delivered job, or manually from the Job; Billing sends the summary in the email body. The admin can view/print it. Agreement PDFs remain the separate official acceptance documents. Receipts are metadata/snapshots pending Drive storage; no Drive upload is claimed.
+The final job receipt freezes the base scope, approved extensions, payment history, grand total, amount collected, refunds and balance. It reports PAID IN FULL only when the current balance is zero and there are no refund adjustments. Its date uses the last qualifying collection date. Same snapshot means same logical receipt. It is generated/queued at delivery, after a new collection on a delivered job, or manually from the Job; Billing sends the summary in the email body. The admin can view/print it. Agreement PDFs remain the separate official acceptance documents. Receipts are immutable ToolTag snapshots in Postgres. When a receipt/evidence binary is uploaded, it is stored in Supabase Storage; the structured final receipt itself has no separate binary unless one is explicitly generated.
 
-## Drive: visual preparation only
+## Storage architecture
 
-Drive is intentionally NOT connected in this phase. No API scopes or credentials are requested/used. Receiving and Completed sections show gallery cards and in-app placeholder viewers. Upload Photo/File controls are disabled. There are no real thumbnails or file streams until the next Drive phase. The legacy admin-only manual file-ID link remains secondary so the existing evidence-gated workflow can still operate. No normal customer is redirected to Drive.
+Supabase is the primary store: Postgres holds records/metadata and private Supabase Storage buckets hold all new binaries. Evidence, uploaded receipts, quote images and newly generated accepted PDFs are linked to their Storage object and remain behind ToolTag authorization routes.
 
-Future folders: ToolTag Customers / CUST... / Customer Documents; Jobs / TT-J... / Quote, Agreement, Receiving, Completed, Payments, Issue-Review, Other. Existing Drive IDs and metadata are preserved. Later authorization should use a deliberately configured Drive OAuth grant and least-privilege access to ToolTag-managed files, independent of Gmail-only tokens.
+Google Drive is not an active integration and the app does not write new files or IDs to it. Historical `drive_file_id` values remain read-only compatibility references. A future periodic backup synchronization from Supabase to Drive is a separate project and is not implemented here.
 
 ## Navigation and release limitations
 
 Internal pages have application-aware parent navigation. Job pages show commercial components, payment links, customer review status, evidence sections, acceptance PDF and delivery status.
 
-No tests or compilation were run, per instruction. Code has only been reviewed by reading it. End-to-end behavior, visual rendering and email receipt are unverified. Do not interpret this code-only delivery as a tested or deployed release. Drive remains intentionally disabled.
+No tests or compilation were run, per instruction. Code has only been reviewed by reading it. End-to-end behavior, visual rendering and email receipt are unverified. Do not interpret this code-only delivery as a tested or deployed release. Supabase Storage is the active binary store; Drive backup synchronization remains out of scope.
 
 ### Prepared routes
 

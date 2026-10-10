@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 const config: NextConfig = {
   agentRules: false,
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "4mb",
+    },
+  },
   async rewrites() {
     return [
       { source: "/", destination: "/index.html" },
@@ -21,7 +26,18 @@ const config: NextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
         ],
       },
-      ...["/review/:path*", "/accept/:path*", "/work/:path*", "/extension/:path*", "/completion/:path*"].map((source) => ({
+      ...[
+        "/get-tagged/:path*",
+        "/review/:path*",
+        "/accept/:path*",
+        "/work/:path*",
+        "/extension/:path*",
+        "/completion/:path*",
+        "/payment/:path*",
+        "/status/:path*",
+        "/pickup/:path*",
+        "/help/cancel/:path*",
+      ].map((source) => ({
         source,
         headers: [
           { key: "Referrer-Policy", value: "no-referrer" },

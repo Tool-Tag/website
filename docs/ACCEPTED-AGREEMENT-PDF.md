@@ -6,11 +6,9 @@ The legal template is never interpolated or modified. The snapshot stores the ex
 
 ## PDF and durable storage
 
-`pdf-lib` composes a paginated letter-size PDF with ToolTag header, scope, exact legal text, electronic acceptance and full snapshot fingerprint. There is no handwritten signature. The first successful PDF is stored as bytes in `private.accepted_pdf_artifacts`, with a separate PDF SHA-256. Both messages and all later downloads/retries use these same stored bytes. PDF generation is asynchronous from business acceptance, and failure cannot undo an accepted Job/Sale.
+`pdf-lib` composes a paginated letter-size PDF with ToolTag header, scope, exact legal text, electronic acceptance and full snapshot fingerprint. There is no handwritten signature. Newly generated accepted PDFs are stored in the private `tooltag-files` Supabase Storage bucket and linked by bucket/path plus SHA-256 in the accepted-document status and document metadata. Both messages and later downloads use those same stored bytes. PDF generation is asynchronous from business acceptance, and failure cannot undo an accepted Job/Sale. Historical PDFs already present in `private.accepted_pdf_artifacts` remain a read-only compatibility fallback; new PDFs are not written there.
 
-This is a private database artifact, not Supabase Storage or a Drive upload. Maximum size is 4 MB. The standard PDF font covers ordinary English/Spanish text; unsupported characters cause explicit generation failure rather than silently altering legal text. Long content wraps and paginates. No local rendering/visual verification was run, per the user's instruction.
-
-Drive remains `Pending Drive Upload`; `drive_file_id` is null. A later Drive phase should upload the existing stored artifact under the same UUID/folio/fingerprint, not create a new logical document.
+Accepted PDFs are private Supabase Storage objects; direct provider URLs are not exposed to customers. Maximum size is 4 MB. The standard PDF font covers ordinary English/Spanish text; unsupported characters cause explicit generation failure rather than silently altering legal text. Long content wraps and paginates. Google Drive is not a primary store and receives no new writes from this app; a future backup-only synchronization job is out of scope.
 
 ## Test-only email behavior
 
@@ -28,7 +26,7 @@ SUPABASE_SERVICE_ROLE_KEY enables automatic processing after acceptance and the 
 
 ## Admin and retries
 
-Quote and Job pages show the folio, policy version, acceptance time, original recipient, PDF status, both email statuses, and Drive status. A private authenticated route `/app/accepted-documents/[id]/pdf` returns the stored PDF; UUID alone does not grant access. Responses are private/no-store.
+Quote and Job pages show the folio, policy version, acceptance time, original recipient, PDF status, both email statuses, and Storage status. A private authenticated route `/app/accepted-documents/[id]/pdf` returns the stored PDF; UUID alone does not grant access. Responses are private/no-store.
 
 Processing uses durable database claims. A failed PDF can be retried with its existing folio. A saved PDF is never rendered again. Customer and internal email retries are separate, and Sent copies are not resent. For a stale Queued message or GMAIL_DELIVERY_UNKNOWN, the admin must check Gmail Sent mail and confirm non-delivery before retrying. Gmail accepting a send is not proof of inbox delivery or reading. Retry requests are audited. Interrupted PDF generation or sends must wait ten minutes before a manual retry can release the claim.
 

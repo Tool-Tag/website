@@ -1,72 +1,131 @@
 "use server";
 
 import { createHash } from "node:crypto";
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase/server";
 import { dispatchWorkerMail } from "@/lib/integrations/mail-dispatch";
-import { z } from "zod";
 
-export type CancellationLookupState = {
-  ok?: boolean;
-  matched?: boolean;
-  message?: string;
+export type CancelAccessState = {
   error?: string;
+  matched?: boolean;
+  submitted?: boolean;
 };
 
-export async function requestCancellationAccess(
-  _: CancellationLookupState,
-  form: FormData,
-): Promise<CancellationLookupState> {
-  const parsed = z
-    .object({
-      name: z.string().trim().min(1),
-      email: z.email(),
-      phone: z.string().trim().min(7),
-    })
-    .safeParse({
-      name: String(form.get("name") ?? ""),
-      email: String(form.get("email") ?? "").trim(),
-      phone: String(form.get("phone") ?? ""),
-    });
-
-  if (!parsed.success) {
-    return { error: "Verify your name, email, and phone number and try again." };
-  }
-
+function serviceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return { error: "Cancellation service is not configured." };
-
-  const h = await headers();
-  const forwarded = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const network = createHash("sha256").update(forwarded).digest("hex");
-
-  const admin = createClient(url, key, {
+  if (!url || !key) throw new Error("Cancellation service is not configured.");
+  return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
 
-  const { data, error } = await admin.rpc("request_cancellation_access", {
-    p_network: network,
-    p_name: parsed.data.name,
-    p_email: parsed.data.email,
-    p_phone: parsed.data.phone,
-  });
+async function networkFingerprint() {
+  const h = await headers();
+  const raw =
+    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    h.get("x-real-ip") ||
+    "unknown";
+  return createHash("sha256").update(raw).digest("hex");
+}
 
-  if (error) return { error: error.message };
+export async function requestCancellationAccess(
+  _state: CancelAccessState,
+  form: FormData,
+): Promise<CancelAccessState> {
+  try {
+    const name = String(form.get("name") ?? "").trim();
+    const email = String(form.get("email") ?? "").trim();
+    const phone = String(form.get("phone") ?? "").trim();
 
-  if (data?.matched) {
-    await dispatchWorkerMail();
+    if (!name || !email || !phone) {
+      return { error: "Enter your name, email, and phone number." };
+    }
+
+    const db = serviceClient();
+    const { data, error } = await db.rpc("request_cancellation_access", {
+      p_network: await networkFingerprint(),
+      p_name: name,
+      p_email: email,
+      p_phone: phone,
+    });
+
+    if (error) return { error: error.message };
+
+    if (data?.matched) {
+      await dispatchWorkerMail();
+      return { submitted: true, matched: true };
+    }
+
+    return { submitted: true, matched: false };
+  } catch (error) {
     return {
-      ok: true,
-      matched: true,
-      message: "Your cancellation details have been sent to your email.",
+      error: error instanceof Error ? error.message : "Unable to check your services.",
     };
   }
+}
 
-  return {
-    ok: true,
-    matched: false,
-    message:
-      "We couldn’t find an active ToolTag service matching the information provided. Please verify your details and try again, or contact ToolTag Support.",
+export type CancellationAssessmentPayload = {
+  job_code?: string;
+  status_path?: string;
+  progress?: {
+    finished?: number;
+    total?: number;
+    started?: number;
   };
+  pickup_return?: {
+    terms_version?: string | number;
+  };
+  assessment?: {
+    rule?: string;
+    service_charge_percent?: string | number;
+    service_charge_amount?: unknown;
+    pickup_fee_amount?: unknown;
+    pickup_fee_refundable?: boolean;
+    refund_eligible_amount?: unknown;
+    amount_due?: unknown;
+    allowed?: boolean;
+  };
+};
+
+export type SecureCancelState = {
+  error?: string;
+  ok?: boolean;
+  data?: CancellationAssessmentPayload;
+};
+
+export async function secureCancellationAction(
+  token: string,
+  kind: "quote" | "job-assess" | "job-confirm",
+  id: string,
+  _state: SecureCancelState,
+  _form: FormData,
+): Promise<SecureCancelState> {
+  void _state;
+  void _form;
+  const db = await supabase();
+
+  const result =
+    kind === "quote"
+      ? await db.rpc("public_cancel_quote", { p_token: token, p_quote: id })
+      : kind === "job-assess"
+        ? await db.rpc("public_cancellation_assessment", {
+            p_token: token,
+            p_job: id,
+          })
+        : await db.rpc("public_confirm_job_cancellation", {
+            p_token: token,
+            p_job: id,
+          });
+
+  if (result.error) return { error: result.error.message };
+
+  if (kind !== "job-assess") {
+    await dispatchWorkerMail();
+    revalidatePath("/app", "layout");
+  }
+
+  return { ok: kind !== "job-assess", data: result.data };
 }

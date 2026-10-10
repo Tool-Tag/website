@@ -10,7 +10,7 @@ export function LoginForm() {
         <input name="email" type="email" autoComplete="username" required />
       </label>
       <label>
-        Contraseña
+        Password
         <input
           name="password"
           type="password"
@@ -23,7 +23,7 @@ export function LoginForm() {
           {state.error}
         </p>
       )}
-      <button disabled={pending}>{pending ? "Entrando…" : "Entrar"}</button>
+      <button disabled={pending}>{pending ? "Signing in…" : "Sign In"}</button>
     </form>
   );
 }

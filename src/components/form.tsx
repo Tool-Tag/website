@@ -16,7 +16,7 @@ export function Form({
   operation,
   fields,
   hidden = {},
-  button = "Guardar",
+  button = "Save",
   back = "/app",
   children,
 }: {
@@ -51,7 +51,7 @@ export function Form({
               required={f.required}
               defaultValue={f.value ?? ""}
             >
-              <option value="">Seleccionar…</option>
+              <option value="">Select…</option>
               {f.options.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
@@ -88,13 +88,13 @@ export function Form({
       )}
       {state.link && (
         <div className="notice success wide">
-          Enlace preparado. Consulta el registro de notificaciones para conocer el estado del correo.
+          Link prepared. Check the notification log for the email delivery status.
           <br />
           <a href={state.link} target="_blank" rel="noreferrer">
-            Abrir vista del cliente ↗
+            Open customer view ↗
           </a>
           <input
-            aria-label="Enlace del cliente"
+            aria-label="Customer link"
             readOnly
             value={
               typeof window !== "undefined"
@@ -106,8 +106,8 @@ export function Form({
         </div>
       )}
       {state.mailStatus && <p className="notice wide">{state.mailStatus}</p>}
-      {state.ok && <div className="notice success wide">Guardado.</div>}
-      <button disabled={pending}>{pending ? "Guardando…" : button}</button>
+      {state.ok && <div className="notice success wide">Saved.</div>}
+      <button disabled={pending}>{pending ? "Saving…" : button}</button>
     </form>
   );
 }

@@ -4,12 +4,14 @@ import { context } from "@/lib/domain/context";
 import { isConfigured } from "@/lib/supabase/server";
 import { Nav } from "@/components/nav";
 import { logout } from "@/app/actions";
+import { workspaceAttention } from "@/lib/domain/workspace-attention";
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const ctx = isConfigured() ? await context() : null;
+  const attention = ctx ? await workspaceAttention(ctx.db, ctx.unit) : undefined;
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -19,16 +21,21 @@ export default async function AppLayout({
             WORKSPACE
           </small>
         </Link>
-        <Nav />
+        <Nav attention={attention} />
         <div className="sidebar-bottom">
           <Nav bottom />
           <p>
+            <Link className="muted" href="/pick-return">
+              Pick & Return Mode ↗
+            </Link>
+          </p>
+          <p>
             <Link className="muted" href="/">
-              ↗ Sitio público
+              ↗ Public Site
             </Link>
           </p>
           <Link className="muted" href="/hub">
-            Falcon y Tiempos ↗
+            Falcon & Times ↗
           </Link>
         </div>
       </aside>
@@ -37,24 +44,24 @@ export default async function AppLayout({
           <form action="/app/customers">
             <input
               name="q"
-              placeholder="Buscar cliente, trabajo o cotización…"
-              aria-label="Buscar cliente o registro"
+              placeholder="Search customer, Job, or Quote…"
+              aria-label="Search customer or record"
             />
           </form>
           <span className="muted user">
-            {ctx?.user.email ?? "Configuración inicial"}
+            {ctx?.user.email ?? "Initial setup"}
           </span>
           {ctx && (
             <form action={logout}>
-              <button className="secondary">Salir</button>
+              <button className="secondary">Sign Out</button>
             </form>
           )}
         </header>
         <main className="content">
           {!ctx && (
             <div className="notice">
-              Falta conectar Supabase. Esta vista muestra la estructura; no
-              contiene datos de prueba ni permite guardar.
+              Supabase is not connected. This view shows the structure only and
+              cannot save data.
             </div>
           )}
           <BackNavigation />

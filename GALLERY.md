@@ -2,12 +2,12 @@
 
 ## Estado de entrega
 
-Implementada después de What We Tag y antes de How It Works. `dist/gallery-data.js` contiene `photos: []`: la sección queda oculta, no ocupa espacio y no carga imágenes. No se publican ejemplos ni mockups como trabajos reales. El resto del sitio conserva su estructura y estilos.
+Implementada después de What We Tag y antes de How It Works. `public/gallery-data.js` contiene `photos: []`: la sección queda oculta, no ocupa espacio y no carga imágenes. No se publican ejemplos ni mockups como trabajos reales. El resto del sitio conserva su estructura y estilos.
 
 ## Agregar trabajos reales
 
-1. Copiar las fotos reales en `dist/assets/work/`. Se recomiendan miniaturas WebP/JPEG de 800–1200 px y una versión grande si es necesaria.
-2. Editar solamente `dist/gallery-data.js`. Reemplazar la lista vacía con objetos como este, usando archivos reales existentes:
+1. Copiar las fotos reales en `public/assets/work/`. Se recomiendan miniaturas WebP/JPEG de 800–1200 px y una versión grande si es necesaria.
+2. Editar solamente `public/gallery-data.js`. Reemplazar la lista vacía con objetos como este, usando archivos reales existentes:
 
 ```js
 window.TOOLTAG_GALLERY = {
@@ -62,4 +62,4 @@ Antes de activar las fotos, revisar en la vista de Vercel:
 
 ## GitHub / Vercel
 
-Reemplazar el proyecto conservando `dist/` como directorio publicado. No hay instalación de dependencias ni compilación. Conservar `gallery-data.js` y `gallery.js` junto a `index.html`, `app.js` y `styles.css`. El ZIP de sitio listo contiene directamente esos archivos, con `index.html` en la raíz; el ZIP de proyecto incluye documentación y la carpeta `dist/`.
+El sitio estático versionado vive en `public/` y Next.js lo sirve directamente. Conservar `gallery-data.js` y `gallery.js` junto a `index.html`, `app.js` y `styles.css`; no generar una segunda copia en otra carpeta.

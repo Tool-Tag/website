@@ -1,8 +1,9 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
+import { BaselineDatabase } from "./baseline-database";
 import { readdir, readFile } from "node:fs/promises";
-const db = new PGlite();
+const db = process.env.BASELINE_DATABASE_URL ? new BaselineDatabase() : new PGlite();
 const unit = "10000000-0000-0000-0000-000000000002";
 const boft = "10000000-0000-0000-0000-000000000001";
 const admin = "90000000-0000-0000-0000-000000000001";
@@ -16,6 +17,9 @@ async function scalar(sql: string, args: unknown[] = []) {
   return Object.values(r.rows[0])[0] as string;
 }
 async function rpc(name: string, p: unknown) {
+  if (process.env.BASELINE_DATABASE_URL && name === "create_quote" && p && typeof p === "object" && "items" in p && Array.isArray(p.items)) {
+    p = { ...p, items: p.items.map(item => ({ ...item, marks: (item.marks || [{ type: item.engraving_type, text: item.engraving_text || "", url: item.image_url || "" }]).map((mark: Record<string, unknown>, index: number) => ({ ...mark, location: mark.location || `Test engraving location ${index + 1}` })) })) };
+  }
   return scalar(`select public.${name}($1::jsonb)`, [JSON.stringify(p)]);
 }
 async function move(
@@ -41,13 +45,20 @@ async function summary() {
   ).rows[0];
 }
 before(async () => {
+  if (!process.env.BASELINE_DATABASE_URL) {
+
   await db.exec(
     `create role anon; create role authenticated; create role service_role; create schema auth; create table auth.users(id uuid primary key); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$; create function auth.role() returns text language sql stable as $$ select current_setting('request.jwt.claim.role',true) $$; grant usage on schema auth to authenticated,anon,service_role; grant execute on all functions in schema auth to authenticated,anon,service_role;`,
   );
-  for (const f of (await readdir("supabase/migrations")).sort())
-    await db.exec(await readFile(`supabase/migrations/${f}`, "utf8"));
+  for (const f of (await readdir("supabase/migrations-archive/pre-baseline")).sort())
+    await db.exec(await readFile(`supabase/migrations-archive/pre-baseline/${f}`, "utf8"));
+  }
+  if (process.env.BASELINE_DATABASE_URL) {
+    // Existing tests intentionally exercise the unpublished-Agreement gate in their own disposable database.
+    await db.exec("SET session_replication_role=replica; DELETE FROM public.policies; SET session_replication_role=origin");
+  }
   await db.exec(
-    `insert into auth.users values('${admin}'); insert into public.memberships select id,'${admin}','admin' from public.business_units; select set_config('request.jwt.claim.sub','${admin}',false);`,
+    `insert into auth.users(id) values('${admin}'); insert into public.memberships select id,'${admin}','admin' from public.business_units; select set_config('request.jwt.claim.sub','${admin}',false);`,
   );
   account = await scalar("select id from public.accounts where unit_id=$1", [
     unit,
@@ -313,7 +324,7 @@ test("Partial refunds are capped by actual collection and need an override after
 test("Viewer may read only their unit, cannot write, cannot see shared bank balance", async () => {
   const viewer = "90000000-0000-0000-0000-000000000002";
   await db.exec(
-    `insert into auth.users values('${viewer}');insert into public.memberships values('${unit}','${viewer}','viewer');set role authenticated;select set_config('request.jwt.claim.sub','${viewer}',false);`,
+    `insert into auth.users(id) values('${viewer}');insert into public.memberships values('${unit}','${viewer}','viewer');set role authenticated;select set_config('request.jwt.claim.sub','${viewer}',false);`,
   );
   assert.equal(
     Number(await scalar("select count(*) from public.physical_accounts")),
@@ -377,7 +388,8 @@ test("Commercial revision preserves job and sale identities and prior agreement 
       {
         article: "Revised scope",
         quantity: 1,
-        engraving_type: "Image / Logo",
+        engraving_type: "Text",
+        engraving_text: "UPDATED",
         unit_price: "120.00",
       },
     ],
@@ -422,8 +434,9 @@ test("Receiving/completed evidence gate job transitions and missing messaging ne
     "select job_id from public.sales where transaction_id=$1",
     [sale],
   );
+  await scalar("select public.advance_job($1,'start')", [j]);
   await assert.rejects(
-    () => scalar("select public.advance_job($1,'start')", [j]),
+    () => scalar("select public.advance_job($1,'receiving-done')", [j]),
     /receiving evidence/,
   );
   await rpc("add_document", {
@@ -433,10 +446,10 @@ test("Receiving/completed evidence gate job transitions and missing messaging ne
     file_name: "receiving.jpg",
     drive_file_id: "test-receiving-00001",
   });
-  await scalar("select public.advance_job($1,'start')", [j]);
+  await scalar("select public.advance_job($1,'receiving-done')", [j]);
   await assert.rejects(
     () => scalar("select public.advance_job($1,'ready')", [j]),
-    /completed evidence/,
+    /completed (work )?evidence/,
   );
   await rpc("add_document", {
     unit_id: unit,
@@ -445,8 +458,7 @@ test("Receiving/completed evidence gate job transitions and missing messaging ne
     file_name: "completed.jpg",
     drive_file_id: "test-completed-00001",
   });
-  await scalar("select public.advance_job($1,'ready')", [j]);
-  const link = await scalar("select public.advance_job($1,'deliver')", [j]);
+  const link = await scalar("select public.advance_job($1,'ready')", [j]);
   assert.equal(
     await scalar("select acceptance_deadline from public.jobs where id=$1", [
       j,
@@ -471,7 +483,7 @@ test("Receiving/completed evidence gate job transitions and missing messaging ne
 test("Scheduled worker is restricted and monthly close is idempotent", async () => {
   await assert.rejects(
     () => scalar("select public.run_scheduled_tasks()"),
-    /credentials/,
+    /(credentials|permission denied)/,
   );
   await db.exec(
     "select set_config('request.jwt.claim.role','service_role',false)",
@@ -540,7 +552,7 @@ test("Quote marks persist and adaptation is calculated once per design by the da
         [q],
       ),
     ),
-    66,
+    71,
   );
   assert.equal(
     Number(

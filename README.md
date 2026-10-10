@@ -1,6 +1,6 @@
 # ToolTag Workspace + sitio público
 
-La nueva aplicación vive en `/app` y usa Next.js, TypeScript y Supabase. El sitio público y las herramientas Falcon/Tiempos siguen en `dist/` sin cambios; se copian a `public/` al compilar.
+La nueva aplicación vive en `/app` y usa Next.js, TypeScript y Supabase. El sitio público estático y las herramientas Falcon/Tiempos viven directamente en `public/`, que es su fuente canónica versionada y Next.js sirve sin un paso de copia previo.
 
 - **Instalación y activación:** [docs/SETUP.md](docs/SETUP.md)
 - **Validación y límites:** [docs/VALIDATION.md](docs/VALIDATION.md)
@@ -8,7 +8,7 @@ La nueva aplicación vive en `/app` y usa Next.js, TypeScript y Supabase. El sit
 - **Desarrollo:** `npm ci` y `npm run dev` (configurar `.env.local`).
 - **Checks:** `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:db`, `npm run build`.
 
-La aplicación remota requiere aplicar las migraciones y autorizar el primer usuario. Las integraciones de Drive/email/SMS no se simulan. No se modificó BOFT producción.
+La aplicación remota requiere aplicar las migraciones y autorizar el primer usuario. Supabase Postgres + Supabase Storage son la fuente primaria de registros y binarios. Google Drive queda reservado para un respaldo futuro y la app no escribe archivos nuevos allí. Email/SMS mantienen sus contratos separados. No se modificó BOFT producción.
 
 ---
 
@@ -20,15 +20,15 @@ Sitio one-page responsive EN/ES. HTML, CSS y JavaScript sin dependencias de prod
 
 ## Revisar
 
-Abra `dist/index.html` en un navegador, o sirva `dist/` con cualquier servidor estático. Para vista local: `python3 -m http.server 4173 --directory dist` y abra http://localhost:4173.
+Abra `public/index.html` en un navegador, o sirva `public/` con cualquier servidor estático. Para vista local: `python3 -m http.server 4173 --directory public` y abra http://localhost:4173.
 
 ## Archivos
 
-- `dist/index.html`: contenido, navegación, servicios, formulario modal y footer legal.
-- `dist/styles.css`: diseño responsive negro, azul eléctrico, dorado y blanco.
-- `dist/app.js`: traducciones EN/ES, preferencia de idioma y revisión local del formulario.
-- `dist/assets/tooltag-logo.png`: copia sin modificaciones del logo real proporcionado.
-- `dist/assets/favicon.svg`: favicon simple con la paleta de ToolTag.
+- `public/index.html`: contenido, navegación, servicios, formulario modal y footer legal.
+- `public/styles.css`: diseño responsive negro, azul eléctrico, dorado y blanco.
+- `public/app.js`: traducciones EN/ES, preferencia de idioma y revisión local del formulario.
+- `public/assets/tooltag-logo.png`: copia sin modificaciones del logo real proporcionado.
+- `public/assets/favicon.svg`: favicon simple con la paleta de ToolTag.
 - `.openai/hosting.json`: identificación del sitio y salida estática para Sites.
 
 ## Comportamiento de V1
@@ -54,4 +54,4 @@ La foto protagonista, la franja blanca y las imágenes de producto de la revisi�
 
 ## Publicación
 
-`dist/` se puede alojar en cualquier hosting estático, incluido el dominio definitivo cuando se decida. No hacen falta variables de entorno para esta versión de revisión. El enlace Sites se mantiene privado.
+`public/` contiene los archivos estáticos versionados que Next.js sirve directamente. No requiere un proceso de generación separado; Vercel los incluye desde un clone limpio del repositorio.

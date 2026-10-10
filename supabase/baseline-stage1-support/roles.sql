@@ -1,0 +1,15 @@
+CREATE ROLE anon;
+CREATE ROLE authenticated;
+CREATE ROLE authenticator;
+CREATE ROLE cli_login_postgres;
+CREATE ROLE dashboard_user;
+CREATE ROLE pgbouncer;
+CREATE ROLE service_role;
+CREATE ROLE supabase_admin;
+CREATE ROLE supabase_auth_admin;
+CREATE ROLE supabase_etl_admin;
+CREATE ROLE supabase_privileged_role;
+CREATE ROLE supabase_read_only_user;
+CREATE ROLE supabase_realtime_admin;
+CREATE ROLE supabase_replication_admin;
+CREATE ROLE supabase_storage_admin;

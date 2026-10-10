@@ -1,5 +1,5 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');const vm=require('node:vm');
-const dir=path.resolve(__dirname,'../dist/hub/tiempos');const data=require(path.join(dir,'times-data.js'));
+const dir=path.resolve(__dirname,'../public/hub/tiempos');const data=require(path.join(dir,'times-data.js'));
 const row={id:'sample',title:'Batería',letters:10,letterHeight:4,frameWidth:40,frameHeight:12,seconds:90,notes:''};
 function app(saved=null){
  class El{constructor(){this.value='';this.children=[];this.listeners={};}addEventListener(k,f){this.listeners[k]=f;}setAttribute(){}append(x){this.children.push(x);}replaceChildren(){this.children=[];}click(){return this.listeners.click?.({target:this});}showModal(){this.open=true;}close(){this.open=false;}focus(){}}

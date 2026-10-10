@@ -1,3 +1,4 @@
+import {denverDateTime} from "@/lib/domain/time";
 import { rows, context } from "@/lib/domain/context";
 import { Heading, Panel, Table, Empty } from "@/components/ui";
 import { Form } from "@/components/form";
@@ -14,21 +15,20 @@ export async function Settings() {
   return (
     <>
       <Heading
-        title="Configuración"
+        title="Settings"
         subtitle="ToolTag · Bandits of the Framing LLC"
       />
-      <Panel title="Correo de producción">
+      <Panel title="Production Email">
         <p>Modo del servidor: {process.env.TOOLTAG_MAIL_MODE || "preview"}</p>
-        <p>Inicio de avisos elegibles: {mail?.activated_at || "Pendiente de activar"}</p>
-        <p>La activación no reenvía pruebas ni notificaciones históricas. Los fallos requieren un reintento individual.</p>
-        {role==="admin" && !mail?.activated_at && <Form operation="activate-live-mail" fields={[]} button="Habilitar avisos nuevos" back="/app/settings"><label className="checkbox"><input type="checkbox" name="confirm" required/>Activar únicamente los avisos nuevos desde este momento.</label></Form>}
-        <p className="muted">Para entregar a clientes, Vercel debe tener TOOLTAG_MAIL_MODE=live. Esta pantalla no modifica variables de Vercel.</p>
+        <p>Eligible notifications start: {mail?.activated_at || "Pending Activation"}</p>
+        <p>Activation does not resend tests or historical notifications. Failures require an individual retry.</p>
+        {role==="admin" && !mail?.activated_at && <Form operation="activate-live-mail" fields={[]} button="Enable New Notifications" back="/app/settings"><label className="checkbox"><input type="checkbox" name="confirm" required/>Enable only new notifications from this point forward.</label></Form>}
+        <p className="muted">To deliver to customers, Vercel must have TOOLTAG_MAIL_MODE=live. This screen does not modify Vercel environment variables.</p>
       </Panel>
-      <Panel title="Google Drive"><p>Preparado visualmente · pendiente de configurar. Subidas y vistas previas desactivadas.</p><pre style={{whiteSpace:"pre-wrap"}}>ToolTag Customers / Cliente / Jobs / Trabajo / Agreement, Receiving, Completed, Payments, Issue-Review, Other</pre></Panel>
-      <Panel title="Acuerdos / políticas">
+      <Panel title="Agreements / Policies">
         <p className="notice">
-          No se ha inventado texto legal. Publica únicamente el texto aprobado.
-          Cada versión queda preservada; las aceptaciones anteriores conservan
+          No legal text has been invented. Publish only approved text.
+          Each version is preserved; previous acceptances retain
           su contenido.
         </p>
         {policies.map((p) => (
@@ -40,59 +40,56 @@ export async function Settings() {
           </details>
         ))}
         <details>
-          <summary>Publicar una nueva versión aprobada</summary>
+          <summary>Publish a New Approved Version</summary>
           <Form
             operation="publish-policy"
             fields={[
-              { name: "title", label: "Título", required: true },
+              { name: "title", label: "Title", required: true },
               {
                 name: "content",
-                label: "Texto exacto aprobado (inglés)",
+                label: "Exact Approved Text (English)",
                 type: "textarea",
                 required: true,
                 wide: true,
               },
             ]}
             back="/app/settings"
-            button="Publicar versión"
+            button="Publish Version"
           />
         </details>
       </Panel>
       <div className="grid two">
-        <Panel title="Reglas vigentes">
-          <p>Cotización: 7 días · Recordatorio: 2 días antes.</p>
-          <p>Revisión de devolución: 14 días.</p>
-          <p>Aceptación de entrega: 3 días después de notificar.</p>
-          <p>Cierre mensual: día 1, mes anterior.</p>
-          <p>Pagos: Cash, Zelle, Venmo.</p>
+        <Panel title="Current Rules">
+          <p>Quote: 7 days · Reminder: 2 days before expiration.</p>
+          <p>Refund review: 14 days.</p>
+          <p>Delivery acceptance: 3 days after notification.</p>
+          <p>Monthly close: day 1, previous month.</p>
+          <p>Final in-person payments: Cash, Zelle, Venmo.</p>
+          <p>Review logistics fees: Card, Zelle or Venmo only · no cash.</p>
         </Panel>
-        <Panel title="Documentos / Drive">
+        <Panel title="Workspace">
           <p className="muted">
-            Integración de subida pendiente. Puedes vincular archivos reales
-            existentes por su Drive File ID.
+            Private binary files are stored in Supabase Storage. Google Drive is
+            reserved for a future backup-only synchronization process and is not
+            written by this app.
           </p>
           <Form
             operation="settings"
             fields={[
               {
-                name: "drive_root_id",
-                label: "Carpeta raíz de ToolTag Customers",
-                value: s?.drive_root_id ?? "",
-              },
-              {
                 name: "timezone",
-                label: "Zona horaria",
+                label: "Time Zone",
                 value: s?.timezone ?? "America/Denver",
               },
               {
                 name: "boft_url",
-                label: "URL del BOFT System",
+                label: "BOFT System URL",
                 type: "url",
                 value: s?.boft_url ?? "",
               },
               {
                 name: "annual_vehicle_method",
-                label: "Método del reporte anual de vehículo",
+                label: "Annual Vehicle Report Method",
                 value: s?.annual_vehicle_method ?? "Fuel",
                 options: [
                   { value: "Fuel", label: "Fuel" },
@@ -101,7 +98,7 @@ export async function Settings() {
               },
               {
                 name: "mileage_rate",
-                label: "Tarifa por milla para análisis (opcional)",
+                label: "Mileage Rate for Analysis (Optional)",
                 value: s?.mileage_rate ?? "",
                 type: "number",
               },
@@ -110,8 +107,64 @@ export async function Settings() {
           />
         </Panel>
       </div>
-      <Panel title="Categorías">
-        <Table headers={["Nombre", "Tipo", "Estado"]}>
+      <Panel title="Payments & Logistics">
+        <p className="muted">
+          Zelle and Venmo identifiers are configuration only. Leave them blank
+          until the real ToolTag accounts are ready. Card checkout is enabled
+          only when Stripe server keys are configured in the deployment
+          environment.
+        </p>
+        <p>
+          Card provider:{" "}
+          <strong>
+            {process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET
+              ? "Stripe configured"
+              : "Stripe not configured"}
+          </strong>
+        </p>
+        <Form
+          operation="settings"
+          fields={[
+            {
+              name: "zelle_email",
+              label: "ToolTag Zelle identifier",
+              value: s?.zelle_email ?? "",
+              help: "Placeholder/configurable — do not enter a customer account.",
+            },
+            {
+              name: "venmo_handle",
+              label: "ToolTag Venmo handle",
+              value: s?.venmo_handle ?? "",
+              help: "Placeholder/configurable until the ToolTag Venmo account is finalized.",
+            },
+            {
+              name: "max_delivery_stops_per_sunday",
+              label: "Maximum Delivery Stops per Sunday",
+              type: "number",
+              value: String(s?.max_delivery_stops_per_sunday ?? 20),
+              help: "13 reservable ETAs; multiple Return stops may share an ETA.",
+            },
+            {
+              name: "second_delivery_attempt_fee",
+              label: "Second Delivery Attempt Fee (USD)",
+              type: "number",
+              value: String(s?.second_delivery_attempt_fee ?? 10),
+            },
+            {
+              name: "max_pickup_stops_per_saturday",
+              label: "Maximum Pickup Stops per Saturday",
+              type: "number",
+              required: true,
+              value: String(s?.max_pickup_stops_per_saturday ?? 10),
+              help: "Review & Accept hides Saturdays once this capacity is reached.",
+            },
+          ]}
+          back="/app/settings"
+          button="Save Payment & Logistics Settings"
+        />
+      </Panel>
+      <Panel title="Categories">
+        <Table headers={["Name", "Type", "Status"]}>
           {categories.map((c) => (
             <tr key={c.id}>
               <td>{c.name}</td>
@@ -122,21 +175,21 @@ export async function Settings() {
                   hidden={{ id: c.id, active: String(!c.active) }}
                   fields={[]}
                   back="/app/settings"
-                  button={c.active ? "Archivar" : "Reactivar"}
+                  button={c.active ? "Archive" : "Reactivate"}
                 />
               </td>
             </tr>
           ))}
         </Table>
         <details>
-          <summary>Agregar categoría</summary>
+          <summary>Add Category</summary>
           <Form
             operation="category"
             fields={[
-              { name: "name", label: "Nombre", required: true },
+              { name: "name", label: "Name", required: true },
               {
                 name: "kind",
-                label: "Tipo",
+                label: "Type",
                 required: true,
                 options: ["income", "expense", "asset"].map((value) => ({
                   value,
@@ -148,19 +201,19 @@ export async function Settings() {
           />
         </details>
       </Panel>
-      <Panel title="Registro de notificaciones">
+      <Panel title="Notification Log">
         <p className="muted">
-          Sent indica que Gmail aceptó el correo; no confirma que el cliente lo haya leído. Los envíos fallidos o sin confirmar requieren revisión antes de reenviar.
+          Sent means Gmail accepted the email for delivery; it does not confirm that the customer read it. Failed or unconfirmed deliveries require review before resending.
         </p>
-        {role==="admin" && <details><summary>Reintentar un aviso específico</summary><Form operation="retry-notification" fields={[{name:"id",label:"ID de notificación",required:true}]} button="Autorizar reintento" back="/app/settings"><label className="checkbox"><input type="checkbox" name="reconciled" required/>Revisé el destinatario y Enviados en Gmail; autorizo este envío real sin duplicarlo.</label></Form></details>}
+        {role==="admin" && <details><summary>Retry a Specific Notification</summary><Form operation="retry-notification" fields={[{name:"id",label:"Notification ID",required:true}]} button="Authorize Retry" back="/app/settings"><label className="checkbox"><input type="checkbox" name="reconciled" required/>I reviewed the recipient and Gmail Sent folder; I authorize this real resend without duplicating it.</label></Form></details>}
         {notifications.length ? (
-          <Table headers={["Evento", "Estado", "Programado", "Entrega"]}>
+          <Table headers={["Event", "Status", "Scheduled", "Delivery"]}>
             {notifications.map((n) => (
               <tr key={n.id}>
                 <td>{n.event}<small style={{display:"block"}}>{n.id}</small></td>
                 <td>{n.status}</td>
-                <td>{new Date(n.due_at).toLocaleString("es-US")}</td>
-                <td>{n.mail_error || n.provider_id || "Pendiente"}</td>
+                <td>{denverDateTime(n.due_at)}</td>
+                <td>{n.mail_error || n.provider_id || "Pending"}</td>
               </tr>
             ))}
           </Table>

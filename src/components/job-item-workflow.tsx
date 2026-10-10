@@ -1,3 +1,4 @@
+import {EvidenceCapture} from "@/components/evidence-capture";
 import { EvidenceGallery } from "@/components/evidence-gallery";
 import { Form } from "@/components/form";
 import { WorkPreparation } from "@/components/work-preparation";
@@ -15,14 +16,13 @@ type JobItem = {
 type EvidenceFile = {
   id: string;
   type: string;
-  file_name?: string | null;
+  file_name?: string;
   job_item_id?: string | null;
   [key: string]: unknown;
 };
 
 export function JobItemWorkflow({
   jobId,
-  jobCode,
   items,
   files,
   role,
@@ -84,7 +84,7 @@ export function JobItemWorkflow({
 
   const itemFiles = files.filter(
     (file) =>
-      file.type === "Finished Evidence" && file.job_item_id === current.id,
+      ["Finished Evidence","Production Evidence"].includes(file.type) && file.job_item_id === current.id,
   );
 
   const scope = {
@@ -129,34 +129,7 @@ export function JobItemWorkflow({
             </div>
 
             {role === "admin" && current.stage === "Engraving" && (
-              <details>
-                <summary>Admin: link finished evidence from Drive</summary>
-                <p className="muted">
-                  Direct upload is still pending. Link the Drive file to this specific item.
-                </p>
-                <Form
-                  operation="document"
-                  hidden={{
-                    job_id: jobId,
-                    job_item_id: current.id,
-                    type: "Finished Evidence",
-                  }}
-                  back={`/app/jobs/${jobId}`}
-                  fields={[
-                    {
-                      name: "file_name",
-                      label: "Name",
-                      required: true,
-                      value: `${jobCode}-Item-${String(current.sequence).padStart(2, "0")}-Finished-${String(itemFiles.length + 1).padStart(2, "0")}.jpg`,
-                    },
-                    {
-                      name: "drive_file_id",
-                      label: "Drive File ID",
-                      required: true,
-                    },
-                  ]}
-                />
-              </details>
+              <EvidenceCapture config={{jobId,jobItemId:current.id,type:"Production Evidence",defaultVisibility:"customer"}} />
             )}
 
             {role === "admin" &&

@@ -1,4 +1,4 @@
-import { CancelLookupForm } from "./cancel-lookup-form";
+import { CancellationLookupForm } from "@/components/cancellation-lookup-form";
 
 export const dynamic = "force-dynamic";
 
@@ -8,13 +8,15 @@ export default function CancelServicePage() {
       <p className="eyebrow">ToolTag · Help With</p>
       <h1>Cancel a Service</h1>
       <p className="muted">
-        Enter the same contact information used with ToolTag. If active services
-        are found, cancellation details will be sent to your email.
+        Request a secure link to review your active ToolTag Quotes, Jobs, and
+        Pickup & Return services before cancelling.
       </p>
 
-      <section className="panel">
-        <CancelLookupForm />
-      </section>
+      <CancellationLookupForm />
+
+      <p className="muted">
+        If you still need help after verifying your information, contact ToolTag Support.
+      </p>
     </main>
   );
 }

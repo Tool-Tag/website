@@ -1,0 +1,12 @@
+{
+  "auth.users": 0,
+  "public.customers": 0,
+  "public.quotes": 0,
+  "public.jobs": 0,
+  "public.transactions": 0,
+  "public.sales": 0,
+  "public.collections": 0,
+  "public.notifications": 0,
+  "public.agreements": 0,
+  "public.accepted_documents": 0
+}
