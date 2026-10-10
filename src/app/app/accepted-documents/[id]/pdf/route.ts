@@ -18,7 +18,7 @@ export async function GET(
   const { data, error } = await db.rpc("accepted_pdf_file", { p_id: id });
   if (error || !data) return new Response("PDF unavailable", { status: 404 });
 
-  let body: Blob | Uint8Array;
+  let body: Blob;
   if (data.storage_bucket && data.storage_path) {
     const stored = await db.storage
       .from(data.storage_bucket)
@@ -28,7 +28,9 @@ export async function GET(
     }
     body = stored.data;
   } else if (data.pdf) {
-    body = new Uint8Array(Buffer.from(data.pdf, "base64"));
+    body = new Blob([Uint8Array.from(Buffer.from(data.pdf, "base64"))], {
+      type: "application/pdf",
+    });
   } else {
     return new Response("PDF unavailable", { status: 404 });
   }
