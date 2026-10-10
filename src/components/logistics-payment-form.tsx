@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { customerAction, type ActionState } from "@/app/actions";
+import { PaymentProofInput } from "@/components/payment-proof-input";
 import { money } from "@/lib/domain/money";
 
 type LogisticsPayment = {
@@ -63,7 +64,10 @@ export function LogisticsPaymentForm({
   );
   const [method, setMethod] = useState(initialMethod);
   const [state, action, pending] = useActionState<ActionState, FormData>(
-    customerAction.bind(null, "logistics-payment", token),
+    async (previous, form) => {
+      try { return await customerAction("logistics-payment", token, previous, form); }
+      catch { return {error: "Payment submission failed. Please try again with a smaller screenshot."}; }
+    },
     {},
   );
 
@@ -236,7 +240,7 @@ export function LogisticsPaymentForm({
           </div>
         )}
 
-        {["Zelle", "Venmo"].includes(method) && <label>Payment screenshot (optional)<input type="file" name="proof" accept="image/png,image/jpeg,image/webp" /><small>Recommend Upload Proof</small></label>}
+        {["Zelle", "Venmo"].includes(method) && <label>Payment screenshot (optional)<PaymentProofInput /><small>Recommend Upload Proof</small></label>}
         {state.error && <p className="notice error">{state.error}</p>}
         {state.ok && !state.link && (
           <p className="notice">

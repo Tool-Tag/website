@@ -293,3 +293,13 @@ test("Completed job timeline has no upcoming stages and all stages are Done",()=
  const result=jobTimelineProgress(["In Process","Engraving","Completed"],"Completed");
  assert.equal(result.percentage,100);assert.equal(result.done.length,3);assert.deepEqual(result.upcoming,[]);
 });
+
+
+test("Payment proofs reject oversize and unsupported files before upload", async () => {
+  const {paymentProofError, PAYMENT_PROOF_MAX_BYTES} = await import("../src/lib/payments/proof");
+  assert.equal(paymentProofError({size: PAYMENT_PROOF_MAX_BYTES, type: "image/png"}), null);
+  assert.ok(paymentProofError({size: PAYMENT_PROOF_MAX_BYTES + 1, type: "image/png"}));
+  assert.ok(paymentProofError({size: 4.1 * 1024 * 1024, type: "image/jpeg"}));
+  assert.ok(paymentProofError({size: 10, type: "application/pdf"}));
+  assert.equal(paymentProofError({size: 100, type: "image/webp"}), null);
+});

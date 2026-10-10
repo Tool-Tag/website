@@ -3,7 +3,8 @@ const config: NextConfig = {
   agentRules: false,
   experimental: {
     serverActions: {
-      bodySizeLimit: "4mb",
+      // 3.5 MB proofs plus multipart overhead, below Vercel's 4.5 MB limit.
+      bodySizeLimit: "4.25mb",
     },
   },
   async rewrites() {

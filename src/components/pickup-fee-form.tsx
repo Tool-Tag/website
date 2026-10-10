@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { customerAction } from "@/app/actions";
+import { PaymentProofInput } from "@/components/payment-proof-input";
 import { money } from "@/lib/domain/money";
 
 function CopyValue({ value, label }: { value: string; label: string }) {
@@ -93,11 +94,7 @@ export function PickupFeeForm({
               <CopyValue value={zelleEmail} label="Zelle email" />
               <label>
                 Recommend Upload Proof · Payment screenshot (optional)
-                <input
-                  type="file"
-                  name="proof"
-                  accept="image/png,image/jpeg,image/webp"
-                />
+                <PaymentProofInput />
               </label>
             </>
           )}
@@ -107,11 +104,7 @@ export function PickupFeeForm({
               <CopyValue value={venmoHandle} label="Venmo" />
               <label>
                 Recommend Upload Proof · Payment screenshot (optional)
-                <input
-                  type="file"
-                  name="proof"
-                  accept="image/png,image/jpeg,image/webp"
-                />
+                <PaymentProofInput />
               </label>
             </>
           )}

@@ -2,7 +2,8 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { customerAction } from "@/app/actions";
+import { customerAction, type ActionState } from "@/app/actions";
+import { PaymentProofInput } from "@/components/payment-proof-input";
 import { money } from "@/lib/domain/money";
 
 function CopyValue({ value, label }: { value: string; label: string }) {
@@ -57,8 +58,11 @@ export function PaymentForm({
 }) {
   const router = useRouter();
   const [method, setMethod] = useState("Cash");
-  const [state, action, pending] = useActionState(
-    customerAction.bind(null, routePayment ? "route-payment" : "payment", token),
+  const [state, action, pending] = useActionState<ActionState, FormData>(
+    async (previous, form) => {
+      try { return await customerAction(routePayment ? "route-payment" : "payment", token, previous, form); }
+      catch { return {error: "Payment submission failed. Please try again with a smaller screenshot."}; }
+    },
     {},
   );
 
@@ -148,12 +152,7 @@ export function PaymentForm({
               </p>
               <label>
                 Payment screenshot
-                <input
-                  type="file"
-                  name="proof"
-                  accept="image/png,image/jpeg,image/webp"
-                  required
-                />
+                <PaymentProofInput required />
               </label>
             </>
           )}
@@ -166,12 +165,7 @@ export function PaymentForm({
               </p>
               <label>
                 Payment screenshot
-                <input
-                  type="file"
-                  name="proof"
-                  accept="image/png,image/jpeg,image/webp"
-                  required
-                />
+                <PaymentProofInput required />
               </label>
             </>
           )}

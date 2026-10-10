@@ -1,4 +1,5 @@
 "use server";
+import { paymentProofError } from "@/lib/payments/proof";
 import {storageAdmin} from "@/lib/storage/admin";
 import { dispatchQuoteMail, dispatchWorkerMail } from "@/lib/integrations/mail-dispatch";
 import { after } from "next/server";
@@ -381,6 +382,12 @@ export async function customerAction(
     if (!["Card", "Zelle", "Venmo"].includes(method))
       return { error: "Choose Card, Zelle, or Venmo." };
 
+    try {
+    const proofFile = form.get("proof");
+    if (proofFile instanceof File && proofFile.size > 0) {
+      const validationError = paymentProofError(proofFile);
+      if (validationError) return {error: validationError};
+    }
     const attemptId = randomUUID();
     const { data: prepared, error: prepareError } = await db.rpc(
       "prepare_logistics_payment",
@@ -411,7 +418,6 @@ export async function customerAction(
             : `${method} is not configured yet.`,
       };
 
-    try {
       const base = toolTagPublicUrl();
       const result = await provider.start({
         attemptId,
@@ -434,7 +440,8 @@ export async function customerAction(
         const proof = form.get("proof");
         if (proof instanceof File && proof.size > 0) {
           const types: Record<string,string> = {"image/png":"png", "image/jpeg":"jpg", "image/webp":"webp"};
-          if (!types[proof.type] || proof.size > 5 * 1024 * 1024) return {error:"Use a PNG, JPG or WebP screenshot up to 5 MB."};
+          const validationError = paymentProofError(proof);
+          if (validationError) return {error:validationError};
           proofPath = `${TOOLTAG}/${attemptId}.${types[proof.type]}`;
           const upload = await storageAdmin().storage.from("payment-proofs").upload(proofPath, new Uint8Array(await proof.arrayBuffer()), {contentType:proof.type, upsert:false});
           if (upload.error) return {error:"Could not upload payment proof. Your payment was not submitted."};
@@ -447,7 +454,7 @@ export async function customerAction(
           if (proofPath) await storageAdmin().storage.from("payment-proofs").remove([proofPath]);
           return { error: error.message };
         }
-        await dispatchWorkerMail();
+        await dispatchWorkerMail().catch(() => console.error("PAYMENT_NOTIFICATION_DISPATCH_FAILED"));
         revalidatePath(`/review/${token}/payment`);
         revalidatePath("/app", "layout");
         return { ok: true, data };
@@ -470,13 +477,9 @@ export async function customerAction(
         link: result.redirectUrl,
         data: { status: result.state },
       };
-    } catch (error) {
-      return {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Payment could not be started.",
-      };
+    } catch {
+      console.error("PAYMENT_SUBMISSION_FAILED: logistics");
+      return { error: "Payment could not be submitted. Please try again." };
     }
   }
 
@@ -494,6 +497,7 @@ export async function customerAction(
     kind === "pickup-payment" ||
     kind === "cancellation-payment"
   ) {
+    try {
     const pickupFee = kind === "pickup-payment";
     const cancellationBalance = kind === "cancellation-payment";
     const method = String(form.get("method") || "");
@@ -507,8 +511,8 @@ export async function customerAction(
     if (method !== "Cash" && (!pickupFee || (file instanceof File && file.size > 0))) {
       if (!(file instanceof File) || file.size === 0)
         return { error: "Upload a screenshot of your Zelle or Venmo payment." };
-      if (file.size > 5 * 1024 * 1024)
-        return { error: "Payment proof must be 5 MB or smaller." };
+      const validationError = paymentProofError(file);
+      if (validationError) return { error: validationError };
 
       const extensions: Record<string, string> = {
         "image/png": "png",
@@ -574,7 +578,7 @@ export async function customerAction(
       return { error: error.message };
     }
 
-    await dispatchWorkerMail();
+    await dispatchWorkerMail().catch(() => console.error("PAYMENT_NOTIFICATION_DISPATCH_FAILED"));
     if (pickupFee) {
       revalidatePath(`/pickup/${token}/payment`);
       revalidatePath("/app", "layout");
@@ -588,6 +592,10 @@ export async function customerAction(
     revalidatePath(`/completion/${token}`);
     revalidatePath("/app", "layout");
     return { ok: true, link: `/payment/${token}/confirmation` };
+    } catch {
+      console.error("PAYMENT_SUBMISSION_FAILED: manual");
+      return {error: "Payment could not be submitted. Please try again."};
+    }
   }
   if (kind === "review") {
     let logistics: unknown;
