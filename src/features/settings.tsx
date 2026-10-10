@@ -138,8 +138,15 @@ export async function Settings() {
               help: "Placeholder/configurable until the ToolTag Venmo account is finalized.",
             },
             {
+              name: "delivery_route_iso_weekday",
+              label: "Delivery Route Day",
+              value: String(s?.delivery_route_iso_weekday ?? 7),
+              options: ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map((label,index)=>({value:String(index+1),label})),
+              help: "Sunday by default. Applies to new scheduling and rescheduling; existing bookings stay unchanged. Pickup remains Saturday.",
+            },
+            {
               name: "max_delivery_stops_per_sunday",
-              label: "Maximum Delivery Stops per Sunday",
+              label: "Maximum Stops per Delivery Route Day",
               type: "number",
               value: String(s?.max_delivery_stops_per_sunday ?? 20),
               help: "13 reservable ETAs; multiple Return stops may share an ETA.",

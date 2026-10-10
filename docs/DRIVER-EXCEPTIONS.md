@@ -31,3 +31,6 @@ Automatic card refunds require the original account's STRIPE_SECRET_KEY and TOOL
 Verification: typecheck, lint, automated tests and production build. Tests cover route pause, operator timeout with no user auth, free rescheduling on the correct weekday, Return shop fallback, secure customer choices, notification/compensation deduplication, manual original-method proof, Stripe gating and durable retries, pending ≠ paid, and $5 → $10 differential refunds. Tests send no real email or refunds.
 
 Stripe reference: https://docs.stripe.com/api/refunds/create
+
+## Configurable delivery weekday
+Additive migration 20261010165438_configurable_delivery_route_day.sql (unapplied) adds unit_settings.delivery_route_iso_weekday: ISO 1=Monday through 7=Sunday, default 7. The admin Settings → Payments & Logistics → Delivery Route Day selector (authorized save_settings RPC) changes the weekly day used by availability, new/retry/interrupted delivery scheduling, customer calendar and driver landing. Pickup stays Saturday. The Return window remains 2–6 PM, including the final slot. Existing stops are not moved; no historical data is migrated. Notifications say “next available delivery route day” and scheduling messages include the actual selected date. No production setting was changed.

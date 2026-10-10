@@ -267,3 +267,10 @@ test('Automatic refunds are gated, use original Stripe payment and durable part 
  assert.equal((await enabled.refund({id:'comp',offset:0,amount:5,session:'cs_original'})).status,'pending');
  reused=true;assert.equal((await enabled.refund({id:'comp',offset:0,amount:5,session:'cs_original'})).status,'succeeded');assert.equal(posts,1);
 });
+
+import {driverDates} from "../src/lib/domain/driver-dates";
+test("Driver route defaults use Sunday; configured delivery day changes only Return",()=>{
+ assert.equal(driverDates("2026-10-11").return,"2026-10-11");
+ assert.equal(driverDates("2026-10-11",new Date(),1).return,"2026-10-12");
+ assert.equal(driverDates("2026-10-11",new Date(),1).pickup,"2026-10-17");
+});

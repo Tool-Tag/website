@@ -1258,3 +1258,24 @@ test('Card refund pending is never recorded paid; retry and later $10 upgrade is
  assert.equal(await value('select status from public.route_compensations where id=$1',[id]),'Completed');
  }finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
 });
+
+
+test("Configured delivery weekday drives next-route rescheduling without changing Pickup or old stops",async()=>{
+ const f=await incidentFixture('Return','configured-weekday');
+ const oldDay=await value<string>("select route_date::text from public.pick_return_routes where id=$1",[f.route]);
+ assert.equal(new Date(oldDay+'T12:00:00Z').getUTCDay(),0);
+ await value("select public.save_settings($1::jsonb)",[JSON.stringify({unit_id:unit,delivery_route_iso_weekday:1})]);
+ try{
+ const a=await value<{day:string;route_iso_weekday:number;slots:{label:string}[]}>("select public.route_availability($1,'Return',$2,$3)",[f.job,oldDay,f.token]);
+ assert.equal(a.route_iso_weekday,1);assert.equal(new Date(a.day+'T12:00:00Z').getUTCDay(),1);
+ assert.equal(a.slots[0].label,'2:00 PM');assert.equal(a.slots.at(-1)?.label,'6:00 PM');
+ const pickup=await driverPickupFixture('configured-pickup');
+ const pa=await value<{day:string;route_iso_weekday:number}>("select public.route_availability($1,'Pickup',$2,$3)",[pickup.job,a.day,pickup.token]);
+ assert.equal(pa.route_iso_weekday,6);assert.equal(new Date(pa.day+'T12:00:00Z').getUTCDay(),6);
+ await value("select public.resolve_driver_incident($1,'Rescheduled')",[f.incident]);
+ const nextDay=await value<string>("select r.route_date::text from public.pick_return_routes r join public.pick_return_stops s on s.route_id=r.id where s.job_id=$1 and s.status='Scheduled'",[f.job]);
+ assert.equal(new Date(nextDay+'T12:00:00Z').getUTCDay(),1);assert.ok(nextDay>oldDay);
+ assert.equal(await value("select route_date::text from public.pick_return_routes where id=$1",[f.route]),oldDay);
+ await assert.rejects(db.query("update public.unit_settings set delivery_route_iso_weekday=8 where unit_id=$1",[unit]),/check constraint/);
+ }finally{await db.query("update public.unit_settings set delivery_route_iso_weekday=7 where unit_id=$1",[unit]);}
+});
