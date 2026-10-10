@@ -6,7 +6,7 @@ The Pickup daily view includes only confirmed-payment Pickup Only / Pickup & Del
 
 New additive migration: 20261010082546_pickup_driver_arrival_flow.sql. Apply during the coordinated deployment after review; none of the applied migrations/baselines were changed.
 
-Arrival sends the existing notification transport a deduplicated PICKUP_ARRIVED event. A server-owned five-minute deadline persists through reloads. Customer-coming stops the timer and locks Continue; Wait more starts five more minutes. The optional SMS button opens the device messaging composer (no automatic SMS provider or background text sending).
+Arrival sends the existing notification transport a deduplicated PICKUP_ARRIVED event. A server-owned five-minute deadline persists through reloads. Customer-coming permanently cancels the timer and locks Continue; normal collection continues without another countdown. Wait more appears only after timeout with no customer response, and starts five more minutes. The optional SMS button opens the device messaging composer (no automatic SMS provider or background text sending).
 
 Continuing after timeout records a Failed pickup, leaves its confirmed fee unchanged and sends a customer status link. The customer can choose the next available Saturday at no additional cost, or use existing cancellation; the Failed pickup retains its nonrefundable logistics fee. Cancellation Requested / Production Hold gates are enforced on the server, including the older RPC. No Agreement text or accepted snapshot changes.
 

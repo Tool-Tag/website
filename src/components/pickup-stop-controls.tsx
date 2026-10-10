@@ -19,7 +19,7 @@ export function PickupStopControls({stop,status,waitUntil,coming,blocked,hasEvid
  <p className="pickup-timer" aria-live="off">{coming?"Customer is coming out":`Arrival wait · ${count}`}</p>
  <button className="secondary" disabled={pending||blocked||Boolean(coming)||left>0} onClick={()=>run("pickup-miss")}>Continue to next stop{!coming&&left>0?` · ${count}`:""}</button>
  {!coming&&left>0&&<button className="secondary" disabled={pending||blocked} onClick={()=>run("customer-coming")}>Customer said they are coming out</button>}
- {(left===0||coming)&&<button className="secondary" disabled={pending||blocked} onClick={()=>run("wait-more")}>Wait more · 5 minutes</button>}
+ {(!coming&&left===0)&&<button className="secondary" disabled={pending||blocked} onClick={()=>run("wait-more")}>Wait more · 5 minutes</button>}
  {!coming&&left===0&&phone&&<a className="button secondary" href={`sms:${phone.replace(/[^+0-9]/g,"")}?body=${encodeURIComponent("ToolTag has arrived for your Pickup. Please come out with your items.")}`}>Send text message</a>}
  </>}
  {status==="Completed"&&<p className="notice success">Picked Up</p>}

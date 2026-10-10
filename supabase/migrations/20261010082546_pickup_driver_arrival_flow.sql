@@ -20,6 +20,7 @@ begin
   if p_action='customer-coming' then
    update public.pick_return_stops set customer_coming_at=now(),pickup_wait_until=null where id=s.id;
   elsif p_action='wait-more' then
+   if s.customer_coming_at is not null or s.pickup_wait_until is null or now()<s.pickup_wait_until then raise exception 'Wait more is available only after timeout without a customer response';end if;
    update public.pick_return_stops set customer_coming_at=null,pickup_wait_until=now()+interval '5 minutes' where id=s.id;
   else
    if s.customer_coming_at is not null or s.pickup_wait_until is null or now()<s.pickup_wait_until then raise exception 'Wait for the five-minute timer before continuing';end if;

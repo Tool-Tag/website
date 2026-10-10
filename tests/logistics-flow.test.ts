@@ -988,15 +988,24 @@ async function driverPickupFixture(suffix:string){
 }
 
 test("Pickup arrival notifies once, enforces five minutes and persists customer-coming / wait-more",async()=>{
+ const coming=await driverPickupFixture("driver-coming");
+ await value("select public.pickup_driver_action($1,'en-route')",[coming.stop]);
+ await value("select public.pickup_driver_action($1,'arrived')",[coming.stop]);
+ await assert.rejects(value("select public.pickup_driver_action($1,'wait-more')",[coming.stop]),/only after timeout/);
+ await value("select public.pickup_driver_action($1,'customer-coming')",[coming.stop]);
+ await assert.rejects(value("select public.pickup_driver_action($1,'wait-more')",[coming.stop]),/only after timeout/);
+ await assert.rejects(value("select public.pickup_driver_action($1,'pickup-miss')",[coming.stop]),/five-minute/);
+ assert.equal(await value("select pickup_wait_until is null and customer_coming_at is not null from public.pick_return_stops where id=$1",[coming.stop]),true);
+ await db.query("insert into public.documents(unit_id,type,file_name,job_id,pick_return_stop_id,status) values($1,'Receiving Evidence','coming-out.jpg',$2,$3,'Available')",[unit,coming.job,coming.stop]);
+ await value("select public.pickup_driver_action($1,'picked-up')",[coming.stop]);
  const {job,token,stop}=await driverPickupFixture("driver-wait");
  await value("select public.pickup_driver_action($1,'en-route')",[stop]);
  await value("select public.pickup_driver_action($1,'arrived')",[stop]);
  assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",['pickup-arrived:'+stop])),1);
  await assert.rejects(value("select public.pickup_driver_action($1,'pickup-miss')",[stop]),/five-minute/);
- await value("select public.pickup_driver_action($1,'customer-coming')",[stop]);
- assert.equal(await value("select pickup_wait_until is null and customer_coming_at is not null from public.pick_return_stops where id=$1",[stop]),true);
- await assert.rejects(value("select public.pickup_driver_action($1,'pickup-miss')",[stop]),/five-minute/);
+ await db.query("update public.pick_return_stops set pickup_wait_until=now()-interval '1 second' where id=$1",[stop]);
  await value("select public.pickup_driver_action($1,'wait-more')",[stop]);
+ await assert.rejects(value("select public.pickup_driver_action($1,'pickup-miss')",[stop]),/five-minute/);
  await db.query("update public.pick_return_stops set pickup_wait_until=now()-interval '1 second' where id=$1",[stop]);
  await value("select public.pickup_driver_action($1,'pickup-miss')",[stop]);
  assert.equal(await value("select public.pickup_miss_state($1,$2)",[job,token]),true);
