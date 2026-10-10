@@ -109,37 +109,45 @@ export default async function GetTaggedRequestDetail({
 
       {request.request_status === "Pending" && (
         <div className="grid two">
-          <Panel title="Approve Request">
-            {candidates.length > 0 && (
+          {candidates.length > 0 ? (
+            <Panel title="Approve Request">
               <div className="notice">
                 {candidates.length === 1
                   ? "One existing Customer matches this request. ToolTag will reuse that Customer."
                   : "Multiple Customers match this request. Select the correct Customer before approving."}
               </div>
-            )}
 
+              <Form
+                operation="get-tagged-approve"
+                hidden={{ id }}
+                back="/app/get-tagged"
+                fields={
+                  candidates.length > 1
+                    ? [
+                        {
+                          name: "customer_id",
+                          label: "Existing Customer",
+                          required: true,
+                          options: candidates.map((candidate) => ({
+                            value: candidate.id,
+                            label: `${candidate.name} · ${candidate.email} · ${candidate.phone}`,
+                          })),
+                        },
+                      ]
+                    : []
+                }
+                button="Approve Request & Create Quote Draft"
+              />
+            </Panel>
+          ) : (
             <Form
               operation="get-tagged-approve"
               hidden={{ id }}
               back="/app/get-tagged"
-              fields={
-                candidates.length > 1
-                  ? [
-                      {
-                        name: "customer_id",
-                        label: "Existing Customer",
-                        required: true,
-                        options: candidates.map((candidate) => ({
-                          value: candidate.id,
-                          label: `${candidate.name} · ${candidate.email} · ${candidate.phone}`,
-                        })),
-                      },
-                    ]
-                  : []
-              }
+              fields={[]}
               button="Approve Request & Create Quote Draft"
             />
-          </Panel>
+          )}
 
           <Panel title="Reject Request">
             <Form
@@ -161,12 +169,9 @@ export default async function GetTaggedRequestDetail({
       )}
 
       {request.quote_id && (
-        <Panel title="Converted">
-          <p>This request already has a Quote.</p>
-          <Link className="button" href={`/app/quotes/${request.quote_id}`}>
-            Open Quote
-          </Link>
-        </Panel>
+        <Link className="button" href={`/app/quotes/${request.quote_id}`}>
+          Open Quote
+        </Link>
       )}
     </>
   );

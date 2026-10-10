@@ -430,18 +430,13 @@ export async function Jobs({ id }: { id?: string }) {
       )}
 
       {stage === "Not Started" && logisticsPaymentReady && !pickupRequired && (
-        <>
-          <Panel title="Start Job">
-            <p className="muted">Start the receiving workflow for this Job.</p>
-          </Panel>
-          <Form
-            operation="job"
-            hidden={{ id, action: "start" }}
-            fields={[]}
-            back={`/app/jobs/${id}`}
-            button="Start Job"
-          />
-        </>
+        <Form
+          operation="job"
+          hidden={{ id, action: "start" }}
+          fields={[]}
+          back={`/app/jobs/${id}`}
+          button="Start Job"
+        />
       )}
 
       {stage === "Not Started" && logisticsPaymentReady && pickupRequired && pickupReturn && (

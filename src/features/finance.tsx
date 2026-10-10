@@ -547,9 +547,9 @@ export async function Finance({
           />
         ))}
       </div>
-      <Panel>
-        <Link href="/app/finance/about">How Each Number Is Calculated →</Link>
-      </Panel>
+      <Link className="button secondary" href="/app/finance/about">
+        How Each Number Is Calculated →
+      </Link>
     </>
   );
 }

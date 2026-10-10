@@ -30,11 +30,9 @@ export async function FinanceHub() {
             migrados.
           </p>
         </Panel>
-        <Panel title="ToolTag Finance">
-          <Link className="button" href="/app/finance">
-            Open ToolTag →
-          </Link>
-        </Panel>
+        <Link className="button" href="/app/finance">
+          Open ToolTag →
+        </Link>
         <Metric
           label="BOFT Business Checking · Physical Balance"
           value={bank?.reconciled_balance ?? "Pending Reconciliation"}

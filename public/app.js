@@ -53,3 +53,43 @@ menuButton.addEventListener('click', () => { const open = menuButton.getAttribut
 navigation.querySelectorAll('a').forEach(a => a.addEventListener('click',closeMenu));
 document.addEventListener('keydown', e => { if(e.key==='Escape') closeMenu(); });
 document.addEventListener('click',e=>{ if(!navigation.contains(e.target) && !menuButton.contains(e.target)) closeMenu(); });
+
+
+const getTaggedDialog = document.querySelector('#get-tagged-dialog');
+const getTaggedFrame = document.querySelector('#get-tagged-frame');
+const getTaggedClose = document.querySelector('#get-tagged-close');
+const desktopGetTagged = window.matchMedia('(min-width: 1024px)');
+
+function closeGetTaggedModal() {
+  if (getTaggedDialog?.open) getTaggedDialog.close();
+}
+
+function openGetTaggedModal(event) {
+  if (!desktopGetTagged.matches || !getTaggedDialog || !getTaggedFrame) return;
+  event.preventDefault();
+  closeMenu();
+  if (!getTaggedFrame.getAttribute('src')) {
+    getTaggedFrame.setAttribute('src', getTaggedFrame.dataset.src || '/get-tagged/modal');
+  }
+  if (!getTaggedDialog.open) getTaggedDialog.showModal();
+}
+
+document.querySelectorAll('a[href="/get-tagged"]').forEach(link => {
+  link.addEventListener('click', openGetTaggedModal);
+});
+
+getTaggedClose?.addEventListener('click', closeGetTaggedModal);
+getTaggedDialog?.addEventListener('click', event => {
+  if (event.target === getTaggedDialog) closeGetTaggedModal();
+});
+desktopGetTagged.addEventListener('change', event => {
+  if (!event.matches) closeGetTaggedModal();
+});
+window.addEventListener('message', event => {
+  if (
+    event.origin === window.location.origin &&
+    event.data?.type === 'tooltag:get-tagged-close'
+  ) {
+    closeGetTaggedModal();
+  }
+});
