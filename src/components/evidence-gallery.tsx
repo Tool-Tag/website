@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
+import {
+  legacyDriveUrl,
+  storageStatusLabel,
+} from "@/lib/storage/files";
 
 type Evidence = {
   id: string;
@@ -13,6 +17,9 @@ type Evidence = {
   file_size?: number | null;
   storage_status?: string | null;
   storage_provider?: string | null;
+  storage_bucket?: string | null;
+  storage_path?: string | null;
+  drive_file_id?: string | null;
   visibility?: string | null;
   folder_kind?: string | null;
   created_at?: string | null;
@@ -27,13 +34,22 @@ function formatBytes(value?: number | null) {
 }
 
 function storageCopy(file: Evidence) {
-  if (file.storage_status === "Uploaded") {
-    return "Stored file metadata is available. File delivery will stay inside ToolTag when the storage proxy is connected.";
+  if (file.storage_status === "stored") {
+    return "Binary file stored privately in Supabase Storage.";
+  }
+  if (file.storage_status === "failed") {
+    return "The Storage upload failed. Upload the file again before continuing the workflow.";
+  }
+  if (file.storage_provider === "legacy_drive") {
+    return "Historical Drive reference retained read-only. New files are stored in Supabase Storage.";
   }
   if (file.storage_status === "Pending Drive Upload") {
-    return "Metadata is preserved in ToolTag, but the binary file is not stored yet. Google Drive connection is still pending.";
+    return "Historical metadata-only record. No binary file was captured in Supabase Storage.";
   }
-  return file.storage_status || "Storage status unavailable";
+  if (file.storage_status === "not_applicable") {
+    return "This is a structured ToolTag record and has no separate uploaded binary.";
+  }
+  return "Storage status: " + storageStatusLabel(file.storage_status, file.storage_provider);
 }
 
 export function EvidenceGallery({
@@ -52,7 +68,8 @@ export function EvidenceGallery({
     <>
       <div className="evidence-grid">
         {files.map((entry) => {
-          const title = entry.file_name || entry.original_file_name || entry.name || "Document";
+          const title =
+            entry.file_name || entry.original_file_name || entry.name || "Document";
           return (
             <button
               className="evidence-card"
@@ -72,7 +89,7 @@ export function EvidenceGallery({
                 <small>{formatBytes(entry.file_size)}</small>
               </span>
               <span className="evidence-card-status">
-                {entry.storage_status || "Legacy"}
+                {storageStatusLabel(entry.storage_status, entry.storage_provider)}
               </span>
             </button>
           );
@@ -96,11 +113,19 @@ export function EvidenceGallery({
             <div className="grid two">
               <div>
                 <small>Storage</small>
-                <p><strong>{file.storage_status || "Legacy"}</strong></p>
+                <p>
+                  <strong>
+                    {storageStatusLabel(file.storage_status, file.storage_provider)}
+                  </strong>
+                </p>
               </div>
               <div>
                 <small>Visibility</small>
-                <p><strong>{file.visibility || (publicView ? "customer" : "internal")}</strong></p>
+                <p>
+                  <strong>
+                    {file.visibility || (publicView ? "customer" : "internal")}
+                  </strong>
+                </p>
               </div>
               <div>
                 <small>Type</small>
@@ -113,23 +138,46 @@ export function EvidenceGallery({
             </div>
 
             {file.notes && <p>{file.notes}</p>}
-
             <p className="notice">{storageCopy(file)}</p>
 
             {publicView && viewerBase && (
               <p>
-                <Link className="button secondary" href={viewerBase + "/" + file.id}>
+                <Link
+                  className="button secondary"
+                  href={viewerBase + "/" + file.id}
+                >
                   Open ToolTag Document View
                 </Link>
               </p>
             )}
 
-            {!publicView && file.storage_provider === "legacy_drive" && (
-              <p className="muted">
-                This is a legacy stored record. ToolTag does not expose the raw
-                Drive URL from the evidence gallery.
+            {!publicView && file.storage_status === "stored" && (
+              <p>
+                <a
+                  className="button secondary"
+                  href={`/app/documents/${file.id}/download`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View / download file
+                </a>
               </p>
             )}
+
+            {!publicView &&
+              file.storage_provider === "legacy_drive" &&
+              file.drive_file_id && (
+                <p>
+                  <a
+                    className="button secondary"
+                    href={legacyDriveUrl(file.drive_file_id)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open legacy Drive reference ↗
+                  </a>
+                </p>
+              )}
 
             <button type="button" onClick={() => dialog.current?.close()}>
               Close

@@ -3,6 +3,7 @@ import { rows, context } from "@/lib/domain/context";
 import { Heading, Panel, Table, Empty, Metric } from "@/components/ui";
 import { Form, type Field } from "@/components/form";
 import { money } from "@/lib/domain/money";
+import { legacyDriveUrl } from "@/lib/storage/files";
 export const customerFields: Field[] = [
   { name: "name", label: "Person Name", required: true },
   { name: "phone", label: "Phone", type: "tel", required: true },
@@ -114,13 +115,21 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
         <Panel title="Documents">
           {docs.map((d) => (
             <p key={d.id}>
-              {d.drive_file_id ? (
+              {d.storage_status === "stored" ? (
                 <a
-                  href={`https://drive.google.com/file/d/${encodeURIComponent(d.drive_file_id)}/view`}
+                  href={`/app/documents/${d.id}/download`}
                   target="_blank"
                   rel="noreferrer"
                 >
                   {d.file_name} ↗
+                </a>
+              ) : d.drive_file_id ? (
+                <a
+                  href={legacyDriveUrl(d.drive_file_id)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {d.file_name} · legacy Drive reference ↗
                 </a>
               ) : (
                 d.file_name

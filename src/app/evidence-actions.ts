@@ -3,16 +3,20 @@
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { context } from "@/lib/domain/context";
+import {
+  TOOLTAG_FILES_BUCKET,
+  storageObjectName,
+} from "@/lib/storage/files";
 
 export type EvidenceActionState = {
   ok?: boolean;
   error?: string;
   documentId?: string;
-  warning?: string;
 };
 
 export type EvidenceRegistration = {
-  jobId: string;
+  jobId?: string;
+  transactionId?: string;
   type:
     | "Receiving Evidence"
     | "Production Evidence"
@@ -21,6 +25,7 @@ export type EvidenceRegistration = {
     | "Cancellation Evidence"
     | "Refund Review Evidence"
     | "Customer Document"
+    | "Receipt"
     | "Other";
   jobItemId?: string;
   pickReturnStopId?: string;
@@ -31,14 +36,6 @@ export type EvidenceRegistration = {
   back?: string;
   photoOnly?: boolean;
 };
-
-function safeName(value: string) {
-  return value
-    .replace(/[\\/\0\r\n\t]/g, "_")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 240);
-}
 
 export async function registerEvidenceAction(
   config: EvidenceRegistration,
@@ -55,23 +52,16 @@ export async function registerEvidenceAction(
     }
 
     if (file.size > 3.5 * 1024 * 1024) {
-      return {
-        error:
-          "Use a file 3.5 MB or smaller for this temporary metadata-only phase. Larger direct uploads will be enabled with Drive.",
-      };
+      return { error: "Use a file 3.5 MB or smaller." };
     }
 
     if (config.photoOnly && !file.type.startsWith("image/")) {
       return { error: "Choose an image for photo evidence." };
     }
 
-    const original = safeName(file.name || "evidence-file");
-    if (!original) return { error: "The file name is invalid." };
-
+    const original = storageObjectName(file.name || "evidence-file");
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const fingerprint = createHash("sha256")
-      .update(bytes)
-      .digest("hex");
+    const fingerprint = createHash("sha256").update(bytes).digest("hex");
 
     const visibility = String(
       form.get("visibility") || config.defaultVisibility || "internal",
@@ -81,12 +71,12 @@ export async function registerEvidenceAction(
     }
 
     const notes = String(form.get("notes") || "").trim().slice(0, 2000);
-
     const { data, error } = await db.rpc("register_document_metadata", {
       p: {
         unit_id: unit,
         type: config.type,
-        job_id: config.jobId,
+        job_id: config.jobId ?? null,
+        transaction_id: config.transactionId ?? null,
         job_item_id: config.jobItemId ?? null,
         pick_return_stop_id: config.pickReturnStopId ?? null,
         job_extension_id: config.jobExtensionId ?? null,
@@ -102,22 +92,67 @@ export async function registerEvidenceAction(
       },
     });
 
-    if (error) return { error: error.message };
+    if (error || !data) {
+      return { error: error?.message || "Could not create the document record." };
+    }
+
+    const documentId = String(data);
+    const { data: current } = await db
+      .from("documents")
+      .select("storage_status,storage_bucket,storage_path")
+      .eq("id", documentId)
+      .eq("unit_id", unit)
+      .single();
+
+    if (current?.storage_status !== "stored") {
+      const objectPath = `${unit}/documents/${documentId}/${original}`;
+      const { error: uploadError } = await db.storage
+        .from(TOOLTAG_FILES_BUCKET)
+        .upload(objectPath, bytes, {
+          contentType: file.type || "application/octet-stream",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        await db.rpc("finish_document_storage", {
+          p_id: documentId,
+          p_bucket: TOOLTAG_FILES_BUCKET,
+          p_path: objectPath,
+          p_status: "failed",
+          p_error: uploadError.message,
+        });
+        return { error: "Could not store the file in Supabase Storage." };
+      }
+
+      const { data: finalized, error: finalizeError } = await db.rpc(
+        "finish_document_storage",
+        {
+          p_id: documentId,
+          p_bucket: TOOLTAG_FILES_BUCKET,
+          p_path: objectPath,
+          p_status: "stored",
+          p_error: null,
+        },
+      );
+
+      if (finalizeError || !finalized) {
+        await db.storage.from(TOOLTAG_FILES_BUCKET).remove([objectPath]);
+        return { error: "The file upload could not be linked to its ToolTag record." };
+      }
+    }
 
     revalidatePath("/app", "layout");
-    revalidatePath(`/app/jobs/${config.jobId}`);
+    if (config.jobId) revalidatePath(`/app/jobs/${config.jobId}`);
+    if (config.transactionId) {
+      revalidatePath(`/app/finance/transactions/${config.transactionId}`);
+    }
     revalidatePath("/pick-return");
 
-    return {
-      ok: true,
-      documentId: String(data),
-      warning:
-        "Evidence metadata is saved in ToolTag. The file bytes are not stored yet; storage remains Pending Drive Upload until Google Drive is connected.",
-    };
+    return { ok: true, documentId };
   } catch (error) {
     return {
       error:
-        error instanceof Error ? error.message : "Could not register evidence.",
+        error instanceof Error ? error.message : "Could not upload the file.",
     };
   }
 }

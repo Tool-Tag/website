@@ -13,6 +13,8 @@ import {
 import { Form } from "@/components/form";
 import { MovementForm } from "@/components/movement-form";
 import { money } from "@/lib/domain/money";
+import { EvidenceUpload } from "@/components/evidence-upload";
+import { legacyDriveUrl } from "@/lib/storage/files";
 export async function Movement({
   saleId,
   type,
@@ -190,11 +192,21 @@ export async function Finance({
               <summary>
                 {d.type === "Payment Receipt" ? "Payment Receipt" : d.file_name}
               </summary>
-              {d.drive_file_id ? (
+              {d.storage_status === "stored" ? (
                 <a
-                  href={`https://drive.google.com/file/d/${encodeURIComponent(d.drive_file_id)}/view`}
+                  href={`/app/documents/${d.id}/download`}
+                  target="_blank"
+                  rel="noreferrer"
                 >
-                  Open Drive ↗
+                  View stored file ↗
+                </a>
+              ) : d.drive_file_id ? (
+                <a
+                  href={legacyDriveUrl(d.drive_file_id)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Legacy Drive reference ↗
                 </a>
               ) : d.content_snapshot ? (
                 <div className="panel">
@@ -221,32 +233,20 @@ export async function Finance({
                     Balance due:{" "}
                     {money(d.content_snapshot.balance_remaining)}
                   </p>
-                  <small>
-                    Receipt saved. Email copy and Drive archival are pending integration.
-                  </small>
+                  <small>Receipt record saved in ToolTag.</small>
                 </div>
               ) : (
-                <p className="muted">Document pending.</p>
+                <p className="muted">Document unavailable.</p>
               )}
             </details>
           ))}
-          <Form
-            operation="document"
-            hidden={{ transaction_id: id, type: "Receipt" }}
-            back={`/app/finance/transactions/${id}`}
-            fields={[
-              {
-                name: "file_name",
-                label: "File Name",
-                required: true,
-              },
-              {
-                name: "drive_file_id",
-                label: "Existing Drive File ID",
-                required: true,
-              },
-            ]}
-            button="Link Receipt"
+          <EvidenceUpload
+            config={{
+              transactionId: id,
+              type: "Receipt",
+              defaultVisibility: "internal",
+            }}
+            button="Upload Receipt"
           />
         </Panel>
       </>

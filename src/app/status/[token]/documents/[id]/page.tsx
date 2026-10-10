@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/server";
+import { storageStatusLabel } from "@/lib/storage/files";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,8 @@ export default async function CustomerDocumentPage({
     );
   }
 
+  const stored = data.storage_status === "stored";
+
   return (
     <main className="public">
       <p className="eyebrow">ToolTag · Secure Document View</p>
@@ -46,11 +49,17 @@ export default async function CustomerDocumentPage({
         <div className="grid two">
           <div>
             <small>Document type</small>
-            <p><strong>{data.type}</strong></p>
+            <p>
+              <strong>{data.type}</strong>
+            </p>
           </div>
           <div>
             <small>Storage status</small>
-            <p><strong>{data.storage_status}</strong></p>
+            <p>
+              <strong>
+                {storageStatusLabel(data.storage_status, data.storage_provider)}
+              </strong>
+            </p>
           </div>
           <div>
             <small>File type</small>
@@ -62,16 +71,35 @@ export default async function CustomerDocumentPage({
           </div>
         </div>
 
-        {data.storage_status === "Pending Drive Upload" ? (
+        {stored ? (
+          <p>
+            <a
+              className="button"
+              href={`/status/${token}/documents/${id}/download`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              View / download document
+            </a>
+          </p>
+        ) : data.storage_provider === "legacy_drive" ? (
           <p className="notice">
-            ToolTag has preserved this document&apos;s metadata and relationship to
-            your Job. The binary file is not stored yet because Google Drive has
-            not been connected.
+            This historical record predates Supabase Storage. Contact ToolTag if
+            you need the archived binary copy.
+          </p>
+        ) : data.storage_status === "Pending Drive Upload" ? (
+          <p className="notice">
+            Historical metadata-only record. No binary file was captured for this
+            document.
+          </p>
+        ) : data.storage_status === "not_applicable" ? (
+          <p className="notice">
+            This is a structured ToolTag record and has no separate uploaded file.
           </p>
         ) : (
           <p className="notice">
-            This secure ToolTag route is ready to become the file-delivery layer.
-            Raw storage-provider links are intentionally not exposed.
+            The file is not currently available for download. Contact ToolTag if
+            you need assistance.
           </p>
         )}
       </section>

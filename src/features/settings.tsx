@@ -24,7 +24,6 @@ export async function Settings() {
         {role==="admin" && !mail?.activated_at && <Form operation="activate-live-mail" fields={[]} button="Enable New Notifications" back="/app/settings"><label className="checkbox"><input type="checkbox" name="confirm" required/>Enable only new notifications from this point forward.</label></Form>}
         <p className="muted">To deliver to customers, Vercel must have TOOLTAG_MAIL_MODE=live. This screen does not modify Vercel environment variables.</p>
       </Panel>
-      <Panel title="Google Drive"><p>UI prepared · configuration pending. Uploads and previews are disabled.</p><pre style={{whiteSpace:"pre-wrap"}}>ToolTag Customers / Customer / Jobs / Job / Agreement, Receiving, Completed, Payments, Issue-Review, Other</pre></Panel>
       <Panel title="Agreements / Policies">
         <p className="notice">
           No legal text has been invented. Publish only approved text.
@@ -67,19 +66,15 @@ export async function Settings() {
           <p>Final in-person payments: Cash, Zelle, Venmo.</p>
           <p>Review logistics fees: Card, Zelle or Venmo only · no cash.</p>
         </Panel>
-        <Panel title="Documents / Drive">
+        <Panel title="Workspace">
           <p className="muted">
-            Upload integration pending. You can link real files
-            that already exist by their Drive File ID.
+            Private binary files are stored in Supabase Storage. Google Drive is
+            reserved for a future backup-only synchronization process and is not
+            written by this app.
           </p>
           <Form
             operation="settings"
             fields={[
-              {
-                name: "drive_root_id",
-                label: "ToolTag Customers Root Folder",
-                value: s?.drive_root_id ?? "",
-              },
               {
                 name: "timezone",
                 label: "Time Zone",
