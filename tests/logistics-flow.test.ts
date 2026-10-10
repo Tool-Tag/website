@@ -1308,3 +1308,32 @@ test("Multiple route days enable Pickup acceptance and both calendars; disabled/
  await assert.rejects(value('select public.save_settings($1::jsonb)',[JSON.stringify({unit_id:unit,return_route_iso_weekdays:[0,8]})]),/check constraint/);
  }finally{await value('select public.save_settings($1::jsonb)',[JSON.stringify({unit_id:unit,pickup_route_iso_weekdays:[6],return_route_iso_weekdays:[7],max_pickup_stops_per_saturday:10})]);}
 });
+
+
+test("Customer route snapshot hides other customers, preserves read-only behavior and rejects foreign tokens",async()=>{
+ const f=await driverPickupFixture('customer-route-one');const route=await freshIncidentRoute(f,'Pickup');
+ const day=await value<string>('select route_date::text from public.pick_return_routes where id=$1',[route]);
+ const other=await driverPickupFixture('customer-route-two');
+ const available=await value<{day:string;slots:{eta:string}[]}>('select public.route_availability($1,$2,$3,$4)',[other.job,'Pickup',day,other.token]);
+ other.stop=await value<string>('select public.route_schedule($1,$2,$3,$4,$5)',[other.job,'Pickup',available.day,available.slots[0].eta,other.token]);
+ const before=await value<string>('select count(*)::text from public.notifications');
+ type Snapshot={leg:string;stops:{position:number;status:string;is_customer:boolean}[];total:number;resolved:number;estimated_eta:string|null;own_status:string;paused:boolean};
+ const get=()=>value<Snapshot[]>('select public.customer_route_tracking($1,$2)',[f.job,f.token]);
+ let data=await get();assert.equal(data.length,1);assert.equal(data[0].total,2);assert.equal(data[0].resolved,0);assert.equal(data[0].stops.filter(s=>s.is_customer).length,1);assert.equal(data[0].estimated_eta,null);
+ assert.equal(await value('select count(*)::text from public.notifications'),before);
+ const text=JSON.stringify(data);for(const secret of [f.job,other.job,other.token,'customer-route-two','101 Pickup Way','latitude','longitude','address','recipient']) assert.ok(!text.includes(secret),secret);
+ await assert.rejects(value('select public.customer_route_tracking($1,$2)',[f.job,other.token]),/Status link unavailable/);
+ // Anonymous caller needs the exact capability token even when staff membership is absent.
+ await db.query("select set_config('request.jwt.claim.sub','',false),set_config('request.jwt.claim.role','anon',false)");
+ try{assert.equal((await get())[0].total,2);await assert.rejects(value('select public.customer_route_tracking($1,$2)',[f.job,'wrong']),/Access denied/);}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.role','authenticated',false)",[admin]);}
+ await value('select public.depart_driver_route($1)',[route]);
+ await value('select public.update_driver_route_estimates($1,$2::jsonb)',[route,JSON.stringify([{id:f.stop,minutes:30},{id:other.stop,minutes:45}])]);
+ data=await get();assert.ok(data[0].estimated_eta);
+ await db.query("update public.pick_return_orders set route_eta_updated_at=now()-interval '11 minutes' where job_id=$1",[f.job]);assert.equal((await get())[0].estimated_eta,null);
+ await value('select public.update_driver_route_estimates($1,$2::jsonb)',[route,JSON.stringify([{id:f.stop,minutes:30},{id:other.stop,minutes:45}])]);
+ await value("select public.pickup_driver_action($1,'en-route')",[f.stop]);assert.equal((await get())[0].estimated_eta,null,'A stop change invalidates the old estimate');
+ await value("select public.pickup_driver_action($1,'arrived')",[f.stop]);assert.equal((await get())[0].own_status,'Arrived');
+ await db.query("insert into public.documents(unit_id,type,file_name,job_id,pick_return_stop_id,status) values($1,'Receiving Evidence','tracking-test.jpg',$2,$3,'Available')",[unit,f.job,f.stop]);
+ await value("select public.pickup_driver_action($1,'picked-up')",[f.stop]);data=await get();assert.equal(data[0].resolved,1);assert.equal(data[0].stops[1].status,'En Route');
+ await value('select public.report_driver_incident($1)',[route]);assert.equal((await get())[0].paused,true);
+});

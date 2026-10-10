@@ -280,3 +280,16 @@ test("Driver defaults choose the nearest of multiple configured route days",()=>
  assert.equal(dates.pickup,"2026-10-13");assert.equal(dates.return,"2026-10-14");
  assert.equal(driverDates("2026-10-13",new Date(),[3,7],[2,6]).pickup,"2026-10-13");
 });
+
+import {routeProgress,jobTimelineProgress,spanishStopStatus} from "../src/lib/domain/customer-route-tracking";
+test("Customer route timeline resolves failed stops without claiming delivery, and separates current/upcoming",()=>{
+ const stops=[{position:1,status:"Completed",is_customer:false},{position:2,status:"Failed",is_customer:false},{position:3,status:"Arrived",is_customer:true},{position:4,status:"Requested",is_customer:false}];
+ const result=routeProgress(stops);
+ assert.equal(result.percentage,50);assert.equal(result.done.length,2);assert.equal(result.current[0].is_customer,true);assert.equal(result.upcoming[0].status,"Requested");
+ assert.equal(spanishStopStatus.Failed,"Intento sin completar");assert.equal(routeProgress([]).percentage,0);
+ assert.equal(routeProgress(stops.map(s=>({...s,status:"Completed"}))).percentage,100);
+});
+test("Completed job timeline has no upcoming stages and all stages are Done",()=>{
+ const result=jobTimelineProgress(["In Process","Engraving","Completed"],"Completed");
+ assert.equal(result.percentage,100);assert.equal(result.done.length,3);assert.deepEqual(result.upcoming,[]);
+});
