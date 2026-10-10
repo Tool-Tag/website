@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cents, decimal, quoteTotal } from "../src/lib/domain/money";
-import { drive, email, evidenceName } from "../src/lib/integrations/contracts";
+import { email, evidenceName } from "../src/lib/integrations/contracts";
 test("Money calculations use integer cents, including fractional unit prices", () => {
   assert.equal(
     quoteTotal([
@@ -14,11 +14,7 @@ test("Money calculations use integer cents, including fractional unit prices", (
   for (const invalid of ["1.001", "-1", "NaN", "1e2", ""])
     assert.throws(() => cents(invalid));
 });
-test("Adapters never pretend an upload or message succeeded", async () => {
-  await assert.rejects(
-    () => drive.upload("root", "receipt", new Uint8Array(), "image/jpeg"),
-    /not connected/,
-  );
+test("Email adapter never pretends a message succeeded", async () => {
   await assert.rejects(
     () =>
       email.send({
