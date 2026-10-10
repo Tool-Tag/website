@@ -225,3 +225,71 @@ test("Stripe webhook verification rejects tampered or stale payloads", () => {
     false,
   );
 });
+
+import {simpleRouteTravel,straightLineKm,validPoint} from "../src/lib/domain/route-estimate";
+import {geocodeAddress,refreshRouteEstimates} from "../src/lib/integrations/route-estimate";
+test("Approximate route ETA uses ordered straight-line travel at 30 km/h plus fifteen minutes per remaining stop",async()=>{
+ const a={latitude:0,longitude:0},b={latitude:0,longitude:0.135};
+ assert.ok(Math.abs(straightLineKm(a,b)-15)<0.1);
+ assert.equal(straightLineKm(a,a),0);
+ assert.deepEqual(await simpleRouteTravel.minutes(a,[a,a,a]),[15,30,45]);
+ const values=await simpleRouteTravel.minutes(a,[b,a]);
+ assert.ok(values[0]>=45&&values[0]<=46);assert.ok(values[1]>=90&&values[1]<=91);
+ assert.equal(validPoint({latitude:NaN,longitude:0}),false);
+ assert.throws(()=>straightLineKm({latitude:91,longitude:0},a),/coordinates/);
+});
+test("Address coordinates reject ambiguous, missing and failed geocoder results",async()=>{
+ const mock=(data:unknown)=> (async()=>new Response(JSON.stringify(data))) as typeof fetch;
+ assert.deepEqual(await geocodeAddress("101 Test St",mock({result:{addressMatches:[{coordinates:{x:-111,y:40}}]}})),{latitude:40,longitude:-111});
+ assert.equal(await geocodeAddress("101 Test St",mock({result:{addressMatches:[]}})),null);
+ assert.equal(await geocodeAddress("101 Test St",mock({result:{addressMatches:[{},{}]}})),null);
+ assert.equal(await geocodeAddress("101 Test St",(async()=>{throw Error("offline");}) as typeof fetch),null);
+});
+
+test("Missing intermediate coordinates make downstream ETA unavailable and travel providers remain replaceable",async()=>{
+ const saved:{value:unknown}={value:null};
+ const db={rpc:async(name:string,args?:{p_estimates?:unknown})=>{if(name==="driver_route_estimate_context")return {data:{closed:false,stops:[{id:"a",address:"",latitude:40,longitude:-111},{id:"b",address:"",latitude:null,longitude:null},{id:"c",address:"",latitude:40,longitude:-111}]},error:null};saved.value=args?.p_estimates;return {error:null};}};
+ await refreshRouteEstimates(db as unknown as import("@supabase/supabase-js").SupabaseClient,"route",{latitude:40,longitude:-111},{minutes:async()=>[7]});
+ assert.deepEqual((saved.value as {minutes:number|null}[]).map(e=>e.minutes),[7,null,null]);
+});
+
+import {StripeRouteRefundTransport} from '../src/lib/payments/route-refunds';
+test('Automatic refunds are gated, use original Stripe payment and durable part keys, and do not call pending success',async()=>{
+ let posts=0;let reused=false;
+ const request=(async(url:unknown,init?:RequestInit)=>{
+ const path=String(url);if(path.includes('checkout/sessions/'))return new Response(JSON.stringify({payment_intent:'pi_original',payment_status:'paid'}));
+ if(init?.method==='POST'){posts++;assert.equal(new Headers(init.headers).get('Idempotency-Key'),'route-refund:comp:0.00');assert.equal(new URLSearchParams(String(init.body)).get('amount'),'500');assert.equal(new URLSearchParams(String(init.body)).get('payment_intent'),'pi_original');return new Response(JSON.stringify({id:'re_pending',status:'pending',amount:500,currency:'usd',payment_intent:'pi_original'}));}
+ return new Response(JSON.stringify({data:reused?[{id:'re_pending',status:'succeeded',amount:500,currency:'usd',payment_intent:'pi_original',metadata:{route_part:'route-refund:comp:0.00'}}]:[],has_more:false}));
+ }) as typeof fetch;
+ const disabled=new StripeRouteRefundTransport(request,{STRIPE_SECRET_KEY:'sk_live_example',TOOLTAG_REFUND_MODE:'live',VERCEL_ENV:'preview'});
+ assert.equal(disabled.configured(),false);await assert.rejects(disabled.refund({id:'comp',offset:0,amount:5,session:'cs_original'}),/not enabled/);assert.equal(posts,0);
+ const enabled=new StripeRouteRefundTransport(request,{STRIPE_SECRET_KEY:'sk_test_example',TOOLTAG_REFUND_MODE:'test'});
+ assert.equal((await enabled.refund({id:'comp',offset:0,amount:5,session:'cs_original'})).status,'pending');
+ reused=true;assert.equal((await enabled.refund({id:'comp',offset:0,amount:5,session:'cs_original'})).status,'succeeded');assert.equal(posts,1);
+});
+
+import {driverDates} from "../src/lib/domain/driver-dates";
+test("Driver route defaults use Sunday; configured delivery day changes only Return",()=>{
+ assert.equal(driverDates("2026-10-11").return,"2026-10-11");
+ assert.equal(driverDates("2026-10-11",new Date(),1).return,"2026-10-12");
+ assert.equal(driverDates("2026-10-11",new Date(),1).pickup,"2026-10-17");
+});
+
+test("Driver defaults choose the nearest of multiple configured route days",()=>{
+ const dates=driverDates("2026-10-12",new Date(),[3,7],[2,6]);
+ assert.equal(dates.pickup,"2026-10-13");assert.equal(dates.return,"2026-10-14");
+ assert.equal(driverDates("2026-10-13",new Date(),[3,7],[2,6]).pickup,"2026-10-13");
+});
+
+import {routeProgress,jobTimelineProgress,spanishStopStatus} from "../src/lib/domain/customer-route-tracking";
+test("Customer route timeline resolves failed stops without claiming delivery, and separates current/upcoming",()=>{
+ const stops=[{position:1,status:"Completed",is_customer:false},{position:2,status:"Failed",is_customer:false},{position:3,status:"Arrived",is_customer:true},{position:4,status:"Requested",is_customer:false}];
+ const result=routeProgress(stops);
+ assert.equal(result.percentage,50);assert.equal(result.done.length,2);assert.equal(result.current[0].is_customer,true);assert.equal(result.upcoming[0].status,"Requested");
+ assert.equal(spanishStopStatus.Failed,"Intento sin completar");assert.equal(routeProgress([]).percentage,0);
+ assert.equal(routeProgress(stops.map(s=>({...s,status:"Completed"}))).percentage,100);
+});
+test("Completed job timeline has no upcoming stages and all stages are Done",()=>{
+ const result=jobTimelineProgress(["In Process","Engraving","Completed"],"Completed");
+ assert.equal(result.percentage,100);assert.equal(result.done.length,3);assert.deepEqual(result.upcoming,[]);
+});

@@ -100,7 +100,7 @@ export default async function Review({
               )}
               {q.logistics.saturday_date && (
                 <p>
-                  Requested Saturday:{" "}
+                  Requested Pickup date:{" "}
                   {new Date(
                     q.logistics.saturday_date + "T12:00:00",
                   ).toLocaleDateString("en-US")}{" "}

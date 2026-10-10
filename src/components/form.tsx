@@ -8,6 +8,7 @@ export type Field = {
   required?: boolean;
   value?: string;
   options?: { value: string; label: string }[];
+  multiple?: boolean;
   wide?: boolean;
   help?: string;
   suggestions?: string[];
@@ -36,7 +37,13 @@ export function Form({
       {Object.entries(hidden).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
-      {fields.map((f) => (
+      {fields.map((f) => f.multiple && f.options ? (
+        <fieldset key={f.name} className={f.wide ? "wide" : ""}>
+          <legend>{f.label}</legend>
+          <div className="stack">{f.options.map(o=><label key={o.value}><input type="checkbox" name={f.name} value={o.value} defaultChecked={(f.value??"").split(",").includes(o.value)} /> {o.label}</label>)}</div>
+          {f.help && <small className="muted">{f.help}</small>}
+        </fieldset>
+      ) : (
         <label key={f.name} className={f.wide ? "wide" : ""}>
           {f.label}
           {f.type === "textarea" ? (

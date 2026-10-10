@@ -1,3 +1,4 @@
+import {processRouteRefunds} from "@/lib/payments/route-refunds";
 import { processAcceptedQueue } from "@/lib/documents/accepted-delivery";
 export const maxDuration = 300;
 import { dispatchQuoteMail } from "@/lib/integrations/mail-dispatch";
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
   const { error } = await db.rpc("run_scheduled_tasks");
   if (error)
     return Response.json({ error: "Scheduled tasks failed" }, { status: 500 });
+  await processRouteRefunds(db);
   await processAcceptedQueue(db);
   return Response.json({ ok: true, messaging: await dispatchQuoteMail(db) });
 }
