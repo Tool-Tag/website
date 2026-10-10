@@ -1,4 +1,5 @@
 "use client";
+import {driverLocation} from "@/lib/domain/driver-location";
 import {useEffect,useState,useTransition} from "react";
 import {denverDateTime} from "@/lib/domain/time";
 import {useRouter} from "next/navigation";
@@ -8,7 +9,7 @@ export function ReturnStopControls({stop,status,waitUntil,coming,blocked,hasEvid
  useEffect(()=>{const tick=()=>setNow(Date.now());tick();const id=setInterval(tick,1000);return()=>clearInterval(id);},[]);
  useEffect(()=>{if(status==="Completed"||status==="Failed"){const next=sessionStorage.getItem("return-next-stop");if(next){document.getElementById(`return-stop-${next}`)?.scrollIntoView({behavior:"smooth",block:"start"});sessionStorage.removeItem("return-next-stop");}}},[status]);
  const left=waitUntil&&now?Math.max(0,Math.ceil((Date.parse(waitUntil)-now)/1000)):300;const count=`${Math.floor(left/60)}:${String(left%60).padStart(2,"0")}`;
- const run=(action:string)=>start(async()=>{setError("");const r=await returnDriverAction(stop,action,present);if(r.error)setError(r.error);else {if(nextStop&&["delivered","not-home"].includes(action))sessionStorage.setItem("return-next-stop",nextStop);router.refresh();}});
+ const run=(action:string)=>start(async()=>{setError("");const r=await returnDriverAction(stop,action,present,driverLocation());if(r.error)setError(r.error);else {if(nextStop&&["delivered","not-home"].includes(action))sessionStorage.setItem("return-next-stop",nextStop);router.refresh();}});
  return <div className="pickup-controls">
  <label className="checkbox"><input type="checkbox" />Start recording before exiting the vehicle</label>
  <p className="notice">Customer must be present. Never leave items at the door, even when fully paid.</p>

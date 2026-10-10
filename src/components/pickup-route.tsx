@@ -1,3 +1,4 @@
+import {RouteNotificationControls} from "@/components/route-notification-controls";
 import Link from "next/link";
 import {context} from "@/lib/domain/context";
 import {denverTime} from "@/lib/domain/time";
@@ -29,6 +30,7 @@ export async function PickupRoute({date}:{date:string}){
  const visible=(stops??[]).filter(s=>allowed.has(s.job_id));
  return <section className="pickup-route driver-landing"><StatusRefresh />
  <Link className="button secondary" href="/pick-return">← All routes</Link><p className="eyebrow">SATURDAY / PICK UP</p><h1>{routeDateLabel(date)}</h1><p className="driver-window">8:00 AM–12:00 PM · Denver time</p><p>{visible.filter(s=>s.status==="Completed").length}/{visible.length} picked up</p>
+ {(routes??[]).map(route=><RouteNotificationControls key={route.id} route={route.id} departed={route.departed_at} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}
  {!visible.length&&<div className="panel"><h2>No confirmed pickups</h2><p>Only scheduled Pickup services with confirmed payment appear here.</p></div>}
  {visible.map((stop,index)=>{
  const job=(jobs??[]).find(j=>j.id===stop.job_id);if(!job)return null;
@@ -38,7 +40,7 @@ export async function PickupRoute({date}:{date:string}){
  const blocked=job.status==="Cancelled"||/Cancellation Requested|Production Hold/.test(job.work_stage??"");
  return <article id={`pickup-stop-${stop.id}`} className="driver-card pickup-stop" key={stop.id}><div className="driver-card-heading"><span className="driver-icon">{index+1}</span><div><h2>{customer?.name??"Customer"}</h2><p>{job.code} · {stop.status==="Completed"?"Picked Up":stop.status}</p></div></div>
  {customer?.phone&&<a className="button secondary" href={`tel:${customer.phone.replace(/[^+0-9]/g,"")}`}>{customer.phone}</a>}
- <p className="pickup-address">{stop.address||"Pickup address unavailable"}</p><p>Window: 8:00 AM–12:00 PM</p>{stop.eta&&<p><strong>ETA: {denverTime(stop.eta)}</strong></p>}
+ <p className="pickup-address">{stop.address||"Pickup address unavailable"}</p><p>Window: 8:00 AM–12:00 PM</p>{stop.approximate_eta&&<p><strong>ETA aprox.: {denverTime(stop.approximate_eta)}</strong></p>}{stop.eta&&<p><strong>ETA: {denverTime(stop.eta)}</strong></p>}
  <h3>{pieces.length} pieces</h3><ul>{[...summary].map(([name,count])=><li key={name}>{count} × {name}</li>)}</ul>
  {!pieces.length&&<p className="muted">Piece details unavailable.</p>}
  <EvidenceGallery files={evidence} />

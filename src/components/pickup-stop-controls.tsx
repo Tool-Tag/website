@@ -1,4 +1,5 @@
 "use client";
+import {driverLocation} from "@/lib/domain/driver-location";
 import {useEffect,useState,useTransition} from "react";
 import {useRouter} from "next/navigation";
 import {pickupDriverAction} from "@/app/pickup-driver-actions";
@@ -8,7 +9,7 @@ export function PickupStopControls({stop,status,waitUntil,coming,blocked,hasEvid
  useEffect(()=>{if(status==="Completed"||status==="Failed"){const next=sessionStorage.getItem("pickup-next-stop");if(next){document.getElementById(`pickup-stop-${next}`)?.scrollIntoView({behavior:"smooth",block:"start"});sessionStorage.removeItem("pickup-next-stop");}}},[status]);
  const left=waitUntil&&now?Math.max(0,Math.ceil((Date.parse(waitUntil)-now)/1000)):300;
  const count=`${Math.floor(left/60)}:${String(left%60).padStart(2,"0")}`;
- const run=(action:string)=>start(async()=>{setError("");const r=await pickupDriverAction(stop,action);if(r.error)setError(r.error);else {if(nextStop&&["picked-up","pickup-miss"].includes(action))sessionStorage.setItem("pickup-next-stop",nextStop);router.refresh();}});
+ const run=(action:string)=>start(async()=>{setError("");const r=await pickupDriverAction(stop,action,driverLocation());if(r.error)setError(r.error);else {if(nextStop&&["picked-up","pickup-miss"].includes(action))sessionStorage.setItem("pickup-next-stop",nextStop);router.refresh();}});
  return <div className="pickup-controls">
  {blocked&&<p role="alert" className="notice error">Cancellation Requested / Production Hold. Pickup is blocked.</p>}
  {status==="Scheduled"&&<button disabled={pending||blocked} onClick={()=>run("en-route")}>Start · En Route</button>}

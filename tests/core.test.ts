@@ -225,3 +225,30 @@ test("Stripe webhook verification rejects tampered or stale payloads", () => {
     false,
   );
 });
+
+import {simpleRouteTravel,straightLineKm,validPoint} from "../src/lib/domain/route-estimate";
+import {geocodeAddress,refreshRouteEstimates} from "../src/lib/integrations/route-estimate";
+test("Approximate route ETA uses ordered straight-line travel at 30 km/h plus fifteen minutes per remaining stop",async()=>{
+ const a={latitude:0,longitude:0},b={latitude:0,longitude:0.135};
+ assert.ok(Math.abs(straightLineKm(a,b)-15)<0.1);
+ assert.equal(straightLineKm(a,a),0);
+ assert.deepEqual(await simpleRouteTravel.minutes(a,[a,a,a]),[15,30,45]);
+ const values=await simpleRouteTravel.minutes(a,[b,a]);
+ assert.ok(values[0]>=45&&values[0]<=46);assert.ok(values[1]>=90&&values[1]<=91);
+ assert.equal(validPoint({latitude:NaN,longitude:0}),false);
+ assert.throws(()=>straightLineKm({latitude:91,longitude:0},a),/coordinates/);
+});
+test("Address coordinates reject ambiguous, missing and failed geocoder results",async()=>{
+ const mock=(data:unknown)=> (async()=>new Response(JSON.stringify(data))) as typeof fetch;
+ assert.deepEqual(await geocodeAddress("101 Test St",mock({result:{addressMatches:[{coordinates:{x:-111,y:40}}]}})),{latitude:40,longitude:-111});
+ assert.equal(await geocodeAddress("101 Test St",mock({result:{addressMatches:[]}})),null);
+ assert.equal(await geocodeAddress("101 Test St",mock({result:{addressMatches:[{},{}]}})),null);
+ assert.equal(await geocodeAddress("101 Test St",(async()=>{throw Error("offline");}) as typeof fetch),null);
+});
+
+test("Missing intermediate coordinates make downstream ETA unavailable and travel providers remain replaceable",async()=>{
+ const saved:{value:unknown}={value:null};
+ const db={rpc:async(name:string,args?:{p_estimates?:unknown})=>{if(name==="driver_route_estimate_context")return {data:{closed:false,stops:[{id:"a",address:"",latitude:40,longitude:-111},{id:"b",address:"",latitude:null,longitude:null},{id:"c",address:"",latitude:40,longitude:-111}]},error:null};saved.value=args?.p_estimates;return {error:null};}};
+ await refreshRouteEstimates(db as unknown as import("@supabase/supabase-js").SupabaseClient,"route",{latitude:40,longitude:-111},{minutes:async()=>[7]});
+ assert.deepEqual((saved.value as {minutes:number|null}[]).map(e=>e.minutes),[7,null,null]);
+});

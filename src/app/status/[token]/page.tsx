@@ -160,12 +160,14 @@ export default async function JobStatusPage({
 
         {pickup && (
           <div className="status-logistics">
+            {pickup.route_eta_updated_at && <p className="muted">ETA aprox. updated: {denverDateTime(pickup.route_eta_updated_at)}</p>}
             <div>
               <small>Pickup</small>
               <strong>{pickup.pickup_status}</strong>
               {formatWindow(pickup.pickup_window_start, pickup.pickup_window_end) && (
                 <span>{formatWindow(pickup.pickup_window_start, pickup.pickup_window_end)}</span>
               )}
+              {pickup.pickup_approximate_eta && <span>ETA aprox.: {denverDateTime(pickup.pickup_approximate_eta)}</span>}
               {pickup.pickup_eta && (
                 <span>
                   ETA: {denverDateTime(pickup.pickup_eta)}
@@ -178,6 +180,7 @@ export default async function JobStatusPage({
               {formatWindow(pickup.return_window_start, pickup.return_window_end) && (
                 <span>{formatWindow(pickup.return_window_start, pickup.return_window_end)}</span>
               )}
+              {pickup.return_approximate_eta && <span>ETA aprox.: {denverDateTime(pickup.return_approximate_eta)}</span>}
               {pickup.return_eta && (
                 <span>
                   ETA: {denverDateTime(pickup.return_eta)}

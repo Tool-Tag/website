@@ -1121,3 +1121,46 @@ test("Unpaid retry is released at the route cutoff and its uncollected fee is vo
  assert.equal(Number(await value("select count(*) from public.pick_return_stops where job_id=$1 and status='Requested'",[job])),0);
  assert.equal(await value("select b.transaction_status from public.delivery_attempt_fees f join public.sale_balances b on b.transaction_id=f.sale_id where f.job_id=$1",[job]),"Voided");
 });
+
+test("Explicit route departure notifies confirmed customers once and rejects unknown routes",async()=>{
+ const {job}=await readyReturn("departure");
+ const route=await value<string>("select s.route_id from public.pick_return_stops s join public.pick_return_routes r on r.id=s.route_id where s.job_id=$1 and r.leg='Return' and s.status='Scheduled'",[job]);
+ await value("select public.depart_driver_route($1)",[route]);
+ const count=Number(await value("select count(*) from public.notifications where dedupe_key like $1",['route-departed:'+route+':%']));
+ assert.ok(count>0);
+ await value("select public.depart_driver_route($1)",[route]);
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key like $1",['route-departed:'+route+':%'])),count);
+ assert.ok(await value("select departed_at from public.pick_return_routes where id=$1",[route]));
+ await assert.rejects(value("select public.depart_driver_route(gen_random_uuid())"),/unavailable/);
+});
+
+for(const leg of ["Pickup","Return"]){
+ test(`${leg} completion leaving three stops notifies exactly those customers once and updates approximate ETA without replay`,async()=>{
+ const route=await value<string>("insert into public.pick_return_routes(unit_id,route_date,leg) values($1,((now() at time zone 'America/Denver')::date+500),$2) returning id",[unit,leg]);
+ const stops:string[]=[];
+ for(let i=0;i<4;i++){
+ const {job}=leg==="Pickup"?await driverPickupFixture(`nearby-${leg}-${i}`):await readyReturn(`nearby-${leg}-${i}`);
+ stops.push(await value<string>("insert into public.pick_return_stops(unit_id,route_id,job_id,sequence,status,address) values($1,$2,$3,$4,'Scheduled','101 Test Street') returning id",[unit,route,job,i+1]));
+ }
+ await db.query("update public.pick_return_stops set status='Arrived' where id=$1",[stops[0]]);
+ await db.query("insert into public.documents(unit_id,type,file_name,job_id,pick_return_stop_id,status) select unit_id,'Receiving Evidence','nearby-test.jpg',job_id,id,'Available' from public.pick_return_stops where route_id=$1",[route]);
+ await db.query("update public.pick_return_stops set status='Completed',customer_present_at=now() where id=$1",[stops[0]]);
+ const notifications=await db.query<{dedupe_key:string}>("select dedupe_key from public.notifications where dedupe_key like $1",[`route-nearby:${route}:%`]);
+ assert.equal(notifications.rows.length,3);assert.ok(!notifications.rows.some(n=>n.dedupe_key.endsWith(stops[0])));
+ const estimates=stops.slice(1).map((id,i)=>({id,minutes:15*(i+1),latitude:40,longitude:-111}));
+ await value("select public.update_driver_route_estimates($1,$2::jsonb)",[route,JSON.stringify(estimates)]);
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key like $1 and payload->>'text' like '%ETA aprox.:%'",[`route-nearby:${route}:%`])),3);
+ await db.query("update public.notifications set status='Sent' where dedupe_key like $1",[`route-nearby:${route}:%`]);
+ const sent=await value<string>("select payload->>'text' from public.notifications where dedupe_key=$1",[`route-nearby:${route}:${stops[1]}`]);
+ await value("select public.update_driver_route_estimates($1,$2::jsonb)",[route,JSON.stringify(estimates.map(e=>({...e,minutes:e.minutes+10})))]);
+ assert.equal(await value("select payload->>'text' from public.notifications where dedupe_key=$1",[`route-nearby:${route}:${stops[1]}`]),sent);
+ await db.query("update public.pick_return_stops set status='Arrived' where id=$1",[stops[1]]);
+ await db.query("update public.pick_return_stops set status='Completed',customer_present_at=now() where id=$1",[stops[1]]);
+ assert.equal(await value("select approximate_eta from public.pick_return_stops where id=$1",[stops[1]]),null);
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key like $1",[`route-nearby:${route}:%`])),3);
+ await value("select public.update_driver_route_estimates($1,$2::jsonb)",[route,JSON.stringify([{id:stops[2],minutes:null}])]);
+ assert.equal(await value("select approximate_eta from public.pick_return_stops where id=$1",[stops[2]]),null);
+ await db.query("select set_config('request.jwt.claim.sub','',false)");
+ try{await assert.rejects(value("select public.driver_route_estimate_context($1)",[route]));await assert.rejects(value("select public.update_driver_route_estimates($1,'[]'::jsonb)",[route]));}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
+ });
+}
