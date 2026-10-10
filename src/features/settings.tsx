@@ -1,3 +1,4 @@
+import {denverDateTime} from "@/lib/domain/time";
 import { rows, context } from "@/lib/domain/context";
 import { Heading, Panel, Table, Empty } from "@/components/ui";
 import { Form } from "@/components/form";
@@ -137,6 +138,19 @@ export async function Settings() {
               help: "Placeholder/configurable until the ToolTag Venmo account is finalized.",
             },
             {
+              name: "max_delivery_stops_per_sunday",
+              label: "Maximum Delivery Stops per Sunday",
+              type: "number",
+              value: String(s?.max_delivery_stops_per_sunday ?? 20),
+              help: "13 reservable ETAs; multiple Return stops may share an ETA.",
+            },
+            {
+              name: "second_delivery_attempt_fee",
+              label: "Second Delivery Attempt Fee (USD)",
+              type: "number",
+              value: String(s?.second_delivery_attempt_fee ?? 10),
+            },
+            {
               name: "max_pickup_stops_per_saturday",
               label: "Maximum Pickup Stops per Saturday",
               type: "number",
@@ -198,7 +212,7 @@ export async function Settings() {
               <tr key={n.id}>
                 <td>{n.event}<small style={{display:"block"}}>{n.id}</small></td>
                 <td>{n.status}</td>
-                <td>{new Date(n.due_at).toLocaleString("en-US")}</td>
+                <td>{denverDateTime(n.due_at)}</td>
                 <td>{n.mail_error || n.provider_id || "Pending"}</td>
               </tr>
             ))}

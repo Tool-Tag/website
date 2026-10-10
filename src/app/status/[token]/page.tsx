@@ -1,3 +1,10 @@
+import {ReturnChoice} from "@/components/return-choice";
+import {PaymentForm} from "@/components/payment-form";
+import {cardPaymentsConfigured} from "@/lib/payments";
+import {RouteCalendar} from "@/components/route-calendar";
+import {StatusRefresh} from "@/components/status-refresh";
+import {StatusTimeline} from "@/components/status-timeline";
+import {denverDateTime, denverTime} from "@/lib/domain/time";
 import Link from "next/link";
 import { CancellationBalanceForm } from "@/components/cancellation-balance-form";
 import { EvidenceGallery } from "@/components/evidence-gallery";
@@ -8,6 +15,8 @@ import { supabase } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 const labels: Record<string, { title: string; description: string }> = {
+  "Pending Delivery": {title:"Pending Delivery",description:"Confirm payment or choose an available delivery option. Cash must be selected before the final cutoff."},
+  "Shop Pickup": {title:"Shop Pickup",description:"Your items are held at the shop. Wait for ToolTag pickup instructions."},
   "Pickup Fee": {
     title: "Pickup Fee",
     description: "The Pickup & Return fee must be paid and confirmed before scheduling.",
@@ -68,10 +77,7 @@ const labels: Record<string, { title: string; description: string }> = {
 
 function formatWindow(start?: string | null, end?: string | null) {
   if (!start || !end) return null;
-  return `${new Date(start).toLocaleString("en-US")} – ${new Date(end).toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  })}`;
+  return `${denverDateTime(start)} – ${denverTime(end)}`;
 }
 
 export default async function JobStatusPage({
@@ -87,7 +93,7 @@ export default async function JobStatusPage({
 
   if (error || !data) {
     return (
-      <main className="public">
+      <main className="public"><StatusRefresh />
         <p className="eyebrow">ToolTag · Job Status</p>
         <h1>This status link is unavailable.</h1>
       </main>
@@ -114,8 +120,6 @@ export default async function JobStatusPage({
     ? data.steps
     : ["In Process", "Engraving", "Final Details", "Completed"];
   const activeStage = data.tracking_stage ?? data.stage ?? "In Process";
-  const locatedIndex = steps.indexOf(activeStage);
-  const currentIndex = locatedIndex >= 0 ? locatedIndex : 0;
   const current = labels[activeStage] ?? labels["In Process"];
   const pickup = data.pickup_return;
   const itemsTotal = Number(data.items_total ?? 0);
@@ -123,7 +127,7 @@ export default async function JobStatusPage({
   const itemsStarted = Number(data.items_started ?? 0);
 
   return (
-    <main className="public">
+    <main className="public"><StatusRefresh />
       <p className="eyebrow">ToolTag · Job Status</p>
       <h1>{data.code}</h1>
       {data.customer_name && <p className="muted">{data.customer_name}</p>}
@@ -162,7 +166,7 @@ export default async function JobStatusPage({
               )}
               {pickup.pickup_eta && (
                 <span>
-                  ETA: {new Date(pickup.pickup_eta).toLocaleString("en-US")}
+                  ETA: {denverDateTime(pickup.pickup_eta)}
                 </span>
               )}
             </div>
@@ -174,47 +178,21 @@ export default async function JobStatusPage({
               )}
               {pickup.return_eta && (
                 <span>
-                  ETA: {new Date(pickup.return_eta).toLocaleString("en-US")}
+                  ETA: {denverDateTime(pickup.return_eta)}
                 </span>
               )}
             </div>
           </div>
         )}
 
-        <div className="status-tracker" aria-label="Job progress">
-          {steps.map((step: string, index: number) => {
-            const complete = index < currentIndex;
-            const active = index === currentIndex;
-            return (
-              <div
-                key={step}
-                className={
-                  active
-                    ? "status-step active"
-                    : complete
-                      ? "status-step complete"
-                      : "status-step"
-                }
-              >
-                <div className="status-dot" aria-hidden="true">
-                  {complete ? "✓" : index + 1}
-                </div>
-                <div>
-                  <strong>{labels[step]?.title ?? step}</strong>
-                  <small>
-                    {active ? "Current" : complete ? "Completed" : "Upcoming"}
-                  </small>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <p className="muted status-updated">
-          Last updated: {new Date(data.updated_at).toLocaleString("en-US")}
-        </p>
+        {pickup?.return_window_start && pickup.delivery_payment_status !== "Shop Pickup" && !["Delivered","En Route","Arrived","Cancelled"].includes(pickup.return_status) && <details><summary>Reschedule Return</summary><RouteCalendar job={data.id} leg="Return" token={token} /></details>}
+        {["Not Scheduled","Scheduled"].includes(pickup?.pickup_status) && <details><summary>Reschedule Pickup</summary><RouteCalendar job={data.id} leg="Pickup" token={token} /></details>}
+        <StatusTimeline steps={steps} current={activeStage} updated={data.updated_at} finished={itemsCompleted} total={itemsTotal} />
       </section>
 
+      {pickup?.delivery_attempts === 1 && pickup.delivery_payment_status !== "Shop Pickup" && !pickup.return_window_start && <ReturnChoice token={token} job={data.id} fee={Number(data.second_return_fee)} chosen={Boolean(data.second_return_chosen)} />}
+      {pickup?.production_ready_at && !pickup.returned_at && Number(data.payment?.balance_due || 0)>0 && <PaymentForm token={token} balanceDue={data.payment.balance_due} zelleEmail={data.payment.methods?.zelle_email} venmoHandle={data.payment.methods?.venmo_handle} cardConfigured={cardPaymentsConfigured()} routePayment />}
+      {Array.isArray(data.payment_proofs) && data.payment_proofs.length>0 && <section className="panel"><h2>Payment proofs</h2>{data.payment_proofs.map((proof:{id:string;submitted_at:string})=><form key={proof.id} method="post" action={`/app/proofpayment/${encodeURIComponent(data.code)}`}><input type="hidden" name="token" value={token}/><input type="hidden" name="payment" value={proof.id}/><button>View payment proof · {denverDateTime(proof.submitted_at)}</button></form>)}</section>}
       <section className="panel status-help-panel">
         <p className="status-kicker">Help With</p>
         <h2>This Service</h2>

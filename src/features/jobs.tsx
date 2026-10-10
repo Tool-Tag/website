@@ -1,3 +1,4 @@
+import {denverDateTime} from "@/lib/domain/time";
 import { EvidenceGallery } from "@/components/evidence-gallery";
 import { EvidenceCapture } from "@/components/evidence-capture";
 import { EvidenceUpload } from "@/components/evidence-upload";
@@ -64,7 +65,7 @@ export async function Jobs({ id }: { id?: string }) {
                 <td>
                   <Badge>{jobStatusLabel(j.status)}</Badge>
                 </td>
-                <td>{new Date(j.created_at).toLocaleDateString("en-US")}</td>
+                <td>{new Date(j.created_at).toLocaleDateString("en-US", {timeZone:"America/Denver"})}</td>
               </tr>
             ))}
           </Table>
@@ -123,7 +124,7 @@ export async function Jobs({ id }: { id?: string }) {
     );
   }
 
-  const { role, db } = await context();
+  const { role } = await context();
   const j = (await rows("jobs", { id }))[0];
   if (!j) return <Empty>Job not found.</Empty>;
 
@@ -172,13 +173,9 @@ export async function Jobs({ id }: { id?: string }) {
       (request) => request.status === "Pending Verification",
     );
 
-  let pendingProofUrl: string | null = null;
-  if (role === "admin" && pendingPayment?.proof_path) {
-    const { data } = await db.storage
-      .from("payment-proofs")
-      .createSignedUrl(pendingPayment.proof_path, 3600);
-    pendingProofUrl = data?.signedUrl ?? null;
-  }
+  const pendingProofUrl = pendingPayment?.proof_path
+    ? `/app/proofpayment/${encodeURIComponent(j.code)}?payment=${encodeURIComponent(pendingPayment.id)}`
+    : null;
 
   const scope = (
     await rows("quote_items", {
@@ -390,7 +387,7 @@ export async function Jobs({ id }: { id?: string }) {
           {logistics.saturday_date && (
             <p>
               Requested Saturday:{" "}
-              {new Date(logistics.saturday_date + "T12:00:00").toLocaleDateString("en-US")} ·
+              {new Date(logistics.saturday_date + "T12:00:00").toLocaleDateString("en-US", {timeZone:"America/Denver"})} ·
               8:00 AM–12:00 PM
             </p>
           )}
@@ -508,6 +505,7 @@ export async function Jobs({ id }: { id?: string }) {
         </Panel>
       )}
 
+      {(j.status === "Ready for Delivery" && !deliveryRequired || pickupReturn?.delivery_payment_status === "Shop Pickup") && <Form operation="shop-handover" hidden={{id}} fields={[]} back={`/app/jobs/${id}`} button="Confirm paid handover at shop" />}
       {stage === "Awaiting Delivery Acceptance" && (
         <Panel title="Waiting for delivery acceptance">
           <p>
@@ -515,7 +513,7 @@ export async function Jobs({ id }: { id?: string }) {
           </p>
           {j.acceptance_deadline && (
             <p className="muted">
-              Response deadline: {new Date(j.acceptance_deadline).toLocaleString("en-US")}
+              Response deadline: {denverDateTime(j.acceptance_deadline)}
             </p>
           )}
         </Panel>

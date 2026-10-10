@@ -244,12 +244,9 @@ before(async () => {
     );
   }
 
-  await db.exec(
-    await readFile(
-      "supabase/migrations/20261009213000_review_logistics_payments.sql",
-      "utf8",
-    ),
-  );
+  for (const file of (await readdir("supabase/migrations")).filter(file => file.endsWith(".sql") && !file.includes("_baseline_")).sort()) {
+    await db.exec(await readFile(`supabase/migrations/${file}`, "utf8"));
+  }
 
   await db.exec(
     `insert into auth.users(id) values('${admin}');
@@ -801,4 +798,177 @@ test("Card stays pending until a matching provider confirmation and then opens t
     ]),
     "Receiving Evidence",
   );
+});
+
+async function readyReturn(suffix: string) {
+  const customer = await createCustomer(`Route ${suffix}`, suffix);
+  const quote = await createQuote(customer.id);
+  const token = await value<string>("select public.send_quote($1)", [quote]);
+  const accepted = await acceptWithLogistics(token, {option_code:"dropoff_delivery",delivery_address:"101 Route Street, Draper UT"});
+  await db.query("update public.quote_logistics set payment_status='paid_confirmed' where quote_id=$1", [quote]);
+  await db.query("update public.pick_return_orders set fee_status='Confirmed',hold_until_paid=false where job_id=$1", [accepted.job_id]);
+  await db.query("update public.job_items set stage='Finished' where job_id=$1", [accepted.job_id]);
+  await db.query("update public.jobs set work_stage='Delivery In Progress' where id=$1", [accepted.job_id]);
+  const statusToken=await value<string>("select private.ensure_job_status_link($1)",[accepted.job_id]);
+  return {job:accepted.job_id,token:statusToken};
+}
+
+test("Route slots include both endpoints, share Return ETAs and reject a foreign token",async()=>{
+ const {job,token}=await readyReturn("slots");
+ const date=await value<string>("select ((now() at time zone 'America/Denver')::date+14)::text");
+ const result=await value<{slots:{eta:string;label:string}[]}>("select public.route_availability($1,'Return',$2,$3)",[job,date,token]);
+ assert.equal(result.slots.length,13);
+ assert.equal(result.slots[0].label,"2:00 PM");
+ assert.equal(result.slots.at(-1)?.label,"6:00 PM");
+ await assert.rejects(value("select public.route_schedule($1,'Return',$2,$3,'foreign-token')",[job,date,result.slots[0].eta]),/Access denied/);
+});
+
+test("First missed Return creates no fee or retry route; customer can choose free shop pickup",async()=>{
+ const {job,token}=await readyReturn("miss-shop");
+ const stop=await value<string>("select s.id from public.pick_return_stops s join public.pick_return_routes r on r.id=s.route_id where s.job_id=$1 and r.leg='Return' and s.status='Scheduled'",[job]);
+ await db.query("update public.pick_return_stops set status='Arrived' where id=$1",[stop]);
+ await value("select public.advance_pick_return_stop($1,'not-home')",[stop]);
+ assert.equal(Number(await value("select count(*) from public.delivery_attempt_fees where job_id=$1",[job])),0);
+ assert.equal(await value("select return_window_start from public.pick_return_orders where job_id=$1",[job]),null);
+ await value("select public.choose_shop_pickup($1,$2)",[job,token]);
+ assert.equal(await value("select delivery_payment_status from public.pick_return_orders where job_id=$1",[job]),"Shop Pickup");
+});
+
+test("Chosen second Return costs separately and cannot be scheduled before confirmation",async()=>{
+ const {job,token}=await readyReturn("miss-retry");
+ const stop=await value<string>("select s.id from public.pick_return_stops s join public.pick_return_routes r on r.id=s.route_id where s.job_id=$1 and r.leg='Return' and s.status='Scheduled'",[job]);
+ await db.query("update public.pick_return_stops set status='Arrived' where id=$1",[stop]);
+ await value("select public.advance_pick_return_stop($1,'not-home')",[stop]);
+ await value("select public.choose_second_return($1,$2)",[job,token]);
+ await value("select public.choose_second_return($1,$2)",[job,token]);
+ assert.equal(Number(await value("select count(*) from public.delivery_attempt_fees where job_id=$1",[job])),1);
+ assert.equal(Number(await value("select amount from public.delivery_attempt_fees where job_id=$1",[job])),10);
+ assert.equal(await value("select return_window_start from public.pick_return_orders where job_id=$1",[job]),null);
+ const date=await value<string>("select ((now() at time zone 'America/Denver')::date+14)::text");
+ const availability=await value<{day:string;slots:{eta:string}[]}>("select public.route_availability($1,'Return',$2,$3)",[job,date,token]);
+ await assert.rejects(value("select public.route_schedule($1,'Return',$2,$3,$4)",[job,availability.day,availability.slots[0].eta,token]),/Confirm the second Return payment/);
+});
+
+test("Confirmed retry payment schedules once; second miss is nonrefundable and forbids a third trip",async()=>{
+ const {job,token}=await readyReturn("retry-paid");
+ let stop=await value<string>("select s.id from public.pick_return_stops s join public.pick_return_routes r on r.id=s.route_id where s.job_id=$1 and r.leg='Return' and s.status='Scheduled'",[job]);
+ await db.query("update public.pick_return_stops set status='Arrived' where id=$1",[stop]);
+ await value("select public.advance_pick_return_stop($1,'not-home')",[stop]);
+ await value("select public.choose_second_return($1,$2)",[job,token]);
+ const due=await value<number>("select balance_due from public.job_commercial_totals where id=$1",[job]);
+ const request=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',$3,'Final Balance') returning id",[unit,job,due]);
+ await value("select public.confirm_payment_request($1)",[request]);
+ stop=await value<string>("select s.id from public.pick_return_stops s join public.pick_return_routes r on r.id=s.route_id where s.job_id=$1 and r.leg='Return' and s.status='Scheduled'",[job]);
+ assert.ok(stop);
+ await value("select public.confirm_payment_request($1)",[request]);
+ assert.equal(Number(await value("select count(*) from public.pick_return_stops s join public.pick_return_routes r on r.id=s.route_id where s.job_id=$1 and r.leg='Return' and s.status='Scheduled'",[job])),1);
+ await db.query("update public.pick_return_stops set status='Arrived' where id=$1",[stop]);
+ await value("select public.advance_pick_return_stop($1,'not-home')",[stop]);
+ assert.equal(await value("select delivery_payment_status from public.pick_return_orders where job_id=$1",[job]),"Shop Pickup");
+ assert.equal(Number(await value("select refunded from public.sale_balances b join public.delivery_attempt_fees f on f.sale_id=b.transaction_id where f.job_id=$1",[job])),0);
+ await assert.rejects(value("select public.choose_second_return($1,$2)",[job,token]),/unavailable/);
+});
+
+test("Cash remains unpaid until the driver confirms collection; handover is blocked beforehand",async()=>{
+ const {job,token}=await readyReturn("cash-gate");
+ await value("select public.prepare_route_payment($1,'Cash',gen_random_uuid())",[token]);
+ const stop=await value<string>("select s.id from public.pick_return_stops s join public.pick_return_routes r on r.id=s.route_id where s.job_id=$1 and r.leg='Return' and s.status='Scheduled'",[job]);
+ await db.query("update public.pick_return_stops set status='Arrived' where id=$1",[stop]);
+ await assert.rejects(value("select public.advance_pick_return_stop($1,'delivered')",[stop]),/Collect and confirm/);
+ await value("select public.collect_route_cash($1)",[stop]);
+ await value("select public.collect_route_cash($1)",[stop]);
+ assert.equal(Number(await value("select balance_due from public.job_commercial_totals where id=$1",[job])),0);
+ assert.equal(Number(await value("select count(*) from public.payment_requests where request_key=$1",[stop])),1);
+});
+
+test("Pickup calendar has 13 inclusive unique slots and worker releases an unconfirmed 48h slot",async()=>{
+ await db.query("update public.unit_settings set max_pickup_stops_per_saturday=10 where unit_id=$1",[unit]);
+ const customer=await createCustomer("Pickup cutoff","pickup-cutoff");
+ const quote=await createQuote(customer.id);
+ const review=await value<string>("select public.send_quote($1)",[quote]);
+ const accepted=await acceptWithLogistics(review,{option_code:"pickup_delivery",pickup_address:"101 Pickup Way, Draper UT",saturday_date:futureSaturday()});
+ const job=accepted.job_id;
+ const token=await value<string>("select private.ensure_job_status_link($1)",[job]);
+ const date=await value<string>("select ((now() at time zone 'America/Denver')::date+14)::text");
+ const a=await value<{slots:{eta:string;label:string}[];day:string}>("select public.route_availability($1,'Pickup',$2,$3)",[job,date,token]);
+ assert.equal(a.slots.length,13);
+ assert.equal(a.slots[0].label,"8:00 AM");
+ assert.equal(a.slots.at(-1)?.label,"12:00 PM");
+ const old=await value<string>("update public.pick_return_orders set pickup_window_start=now()+interval '47 hours',pickup_window_end=now()+interval '51 hours',pickup_eta=null where job_id=$1 returning pickup_window_start::text",[job]);
+ await value("select private.reconcile_pickups()");
+ const next=await value<string>("select pickup_window_start::text from public.pick_return_orders where job_id=$1",[job]);
+ assert.ok(new Date(next)>new Date(old));
+ assert.equal(Number(await value("select count(*) from public.pick_return_stops s join public.pick_return_routes r on r.id=s.route_id where s.job_id=$1 and r.leg='Pickup' and s.status not in ('Cancelled','Failed')",[job])),0);
+});
+
+test("Logistics proof stays tied to its payment and private proxy metadata requires staff or owner token",async()=>{
+ const customer=await createCustomer("Proof owner","proof-owner");
+ const quote=await createQuote(customer.id);
+ const review=await value<string>("select public.send_quote($1)",[quote]);
+ const accepted=await acceptWithLogistics(review,{option_code:"dropoff_delivery",delivery_address:"101 Proof Lane, Draper UT"});
+ const attempt=await value<string>("select gen_random_uuid()");
+ await value("select public.prepare_logistics_payment($1,'fee_only','Zelle',$2)",[review,attempt]);
+ const path=`${unit}/${attempt}.png`;
+ await db.query("insert into storage.objects(bucket_id,name) values('payment-proofs',$1)",[path]);
+ const submitted=await value<{payment_request_id:string}>("select public.mark_logistics_manual_with_proof($1,$2,$3)",[review,attempt,path]);
+ assert.equal(await value("select proof_path from public.payment_requests where id=$1",[submitted.payment_request_id]),path);
+ const code=await value<string>("select code from public.jobs where id=$1",[accepted.job_id]);
+ const owner=await value<string>("select private.ensure_job_status_link($1)",[accepted.job_id]);
+ await db.query("select set_config('request.jwt.claim.sub','',false)");
+ try {
+  await assert.rejects(value("select public.payment_proof_file($1,$2,'wrong')",[code,submitted.payment_request_id]),/File unavailable/);
+  const file=await value<{path:string}>("select public.payment_proof_file($1,$2,$3)",[code,submitted.payment_request_id,owner]);
+  assert.equal(file.path,path);
+ } finally {await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
+});
+
+test("Return ETAs can be shared up to configured daily capacity; full day moves to next Sunday",async()=>{
+ const a=await readyReturn("capacity-a"),b=await readyReturn("capacity-b"),c=await readyReturn("capacity-c");
+ await db.query("update public.unit_settings set max_delivery_stops_per_sunday=2 where unit_id=$1",[unit]);
+ try {
+  const date=await value<string>("select ((now() at time zone 'America/Denver')::date+60)::text");
+  const slots=await value<{day:string;slots:{eta:string}[]}>("select public.route_availability($1,'Return',$2,$3)",[a.job,date,a.token]);
+  await value("select public.route_schedule($1,'Return',$2,$3,$4)",[a.job,slots.day,slots.slots[0].eta,a.token]);
+  await value("select public.route_schedule($1,'Return',$2,$3,$4)",[b.job,slots.day,slots.slots[0].eta,b.token]);
+  const full=await value<{day:string;moved:boolean}>("select public.route_availability($1,'Return',$2,$3)",[c.job,slots.day,c.token]);
+  assert.equal(full.moved,true);
+  assert.ok(full.day>slots.day);
+ } finally {await db.query("update public.unit_settings set max_delivery_stops_per_sunday=20 where unit_id=$1",[unit]);}
+});
+
+test("24h unpaid Return stays pending and assigned; 1h cutoff moves it and blocks late Cash choice",async()=>{
+ const {job,token}=await readyReturn("return-cutoffs");
+ const originalStop=await value<string>("select s.id from public.pick_return_stops s join public.pick_return_routes r on r.id=s.route_id where s.job_id=$1 and r.leg='Return' and s.status='Scheduled'",[job]);
+ await db.query("update public.pick_return_orders set return_window_start=now()+interval '23 hours' where job_id=$1",[job]);
+ await value("select private.reconcile_delivery($1)",[job]);
+ assert.equal(await value("select delivery_payment_status from public.pick_return_orders where job_id=$1",[job]),"Pending Delivery");
+ assert.equal(await value("select status from public.pick_return_stops where id=$1",[originalStop]),"Scheduled");
+ const cutoff=await value<string>("update public.pick_return_orders set return_window_start=now()+interval '59 minutes' where job_id=$1 returning return_window_start::text",[job]);
+ await assert.rejects(value("select public.prepare_route_payment($1,'Cash',gen_random_uuid())",[token]),/cutoff/);
+ await value("select private.reconcile_delivery($1)",[job]);
+ const next=await value<string>("select return_window_start::text from public.pick_return_orders where job_id=$1",[job]);
+ assert.ok(new Date(next)>new Date(cutoff));
+ assert.equal(Number(await value("select count(*) from public.notifications where entity_id=$1 and dedupe_key like 'return-cutoff:%'",[job])),1);
+});
+
+test("Stops advance sequentially, but route closure requires explicit confirmation",async()=>{
+ const a=await readyReturn("sequential-a"),b=await readyReturn("sequential-b");
+ const date=await value<string>("select ((now() at time zone 'America/Denver')::date+90)::text");
+ const available=await value<{day:string;slots:{eta:string}[]}>("select public.route_availability($1,'Return',$2,$3)",[a.job,date,a.token]);
+ const first=await value<string>("select public.route_schedule($1,'Return',$2,$3,$4)",[a.job,available.day,available.slots[0].eta,a.token]);
+ const second=await value<string>("select public.route_schedule($1,'Return',$2,$3,$4)",[b.job,available.day,available.slots[1].eta,b.token]);
+ const route=await value<string>("select route_id from public.pick_return_stops where id=$1",[first]);
+ await assert.rejects(value("select public.advance_pick_return_stop($1,'en-route')",[second]),/previous stop/);
+ await db.query("update public.pick_return_orders set delivery_payment_method='Cash' where job_id=$1",[b.job]);
+ await db.query("update public.pick_return_stops set status='Completed',completed_at=now() where id=$1",[first]);
+ const seq=await value<number>("select sequence from public.pick_return_stops where id=$1",[first]);
+ await value("select private.activate_next_route_stop($1,$2)",[route,seq]);
+ assert.equal(await value("select status from public.pick_return_stops where id=$1",[second]),"En Route");
+ await assert.rejects(value("select public.confirm_pick_return_route($1)",[route]),/Resolve every stop/);
+ await db.query("update public.pick_return_stops set status='Completed',completed_at=now() where id=$1",[second]);
+ const finalSeq=await value<number>("select sequence from public.pick_return_stops where id=$1",[second]);
+ await value("select private.activate_next_route_stop($1,$2)",[route,finalSeq]);
+ assert.notEqual(await value("select status from public.pick_return_routes where id=$1",[route]),"Completed");
+ await value("select public.confirm_pick_return_route($1)",[route]);
+ assert.equal(await value("select status from public.pick_return_routes where id=$1",[route]),"Completed");
 });

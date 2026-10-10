@@ -1,3 +1,4 @@
+import {denverDateTime} from "@/lib/domain/time";
 import Link from "next/link";
 import { cache } from "react";
 import { randomUUID } from "node:crypto";
@@ -136,7 +137,7 @@ export async function JobLifecycle({
                 </p>
                 <p className="muted">
                   {request.purpose || "Customer Payment"} · Submitted:{" "}
-                  {new Date(request.submitted_at).toLocaleString("en-US")}
+                  {denverDateTime(request.submitted_at)}
                 </p>
                 {proofLinks.get(request.id) && (
                   <p>
@@ -153,7 +154,7 @@ export async function JobLifecycle({
                   <p>
                     Confirmed: {money(request.confirmed_amount)} ·{" "}
                     {request.confirmed_at
-                      ? new Date(request.confirmed_at).toLocaleString("en-US")
+                      ? denverDateTime(request.confirmed_at)
                       : ""}
                   </p>
                 )}
@@ -177,7 +178,7 @@ export async function JobLifecycle({
           {receipts.map((r) => (
             <p key={r.id}>
               <Link href={`/app/job-receipts/${r.id}`}>
-                Summary from {new Date(r.created_at).toLocaleString("en-US")}
+                Summary from {denverDateTime(r.created_at)}
               </Link>{" "}
               · {r.storage_status}
             </p>
@@ -223,7 +224,7 @@ export async function JobLifecycle({
         <p>
           Receipt confirmed:{" "}
           {ack[0]
-            ? new Date(ack[0].acknowledged_at).toLocaleString("en-US")
+            ? denverDateTime(ack[0].acknowledged_at)
             : "No explicit confirmation"}
         </p>
       </Panel>
@@ -235,7 +236,7 @@ export async function JobLifecycle({
       {activity.length ? (
         activity.map((a) => (
           <p key={a.id}>
-            {new Date(a.created_at).toLocaleString("en-US")} · {a.field} ·{" "}
+            {denverDateTime(a.created_at)} · {a.field} ·{" "}
             {typeof a.new_value === "string" ? a.new_value : JSON.stringify(a.new_value)}
           </p>
         ))

@@ -1,3 +1,4 @@
+import {denverDateTime} from "@/lib/domain/time";
 import Link from "next/link";
 import { context } from "@/lib/domain/context";
 import { Heading, Panel, Empty, Badge } from "@/components/ui";
@@ -46,7 +47,7 @@ export default async function GetTaggedRequestsPage() {
                   <h2>{request.name}</h2>
                   <p className="muted">
                     {request.service_method || "Service method not selected"} ·{" "}
-                    {new Date(request.created_at).toLocaleString("en-US")}
+                    {denverDateTime(request.created_at)}
                   </p>
                 </div>
                 <div className="actions">

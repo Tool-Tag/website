@@ -45,7 +45,11 @@ export function PaymentForm({
   balanceDue,
   zelleEmail,
   venmoHandle,
+  cardConfigured = false,
+  routePayment = false,
 }: {
+  cardConfigured?: boolean;
+  routePayment?: boolean;
   token: string;
   balanceDue: number | string;
   zelleEmail?: string | null;
@@ -54,12 +58,12 @@ export function PaymentForm({
   const router = useRouter();
   const [method, setMethod] = useState("Cash");
   const [state, action, pending] = useActionState(
-    customerAction.bind(null, "payment", token),
+    customerAction.bind(null, routePayment ? "route-payment" : "payment", token),
     {},
   );
 
   useEffect(() => {
-    if (state.link) router.push(state.link);
+    if (state.link) {if(state.link.startsWith("https://")) window.location.assign(state.link);else router.push(state.link);}
   }, [state.link, router]);
 
   const venmoReady = Boolean(venmoHandle);
@@ -81,6 +85,7 @@ export function PaymentForm({
             role="tablist"
             aria-label="Payment method"
           >
+            <button type="button" role="tab" aria-selected={method === "Card"} onClick={()=>setMethod("Card")} disabled={!cardConfigured}>Card {!cardConfigured && <small>Not configured</small>}</button>
             <button
               type="button"
               role="tab"
@@ -127,6 +132,7 @@ export function PaymentForm({
         </div>
 
         <div className="payment-method-panel">
+          {method === "Card" && <p>Continue to Stripe secure checkout. Payment is confirmed only after the provider confirms it.</p>}
           {method === "Cash" && (
             <p className="muted">
               Pay cash directly to ToolTag. Your payment will remain pending until
@@ -183,11 +189,11 @@ export function PaymentForm({
 
         {state.ok && (
           <p role="status" className="notice success">
-            Payment submitted. ToolTag will verify it before marking the Job as paid.
+            Payment choice submitted. ToolTag confirms electronic payments or collects cash at handover; selecting Cash does not mark the Job paid.
           </p>
         )}
 
-        <button disabled={pending || state.ok || (method === "Venmo" && !venmoReady)}>
+        <button disabled={pending || state.ok || (method === "Card" && !cardConfigured) || (method === "Venmo" && !venmoReady)}>
           {pending ? "Submitting…" : "Submit payment for verification"}
         </button>
       </form>
