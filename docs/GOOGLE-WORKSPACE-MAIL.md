@@ -13,7 +13,7 @@ Existing quote and confirmation templates are retained. Quote creation/acceptanc
 - General contact: hello@tooltag.martinlab.studio
 - Purchases: purchases@tooltag.martinlab.studio, reserved for vendor workflows; never selected for customer notifications.
 
-Current event producers for quotes, agreement confirmation, payment receipts, ready-for-delivery, completion and issues use the existing queue. Future events can supply an explicit `notification` template with `subject`, `text`, and recipient; no new business events are invented. Internal accounting/Drive events are not mailed. Existing completion links created before this migration cannot be reconstructed and retain the manual delivery flow.
+Current event producers for quotes, agreement confirmation, payment receipts, ready-for-delivery, completion and issues use the existing queue. Future events can supply an explicit `notification` template with `subject`, `text`, and recipient; no new business events are invented. Internal accounting/storage bookkeeping events are not mailed. Existing completion links created before this migration cannot be reconstructed and retain the manual delivery flow.
 
 ## Vercel Production variables
 

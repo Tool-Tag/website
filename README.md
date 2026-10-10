@@ -8,7 +8,7 @@ La nueva aplicación vive en `/app` y usa Next.js, TypeScript y Supabase. El sit
 - **Desarrollo:** `npm ci` y `npm run dev` (configurar `.env.local`).
 - **Checks:** `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:db`, `npm run build`.
 
-La aplicación remota requiere aplicar las migraciones y autorizar el primer usuario. Las integraciones de Drive/email/SMS no se simulan. No se modificó BOFT producción.
+La aplicación remota requiere aplicar las migraciones y autorizar el primer usuario. Supabase Postgres + Supabase Storage son la fuente primaria de registros y binarios. Google Drive queda reservado para un respaldo futuro y la app no escribe archivos nuevos allí. Email/SMS mantienen sus contratos separados. No se modificó BOFT producción.
 
 ---
 

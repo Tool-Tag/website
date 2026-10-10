@@ -7,7 +7,7 @@
 - Browser smoke test used `tests/ui-fixture-server.mjs`: isolated PostgreSQL with a **test-only Auth/REST transport**. It is not a production integration and does not validate live Supabase Auth. No real customer or financial data was used.
 - Browser tested: login, customer creation, quote creation, private quote view, quote acceptance, test agreement acceptance, automatic sale/job creation, full collection and Paid state.
 - Responsive inspection: desktop and 390px mobile; found and corrected navigation/grid overflow (document width equals viewport width).
-- Still required before production: real Auth/admin membership test, approved legal content and Vercel preview deployment. Drive/email/SMS remain intentionally unconnected.
+- Still required before production changes: real Auth/admin membership test, approved legal content and Vercel preview deployment. Binary storage is Supabase Storage; a future Drive backup job is intentionally not implemented. Email/SMS retain their separate validation requirements.
 
 Local browser fixture (never deploy it):
 

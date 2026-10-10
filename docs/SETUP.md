@@ -74,7 +74,7 @@ Agregar las variables públicas y server-only de `.env.example`. Probar primero 
 - `STRIPE_API_BASE` existe únicamente como override opcional para pruebas/integración; producción debe dejarlo vacío para usar el endpoint oficial.
 - Los quotes ya aceptados antes de esta migración conservan su flujo histórico.
 
-Para el trabajo programado: configurar `SUPABASE_SERVICE_ROLE_KEY` y un `CRON_SECRET` aleatorio **solo en el entorno del servidor**. Nunca usar prefijo `NEXT_PUBLIC` para secretos. La ruta `/api/cron` devuelve 503 sin ellos y 401 sin autorización. Vercel invoca diariamente a las 08:00 UTC; el worker cierra el mes anterior de ToolTag una sola vez, con zona local configurable. Nunca cierra BOFT. El proceso es recuperable si una ejecución no ocurre el día 1.
+Para trabajo programado y entrega segura de archivos privados a clientes: configurar `SUPABASE_SECRET_KEY` o `SUPABASE_SERVICE_ROLE_KEY`, además de un `CRON_SECRET` aleatorio **solo en el entorno del servidor**. Nunca usar prefijo `NEXT_PUBLIC` para secretos. La ruta `/api/cron` devuelve 503 sin ellos y 401 sin autorización. Vercel invoca diariamente a las 08:00 UTC; el worker cierra el mes anterior de ToolTag una sola vez, con zona local configurable. Nunca cierra BOFT. El proceso es recuperable si una ejecución no ocurre el día 1.
 
 ## Primera prueba funcional
 
@@ -85,14 +85,14 @@ Para el trabajo programado: configurar `SUPABASE_SERVICE_ROLE_KEY` y un `CRON_SE
 5. Registrar cobros parciales hasta Paid; revisar recibo de cada cobro.
 6. Registrar gasto pagado por Owner, comprobar saldo pendiente; reembolsarlo sin duplicar gasto.
 7. Registrar compra de equipo y crear su Asset vinculado.
-8. Vincular archivos reales existentes en Drive como evidencia de recepción/terminado; avanzar trabajo; entregar enlace al cliente y confirmar manualmente que fue notificado.
+8. Subir evidencia real desde ToolTag; confirmar que el binario quedó en Supabase Storage y puede abrirse/descargarse antes de avanzar el trabajo.
 9. Probar cliente: aceptar entrega o reportar problema. No se registra una aceptación expresa al autocerrar.
 10. Cerrar un mes anterior. Cambiar fecha/descripción con motivo y verificar Reclose Required; adjuntar comprobante y verificar Documentation Updated.
 11. Entrar como tester y comprobar que no puede escribir ni ver unidades ajenas.
 
 ## Integraciones pendientes (reales, no simuladas)
 
-- Google Drive: contratos para carpetas/subida. En V1 se pueden vincular IDs de archivos existentes; no se declara que fueron subidos por ToolTag. Metadatos relacionales y recibos JSON existen en la base.
+- Storage: Supabase Postgres conserva metadata/relaciones y Supabase Storage conserva todos los binarios nuevos. Google Drive queda únicamente como respaldo futuro; la app no crea ni actualiza archivos en Drive.
 - Email/SMS: cola persistente, sin envíos. Enlaces se entregan manualmente. El plazo de 3 días solo empieza después de confirmar entrega del enlace; `completion_email_sent_at` permanece vacío sin email real.
 - Recibos: snapshot consultable del pago (importe, método, fecha, total, cobrado, saldo, venta/trabajo); exportación PDF y copia al cliente pendientes del adaptador documental/mensajería.
 - Términos legales definitivos: requeridos antes de compartir cotizaciones. No hay texto legal inventado.

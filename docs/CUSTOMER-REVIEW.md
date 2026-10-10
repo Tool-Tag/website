@@ -20,13 +20,13 @@ Additive columns: quote_items.paint_details, quotes.review_snapshot, agreements.
 
 Sent commercial scope and published policies are frozen. Acceptance includes customer/contact, quote ID/version, policy ID/version/content, scope, total, server timestamp and SHA-256 verification. Existing accepted rows are not backfilled or altered: their old signer and sale version are used when displaying historical records. A commercial revision adds a new acceptance/sale version while retaining the original Job/Sale identity.
 
-Quote, reminder, confirmation and pending Drive archive events persist in notifications. Mail events contain the frozen template data, not a delivery claim. The combined flow no longer queues the old intermediate Agreement acceptance email request.
+Quote, reminder and confirmation events persist in notifications. Storage is handled by Supabase Storage; Google Drive is not part of the active delivery path. Mail events contain the frozen template data, not a delivery claim. The combined flow no longer queues the old intermediate Agreement acceptance email request.
 
 ## Email and documents
 
 `src/lib/integrations/quote-mail.ts` provides escaped HTML/plain-text quote and confirmation templates plus a transport interface. Test/preview mode never calls the transport. No Google Workspace transport is connected yet; setting mode=live alone does not send anything.
 
-Admin-only preview: `/app/quotes/[id]/email`. It shows the quote email before acceptance and the confirmation afterward. Customer copies use the immutable printable review page; no PDF dependency or Supabase Storage was added.
+Admin-only preview: `/app/quotes/[id]/email`. It shows the quote email before acceptance and the confirmation afterward. Customer copies use the immutable printable review page. Later document/evidence work standardized binary storage on Supabase Storage without changing the accepted commercial snapshot.
 
 Configuration:
 
@@ -34,7 +34,7 @@ Configuration:
 - TOOLTAG_MAIL_FROM: approved sender, configured after Workspace is ready.
 - TOOLTAG_MAIL_MODE: preview until the Google Workspace transport is implemented and authenticated.
 
-Still pending: Google Workspace DNS/authentication credentials and transport connection; real quote/confirmation/reminder delivery; Drive authentication and folder/file synchronization. Drive archive events already retain quote/job/agreement IDs and snapshot hash. No new paid provider was selected. SMS remains out of scope.
+Current storage policy: Supabase Storage is primary for binary files. Google Drive is reserved only for a future backup synchronization job and is not written by the app. Mail configuration and SMS remain separate concerns.
 
 Reminders are due two calendar days before expiry, with the seven-calendar-day window calculated in the unit timezone. The worker marks due reminder events while leaving delivery pending. Production scheduling still needs the existing CRON_SECRET and SUPABASE_SERVICE_ROLE_KEY configuration; this task did not change production environment settings.
 
