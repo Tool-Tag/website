@@ -14,6 +14,8 @@ type StripeCheckoutSession = {
   id: string;
   url?: string | null;
   amount_total?: number | null;
+  currency?: string | null;
+  livemode?: boolean;
   payment_status?: string | null;
   client_reference_id?: string | null;
   metadata?: Record<string, string> | null;
@@ -21,6 +23,7 @@ type StripeCheckoutSession = {
 
 export type StripeEvent = {
   id: string;
+  livemode?: boolean;
   type: string;
   data: {
     object: StripeCheckoutSession;
@@ -35,10 +38,12 @@ function stripeApiBase() {
 }
 
 export function stripeConfigured() {
-  return Boolean(
-    process.env.STRIPE_SECRET_KEY?.trim() &&
-      process.env.STRIPE_WEBHOOK_SECRET?.trim(),
-  );
+ const secret=process.env.STRIPE_SECRET_KEY?.trim()??"";
+ const publicKey=process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim()??"";
+ return secret.startsWith("sk_test_") && Boolean(process.env.STRIPE_WEBHOOK_SECRET?.trim().startsWith("whsec_")) && (!publicKey || publicKey.startsWith("pk_test_"));
+}
+export function stripeTestEvent(event: StripeEvent) {
+ return event.livemode===false;
 }
 
 export function stripeTestMode() {
@@ -57,8 +62,8 @@ export class StripePaymentProvider implements PaymentProvider {
 
   async start(input: StartPaymentInput): Promise<StartPaymentResult> {
     const secret = process.env.STRIPE_SECRET_KEY?.trim();
-    if (!secret || !process.env.STRIPE_WEBHOOK_SECRET?.trim()) {
-      throw new Error("Card payments are not configured yet.");
+    if (!stripeConfigured()) {
+      throw new Error("Stripe TEST card payments are not configured correctly.");
     }
 
     const params = new URLSearchParams({
@@ -96,7 +101,7 @@ export class StripePaymentProvider implements PaymentProvider {
       error?: { message?: string };
     };
 
-    if (!response.ok || !body.id || !body.url) {
+    if (!response.ok || !body.id?.startsWith("cs_test_") || !body.url || body.livemode === true) {
       throw new Error(
         body.error?.message || "Card checkout could not be started.",
       );

@@ -173,7 +173,7 @@ export function LogisticsPaymentForm({
               onClick={() => setMethod("Card")}
               disabled={!cardConfigured}
             >
-              Card {!cardConfigured && <small>Not configured</small>}
+              Card (TEST) {!cardConfigured && <small>Not configured</small>}
             </button>
             <button
               type="button"
@@ -209,7 +209,7 @@ export function LogisticsPaymentForm({
         {method === "Card" && cardConfigured && (
           <div className="payment-method-panel">
             <p>
-              Amount to charge now: <strong>{money(amount.toFixed(2))}</strong>
+              TEST amount (no real money): <strong>{money(amount.toFixed(2))}</strong>
             </p>
             <p className="muted">
               You will continue to Stripe&apos;s secure hosted checkout. ToolTag

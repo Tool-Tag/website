@@ -382,3 +382,18 @@ test("Verification SMS needs its own enabled flag and respects test recipient re
  assert.equal(await new SnsSmsTransport(config,{...smsTestEnv,PHONE_VERIFICATION_ENABLED:"true"},mock).send("+18015550103","Code 123456",false,true),"verification-code");
  await assert.rejects(new SnsSmsTransport(config,{...smsTestEnv,PHONE_VERIFICATION_ENABLED:"true",TOOLTAG_SMS_MODE:"test"},mock).send("+18015550103","Code 123456",true,true),/SMS_MODE_BLOCKED/);
 });
+
+test("Stripe configuration rejects live, swapped and mismatched key prefixes", async () => {
+ const {stripeConfigured,stripeTestEvent}=await import("../src/lib/payments/stripe");
+ const names=["STRIPE_SECRET_KEY","STRIPE_WEBHOOK_SECRET","NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"] as const;
+ const before=Object.fromEntries(names.map(n=>[n,process.env[n]]));
+ try {
+  process.env.STRIPE_SECRET_KEY="sk_test_example";process.env.STRIPE_WEBHOOK_SECRET="whsec_example";process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_test_example";
+  assert.equal(stripeConfigured(),true);
+  process.env.STRIPE_SECRET_KEY="pk_test_example";assert.equal(stripeConfigured(),false);
+  process.env.STRIPE_SECRET_KEY="sk_live_example";assert.equal(stripeConfigured(),false);
+  process.env.STRIPE_SECRET_KEY="sk_test_example";process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="sk_test_example";assert.equal(stripeConfigured(),false);
+  assert.equal(stripeTestEvent({id:"evt_test",type:"checkout.session.completed",livemode:false,data:{object:{id:"cs_test_example"}}}),true);
+  assert.equal(stripeTestEvent({id:"evt_wrong_mode",type:"checkout.session.completed",livemode:true,data:{object:{id:"cs_wrong_mode"}}}),false);
+ }finally{for(const n of names){if(before[n]===undefined)delete process.env[n];else process.env[n]=before[n];}}
+});

@@ -1,7 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { dispatchWorkerMail } from "@/lib/integrations/mail-dispatch";
-import { parseVerifiedStripeEvent } from "@/lib/payments/stripe";
+import { stripeTestCustomer } from "@/lib/payments/stripe-test-customer";
+import { parseVerifiedStripeEvent, stripeConfigured, stripeTestEvent } from "@/lib/payments/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ function adminClient() {
 export async function POST(request: Request) {
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
   const signature = request.headers.get("stripe-signature");
-  if (!endpointSecret || !signature) {
+  if (!stripeConfigured() || !endpointSecret || !signature) {
     return NextResponse.json(
       { error: "Card webhook is not configured." },
       { status: 503 },
@@ -38,6 +39,8 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+
+  if(!stripeTestEvent(event)) return NextResponse.json({error:"Only Stripe TEST events are accepted."},{status:400});
 
   if (
     ![
@@ -57,12 +60,14 @@ export async function POST(request: Request) {
     session.metadata?.attempt_id || session.client_reference_id || "";
   const amountTotal = session.amount_total;
 
-  if (!attemptId || !session.id || amountTotal == null) {
+  if (!attemptId || !session.id?.startsWith("cs_test_") || session.livemode===true || session.currency!=="usd" || amountTotal == null || !Number.isSafeInteger(amountTotal) || amountTotal <= 0) {
     return NextResponse.json(
       { error: "Stripe event is missing payment metadata." },
       { status: 400 },
     );
   }
+
+  if(!session.metadata?.job_id || !(await stripeTestCustomer(session.metadata.job_id)))return NextResponse.json({error:"TEST payments require a TEST- customer."},{status:400});
 
   const db = adminClient();
   const { error } = await db.rpc("confirm_logistics_card_payment", {

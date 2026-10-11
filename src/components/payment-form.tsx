@@ -89,7 +89,7 @@ export function PaymentForm({
             role="tablist"
             aria-label="Payment method"
           >
-            <button type="button" role="tab" aria-selected={method === "Card"} onClick={()=>setMethod("Card")} disabled={!cardConfigured}>Card {!cardConfigured && <small>Not configured</small>}</button>
+            <button type="button" role="tab" aria-selected={method === "Card"} onClick={()=>setMethod("Card")} disabled={!cardConfigured}>Card (TEST) {!cardConfigured && <small>Not configured</small>}</button>
             <button
               type="button"
               role="tab"
@@ -136,7 +136,7 @@ export function PaymentForm({
         </div>
 
         <div className="payment-method-panel">
-          {method === "Card" && <p>Continue to Stripe secure checkout. Payment is confirmed only after the provider confirms it.</p>}
+          {method === "Card" && <p>Stripe TEST checkout: no real money is charged. Available only for TEST- customers. Payment is confirmed by the webhook.</p>}
           {method === "Cash" && (
             <p className="muted">
               Pay cash directly to ToolTag. Your payment will remain pending until

@@ -1,4 +1,5 @@
 "use server";
+import { stripeTestCustomer } from "@/lib/payments/stripe-test-customer";
 import { phoneVerificationEnabled, verifiedPhone } from "@/lib/integrations/phone-verification";
 import { normalizeSmsPhone } from "@/lib/integrations/sms";
 import { paymentProofError } from "@/lib/payments/proof";
@@ -378,6 +379,7 @@ export async function customerAction(
     const provider=paymentProvider("Card");
     if(!provider.isConfigured()) return {error:"Card payments are not configured yet."};
     try {
+      if(!(await stripeTestCustomer(String(prepared.data.job_id)))) return {error:"Card payments are in TEST mode and available only for TEST- customers."};
       const base=toolTagPublicUrl();
       const result=await provider.start({attemptId,amountCents:Math.round(Number(prepared.data.amount)*100),currency:"usd",description:`ToolTag balance · ${prepared.data.job_code}`,customerEmail:prepared.data.customer_email,successUrl:`${base}/${kind === "route-payment" ? "status" : "payment"}/${encodeURIComponent(token)}`,cancelUrl:`${base}/${kind === "route-payment" ? "status" : "payment"}/${encodeURIComponent(token)}`,jobId:prepared.data.job_id,quoteId:prepared.data.quote_id,paymentScope:"full"});
       if(!result.redirectUrl || !result.providerReference) return {error:"Card checkout unavailable."};
@@ -430,6 +432,7 @@ export async function customerAction(
             : `${method} is not configured yet.`,
       };
 
+      if(method==="Card" && !(await stripeTestCustomer(String(prepared.job_id)))) return {error:"Card payments are in TEST mode and available only for TEST- customers."};
       const base = toolTagPublicUrl();
       const result = await provider.start({
         attemptId,
