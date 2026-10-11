@@ -52,7 +52,7 @@ The optional checkbox in Review & Accept is separate from the unchanged Customer
 
 SMS follows existing notifications for: route departure, next-stop en route, three stops remaining (existing approximate ETA text), arrival/five-minute wait, scheduling/rescheduling, quote/job/Agreement confirmations, completion, payment and cutoff reminders, route interruption and shop pickup. Email templates/events are preserved. Messages reuse existing text/action links, not a new notification system.
 
-Missing phone, absent consent, TEST-prefixed customers, disabled mode and expired messages are skipped with a private delivery-log reason. Consent is checked again when claiming a queued message; SNS opt-out is checked immediately before publishing. Arrival messages expire after five minutes, nearby messages after thirty minutes, en-route messages after six hours and other messages after twenty-four hours from their due time. Old or skipped events are never replayed. Pending future messages queued before a later activation are skipped.
+Missing phone, absent consent, TEST customers whose SMS number differs from the configured test recipient, disabled mode and expired messages are skipped with a private delivery-log reason. Consent is checked again when claiming a queued message; SNS opt-out is checked immediately before publishing. Arrival messages expire after five minutes, nearby messages after thirty minutes, en-route messages after six hours and other messages after twenty-four hours from their due time. Old or skipped events are never replayed. Pending future messages queued before a later activation are skipped.
 
 The existing five-minute authenticated cron worker drains SMS, and current driver/customer actions also dispatch it independently of Gmail configuration. Settings shows the latest twenty SMS outcomes without exposing secrets or customer phone numbers.
 
@@ -61,3 +61,11 @@ No provider auto-retry: direct SNS SMS does not accept an idempotency token. A n
 ## Verification
 
 Automated tests mock AWS; no real phone was contacted. Tests cover encryption, missing credentials, local/test restrictions, transactional/origination attributes, SNS opt-outs, unknown versus rejected outcomes, safe links, token isolation, consent withdrawal, secret concealment, role gates and one-shot queue claims. Keys and AWS registration are still required for a real test and live carrier delivery.
+
+## TEST fixtures and shared phones
+
+Administrator-created TEST- customers remain separate customers and may share contact details. Real ToolTag customers require unique personal email (case/whitespace insensitive) and phone (format and US +1 insensitive), enforced by indexes and insert/update validation. Existing real customer data is not merged or rewritten.
+
+TEST- route/payment alerts may send in `test` mode, but only to the configured test recipient, with recorded opt-in and provider STOP checks. They remain disabled until SMS is enabled with credentials. Historical/skipped notifications are never replayed. Changing the test recipient blocks previously configured TEST flows for another number. Local sends still require explicit local network opt-in.
+
+Current TEST fixtures use the shared test recipient configured in Settings. Martin's explicit authorization is recorded as `admin_test_authorization` for existing TEST flows only; no real customer was opted in. To exercise their automated events, use test mode and enable SMS after configuring AWS. This does not replay old events. New TEST flows still need explicit consent.

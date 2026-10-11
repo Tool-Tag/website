@@ -16,9 +16,9 @@ export async function dispatchSms(db: SupabaseClient) {
       let status: "Sent" | "Failed" | "Unknown" | "Skipped" = "Skipped", reason: string | null = "SMS_NOT_CONFIGURED", provider: string | null = null;
       try {
         if (config && config.enabled) {
-          if (process.env.TOOLTAG_SMS_MODE !== "live") reason = "SMS_NOT_LIVE";
+          if (process.env.TOOLTAG_SMS_MODE !== "live" && !(process.env.TOOLTAG_SMS_MODE === "test" && event.test_customer === true)) reason = "SMS_NOT_LIVE";
           else {
-            provider = await new SnsSmsTransport(config).send(event.phone, renderSms(event.event, event.payload ?? {}, process.env.TOOLTAG_PUBLIC_URL ?? ""));
+            provider = await new SnsSmsTransport(config).send(event.phone, renderSms(event.event, event.payload ?? {}, process.env.TOOLTAG_PUBLIC_URL ?? ""), event.test_customer === true);
             status = "Sent"; reason = null;
           }
         }

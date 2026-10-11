@@ -1490,3 +1490,35 @@ test("SMS settings hide secrets and restrict administrative configuration", asyn
  await db.query("select set_config('request.jwt.claim.sub','',false)");
  try {await assert.rejects(value("select public.sms_settings_status()"),/Administrative/);await assert.rejects(value("select public.save_sms_settings('{}',null)"),/Administrative/);} finally {await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
 });
+
+test("Real customer email and US phone are unique across formats and updates", async () => {
+ const first=await createCustomer("Unique real contact","unique-real-contact");
+ const payload={unit_id:unit,name:"Another real contact",email:"other-unique@example.test",phone:`+1${first.phone}`,address:"Utah"};
+ await assert.rejects(rpc("save_customer",payload),/phone number already belongs/);
+ await assert.rejects(rpc("save_customer",{...payload,phone:"3855550999",email:" UNIQUE-REAL-CONTACT@EXAMPLE.TEST "}),/email already belongs/);
+ const second=await rpc("save_customer",{...payload,phone:"3855550999"});
+ await assert.rejects(rpc("save_customer",{...payload,id:second,phone:first.phone}),/phone number already belongs/);
+ await assert.rejects(db.query("update public.customers set email='unique-real-contact@example.test' where id=$1",[second]),/email already belongs/);
+ await rpc("save_customer",{...payload,id:second,phone:"3855550999"});
+});
+test("TEST customers stay distinct with shared phone/email and cannot become duplicate real contacts", async () => {
+ const p={unit_id:unit,name:"TEST-Shared One",phone:"3852142163",email:"test-shared@example.test",address:"Utah"};
+ const first=await rpc("save_customer",p),second=await rpc("save_customer",{...p,name:"TEST-Shared Two"});
+ assert.notEqual(first,second);
+ const real=await rpc("save_customer",{...p,name:"Real shared contact"});assert.notEqual(real,first);
+ await assert.rejects(rpc("save_customer",{...p,id:first,name:"Former test now real"}),/email already belongs/);
+});
+test("TEST SMS alerts only queue for the configured shared test recipient", async () => {
+ const customer=await createCustomer("TEST-SMS fixture","test-sms-fixture"),quote=await createQuote(customer.id);
+ const token=await value<string>("select public.send_quote($1)",[quote]);
+ await value("select public.set_sms_consent($1,'quote','+13852142163',true)",[token]);
+ await db.query("update private.sms_settings set enabled=true,activated_at=now()-interval '1 second',test_phone='+13852142163' where unit_id=$1",[unit]);
+ const id=await value<string>("insert into public.notifications(unit_id,event,entity_id,dedupe_key,payload) values($1,'PICKUP_ARRIVED',$2,'test-sms-allowed','{}') returning id",[unit,quote]);
+ assert.equal(await value("select status from private.sms_deliveries where notification_id=$1",[id]),"Pending");
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+ try {const c=await value<{phone:string;test_customer:boolean}>("select public.claim_sms()");assert.equal(c.phone,"+13852142163");assert.equal(c.test_customer,true);}finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
+ await db.query("update private.sms_settings set test_phone='+18015550102' where unit_id=$1",[unit]);
+ const blocked=await value<string>("insert into public.notifications(unit_id,event,entity_id,dedupe_key,payload) values($1,'RETURN_ARRIVED',$2,'test-sms-blocked','{}') returning id",[unit,quote]);
+ assert.equal(await value("select reason from private.sms_deliveries where notification_id=$1",[blocked]),"TEST_RECIPIENT_MISMATCH");
+ await db.query("update private.sms_settings set enabled=false where unit_id=$1",[unit]);
+});

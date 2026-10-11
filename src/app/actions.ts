@@ -286,7 +286,13 @@ export async function mutate(
         return { error: "Unknown action" };
     }
     const { data, error } = await db.rpc(name, args);
-    if (error) return { error: error.message };
+    if (error) {
+      if (error.code === "23505" && operation === "customer") {
+        const field = error.message.includes("email") ? "email" : "phone number";
+        return { error: `This ${field} already belongs to another customer. Open the existing customer profile.` };
+      }
+      return { error: error.message };
+    }
     revalidatePath("/app", "layout");
     if (operation === "send-quote" || operation === "resend-quote") return { mailRequestedAt: new Date().toISOString(), link: `/review/${data}`, mailStatus: await dispatchQuoteMail(db, String(p.id)) };
     if (["route-cash","shop-handover","route-confirm","job","job-item","complete-job-work","complete-production","pick-return-schedule","pick-return-stop","document","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment","cancellation-refund"].includes(operation)) await dispatchWorkerMail();

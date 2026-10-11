@@ -18,7 +18,7 @@ export async function saveSmsSettings(_state: SmsActionState, form: FormData): P
     if (accessKeyId) encrypted = encryptSmsCredentials({ accessKeyId, secretAccessKey, sessionToken: sessionToken || undefined });
   } catch { return { error: "Configure TOOLTAG_SMS_SETTINGS_ENCRYPTION_KEY in Vercel before saving AWS keys here. Alternatively configure the AWS keys directly in Vercel." }; }
   if (enabled) {
-    if (process.env.TOOLTAG_SMS_MODE !== "live" || !smsNetworkAllowed()) return { error: "Customer SMS activation requires TOOLTAG_SMS_MODE=live in production. Test SMS can be sent without enabling customer delivery." };
+    if (!["test", "live"].includes(process.env.TOOLTAG_SMS_MODE ?? "") || !smsNetworkAllowed()) return { error: "SMS activation requires TOOLTAG_SMS_MODE=test or live in production. Test mode sends automatic alerts only for TEST- customers to the configured test recipient." };
     const admin = smsAdminClient(); if (!admin) return { error: "The server SMS integration is not configured." };
     const current = await admin.rpc("sms_runtime_config");
     try {

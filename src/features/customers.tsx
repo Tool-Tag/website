@@ -20,7 +20,7 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
       <>
         <Heading
           title="New Customer"
-          subtitle="We will check for matches by phone and email before saving."
+          subtitle="Each customer must have a unique phone number and email. TEST- customers are exempt."
         />
         <Panel>
           <Form operation="customer" fields={customerFields} />
