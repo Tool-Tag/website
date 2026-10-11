@@ -41,7 +41,7 @@ export default async function AppLayout({
       </aside>
       <div className="workspace">
         <header className="topbar">
-          <Link className="button secondary" href="/pick-return">Pick up &amp; Return ↗</Link>
+          <Link className="button secondary" href="/app/pick-return">Pick up &amp; Return</Link>
           <form action="/app/customers">
             <input
               name="q"

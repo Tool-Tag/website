@@ -296,6 +296,7 @@ export function Nav({
           title: "Open Jobs",
           attentionKey: "jobs",
         },
+        { path: "pick-return", label: "Pick up & Return" },
         { path: "customers", label: "Customers" },
         { path: "finance", label: "Finance" },
         {

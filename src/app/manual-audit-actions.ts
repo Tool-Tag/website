@@ -13,7 +13,7 @@ export async function customerDeliveryAcknowledge(token:string) {
 }
 export async function verifyShopItem(item:string){
  const {db}=await context();const {error}=await db.rpc("verify_shop_item",{p_item:item});
- if(error)return {error:error.message};revalidatePath("/app","layout");revalidatePath("/pick-return","layout");return {ok:true};
+ if(error)return {error:error.message};revalidatePath("/app","layout");revalidatePath("/pick-return","layout");revalidatePath("/app/pick-return");return {ok:true};
 }
 export async function getRouteChecklist(route:string,kind:"Loaded"|"Returned"){
  const {db}=await context();const {data,error}=await db.rpc("route_item_checklist",{p_route:route,p_kind:kind});
@@ -21,5 +21,5 @@ export async function getRouteChecklist(route:string,kind:"Loaded"|"Returned"){
 }
 export async function verifyRouteItems(stop:string,kind:"Loaded"|"Returned",items:string[]){
  const {db}=await context();const {error}=await db.rpc("verify_route_items",{p_stop:stop,p_kind:kind,p_items:items});
- if(error)return {error:error.message};revalidatePath("/pick-return","layout");return {ok:true};
+ if(error)return {error:error.message};revalidatePath("/pick-return","layout");revalidatePath("/app/pick-return");return {ok:true};
 }
