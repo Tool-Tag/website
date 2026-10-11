@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { QuoteScope } from "@/components/quote-scope";
 import type { QuoteItem } from "@/lib/domain/quote-items";
 import { supabase } from "@/lib/supabase/server";
@@ -58,10 +57,7 @@ export default async function Completion({
       ) : j.acknowledgment ? (
         <section className="panel">
           <p className="notice success">Delivery accepted.</p>
-          <p>Continue to the separate payment step.</p>
-          <Link className="button" href={`/payment/${token}`}>
-            Continue to Payment
-          </Link>
+
         </section>
       ) : (
         <p className="notice">{j.reason ?? j.status}</p>

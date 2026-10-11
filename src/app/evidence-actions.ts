@@ -46,6 +46,10 @@ export async function registerEvidenceAction(
     const { db, unit, role } = await context();
     if (role !== "admin") return { error: "Administrative access required." };
 
+    if (config.type === "Delivery Evidence" && config.pickReturnStopId) {
+      const {data:stop, error} = await db.from("pick_return_stops").select("status,job_id").eq("id",config.pickReturnStopId).eq("unit_id",unit).single();
+      if (error || !stop || stop.status !== "Arrived" || stop.job_id !== config.jobId) return {error: "Arrive at the delivery stop before uploading delivery photos."};
+    }
     const file = form.get("file");
     if (!(file instanceof File) || file.size <= 0) {
       return { error: "Choose a file first." };

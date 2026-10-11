@@ -1608,3 +1608,15 @@ body:has(.get-tagged-react-dialog[open]) {
 
 /* Customer route tracking: readable on a phone, with no operator actions. */
 .customer-routes{display:grid;gap:20px}.customer-route{padding:20px}.customer-route h2{font-size:26px}.customer-route progress{display:block;width:100%;height:18px;margin-top:10px;accent-color:var(--blue,#3b75ff)}.route-eta-summary{padding:16px;border:1px solid #43546b;border-radius:12px;background:#101b2a;margin:18px 0}.route-eta-summary strong{display:block;font-size:20px}.route-eta-summary p{margin:10px 0;line-height:1.5}.customer-route-groups{display:grid;gap:16px;margin:20px 0}.customer-route-groups summary{min-height:48px;cursor:pointer;font-size:18px;font-weight:700;padding:12px 0}.customer-route-groups ol{list-style:none;padding:0;margin:0}.customer-route-stop{display:flex;gap:14px;padding:14px 10px;border-left:2px solid #43546b;margin-left:10px;overflow-wrap:anywhere}.customer-route-stop div{display:grid;gap:6px}.customer-route-stop.own-stop{border-left-color:#efc254;background:#1f2530;border-radius:8px}.customer-route-groups h3{font-size:18px}.customer-route small{display:block;line-height:1.5}@media(min-width:700px){.customer-route{padding:28px}.customer-route-groups{grid-template-columns:1fr 1fr 1fr;align-items:start}}
+
+/* Compact, centered customer tracking; full stage names remain in title. */
+.compact-tracker{display:flex;justify-content:center;align-items:flex-start;gap:24px;flex-wrap:wrap;max-width:780px;margin:24px auto}
+.compact-tracker>.status-step,.compact-tracker>details{flex:0 1 220px;min-width:0}
+.compact-tracker .status-step strong{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tracking-progress{display:block;text-align:center}.tracking-progress progress{display:block;margin:10px auto}
+.route-current{text-align:center}.route-current .customer-route-stop{justify-content:center;text-align:left}
+@media(max-width:600px){.compact-tracker{gap:14px}.compact-tracker>.status-step,.compact-tracker>details{flex-basis:100%}}
+
+.customer-arrival-banner{position:sticky;top:0;z-index:30;background:#c75c08;color:#fff;padding:18px;border-radius:12px;display:grid;gap:12px}.delivery-waiting{opacity:.55;filter:grayscale(1)}.shop-item-check{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:12px 0}
+
+.route-check-pending{border-color:#e08b28;background:#35220e;color:#ffdaaa}.route-check-pending summary{font-size:18px;min-height:48px;cursor:pointer}.delivery-ack-panel .checkbox{min-height:48px}

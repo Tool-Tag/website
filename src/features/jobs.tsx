@@ -1,3 +1,4 @@
+import {ShopItemVerification} from "@/components/shop-item-verification";
 import {denverDateTime} from "@/lib/domain/time";
 import { EvidenceGallery } from "@/components/evidence-gallery";
 import { EvidenceCapture } from "@/components/evidence-capture";
@@ -185,7 +186,8 @@ export async function Jobs({ id }: { id?: string }) {
   ).filter((item) => item.pricing?.kind !== "pickup_service_fee");
 
   const receivingFiles = docs.filter((d) => d.type === "Receiving Evidence");
-  const stage = j.work_stage ?? "Not Started";
+  const shopPending=j.status!=="Cancelled"&&!/Cancellation Requested|Production Hold/.test(j.work_stage??"")&&pickupRequired&&pickupReturn?.pickup_status==="Picked Up"&&jobItems.some(item=>item.stage!=="Cancelled"&&!item.shop_received_at);
+  const stage = shopPending?"Received at Shop":j.work_stage ?? "Not Started";
   const currentItem = jobItems.find((item) => !["Finished", "Cancelled"].includes(item.stage));
   const finishedItems = jobItems.filter((item) => item.stage === "Finished").length;
   const itemEvidence = currentItem
@@ -452,6 +454,7 @@ export async function Jobs({ id }: { id?: string }) {
         </Panel>
       )}
 
+      {stage === "Received at Shop"&&<>{receivingEvidence}<ShopItemVerification items={jobItems.filter(item=>item.stage!=="Cancelled") as {id:string;article:string;sequence:number;shop_received_at?:string|null}[]} /></>}
       {stage === "Receiving Evidence" && (
         <>
           {receivingEvidence}

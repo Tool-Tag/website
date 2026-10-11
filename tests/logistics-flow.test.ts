@@ -193,6 +193,9 @@ before(async () => {
      grant usage on schema auth to anon,authenticated,service_role;
      grant execute on all functions in schema auth to anon,authenticated,service_role;
 
+     create schema realtime;
+     create table realtime.audit_test_events(topic text,event text,payload jsonb);
+     create function realtime.send(payload jsonb,event text,topic text,is_private boolean default true) returns void language sql as 'insert into realtime.audit_test_events values(topic,event,payload)';
      create schema storage;
      create table storage.buckets(
        id text primary key,
@@ -976,7 +979,7 @@ test("Stops advance sequentially, but route closure requires explicit confirmati
  assert.equal(await value("select status from public.pick_return_routes where id=$1",[route]),"Completed");
 });
 
-async function driverPickupFixture(suffix:string){
+async function driverPickupFixture(suffix:string,offset=150){
  await db.query("update public.unit_settings set max_pickup_stops_per_saturday=10 where unit_id=$1",[unit]);
  const customer=await createCustomer(suffix,suffix);const quote=await createQuote(customer.id);
  const review=await value<string>("select public.send_quote($1)",[quote]);
@@ -984,7 +987,7 @@ async function driverPickupFixture(suffix:string){
  const job=accepted.job_id;const token=await value<string>("select private.ensure_job_status_link($1)",[job]);
  await db.query("update public.pick_return_orders set fee_status='Confirmed' where job_id=$1",[job]);
  await db.query("update public.quote_logistics set payment_status='paid_confirmed' where quote_id=$1",[quote]);
- const day=await value<string>("select ((now() at time zone 'America/Denver')::date+150)::text");
+ const day=await value<string>("select ((now() at time zone 'America/Denver')::date+$1::integer)::text",[offset]);
  const a=await value<{day:string;slots:{eta:string}[]}>("select public.route_availability($1,'Pickup',$2,$3)",[job,day,token]);
  const stop=await value<string>("select public.route_schedule($1,'Pickup',$2,$3,$4)",[job,a.day,a.slots[0].eta,token]);
  return {job,token,stop};
@@ -1049,16 +1052,23 @@ test("Picked Up starts the next Pickup stop, notifies its customer, and leaves r
  await db.query("insert into public.documents(unit_id,type,file_name,job_id,pick_return_stop_id,status) values($1,'Receiving Evidence','pickup-test-b.jpg',$2,$3,'Available')",[unit,b.job,b.stop]);
  await value("select public.pickup_driver_action($1,'picked-up')",[b.stop]);
  assert.equal(await value("select confirmed_at is null from public.pick_return_routes where id=$1",[route]),true);
+ await assert.rejects(value("select public.confirm_pick_return_route($1)",[route]),/Shop must verify/);
+ const received=await db.query<{id:string}>("select i.id from public.job_items i join public.pick_return_stops s on s.job_id=i.job_id where s.route_id=$1 and s.status='Completed'",[route]);for(const item of received.rows)await value("select public.verify_shop_item($1)",[item.id]);
  await value("select public.confirm_pick_return_route($1)",[route]);
  assert.equal(await value("select status from public.pick_return_routes where id=$1",[route]),"Completed");
 });
 
+let returnFixtureDays=210;
 async function driverReturnFixture(suffix:string){
  const {job,token}=await readyReturn(suffix);
- const day=await value<string>("select ((now() at time zone 'America/Denver')::date+210)::text");
+ returnFixtureDays+=7;const day=await value<string>("select ((now() at time zone 'America/Denver')::date+$1::integer)::text",[returnFixtureDays]);
  const a=await value<{day:string;slots:{eta:string}[]}>("select public.route_availability($1,'Return',$2,$3)",[job,day,token]);
  const stop=await value<string>("select public.route_schedule($1,'Return',$2,$3,$4)",[job,a.day,a.slots[0].eta,token]);
  await db.query("update public.pick_return_orders set delivery_payment_method='Cash' where job_id=$1",[job]);
+ const route=await value<string>("select route_id from public.pick_return_stops where id=$1",[stop]);
+ const items=await db.query<{id:string}>("select id from public.job_items where job_id=$1",[job]);
+ await value("select public.verify_route_items($1,'Loaded',$2::uuid[])",[stop,items.rows.map(i=>i.id)]);
+ await value("select public.depart_driver_route($1)",[route]);
  return {job,token,stop};
 }
 
@@ -1123,8 +1133,13 @@ test("Unpaid retry is released at the route cutoff and its uncollected fee is vo
 });
 
 test("Explicit route departure notifies confirmed customers once and rejects unknown routes",async()=>{
- const {job}=await readyReturn("departure");
+ const {job,token}=await readyReturn("departure");
+ const availability=await value<{day:string;slots:{eta:string}[]}>("select public.route_availability($1,'Return',((now() at time zone 'America/Denver')::date+1500),$2)",[job,token]);
+ await value("select public.route_schedule($1,'Return',$2,$3,$4)",[job,availability.day,availability.slots[0].eta,token]);
  const route=await value<string>("select s.route_id from public.pick_return_stops s join public.pick_return_routes r on r.id=s.route_id where s.job_id=$1 and r.leg='Return' and s.status='Scheduled'",[job]);
+ await assert.rejects(value("select public.depart_driver_route($1)",[route]),/Verify all items/);
+ const checks=await value<{stop:string;items:{id:string}[]}[]>("select public.route_item_checklist($1,'Loaded')",[route]);
+ for(const row of checks){await value("select public.verify_route_items($1,'Loaded',$2::uuid[])",[row.stop,row.items.map(i=>i.id)]);await db.query("update public.pick_return_orders set delivery_payment_method='Cash' where job_id=(select job_id from public.pick_return_stops where id=$1)",[row.stop]);}
  await value("select public.depart_driver_route($1)",[route]);
  const count=Number(await value("select count(*) from public.notifications where dedupe_key like $1",['route-departed:'+route+':%']));
  assert.ok(count>0);
@@ -1336,4 +1351,97 @@ test("Customer route snapshot hides other customers, preserves read-only behavio
  await db.query("insert into public.documents(unit_id,type,file_name,job_id,pick_return_stop_id,status) values($1,'Receiving Evidence','tracking-test.jpg',$2,$3,'Available')",[unit,f.job,f.stop]);
  await value("select public.pickup_driver_action($1,'picked-up')",[f.stop]);data=await get();assert.equal(data[0].resolved,1);assert.equal(data[0].stops[1].status,'En Route');
  await value('select public.report_driver_incident($1)',[route]);assert.equal((await get())[0].paused,true);
+});
+
+test("Customer arrival response requires the exact status capability, cancels wait and broadcasts no customer data",async()=>{
+ const f=await driverPickupFixture("audit-arrival",2500);await value("select public.pickup_driver_action($1,'en-route')",[f.stop]);await value("select public.pickup_driver_action($1,'arrived')",[f.stop]);
+ await assert.rejects(value("select public.customer_arrival_response('wrong','Pickup')"),/Status link unavailable/);
+ const channel=await value<string>("select public.status_live_channel($1)",[f.token]);assert.match(channel,/^tt-status:[a-f0-9]{64}$/);
+ await value("select public.customer_arrival_response($1,'Pickup')",[f.token]);
+ assert.equal(await value("select pickup_wait_until is null and customer_coming_at is not null from public.pick_return_stops where id=$1",[f.stop]),true);
+ const arrival=await value<{leg:string;responded:boolean}>("select public.customer_arrival_context($1)",[f.token]);assert.deepEqual(arrival,{leg:"Pickup",responded:true});
+ assert.ok(Number(await value("select count(*) from realtime.audit_test_events where topic=$1",[channel]))>0);
+ assert.equal(Number(await value("select count(*) from realtime.audit_test_events where payload<>'{}'::jsonb")),0);
+ await assert.rejects(value("select public.customer_delivery_acknowledge($1)",[f.token]),/Delivery has not occurred/);
+ await assert.rejects(value("select public.report_driver_incident((select route_id from public.pick_return_stops where id=$1))",[f.stop]),/arrived stop/);
+});
+
+test("Shop receipt blocks both legacy production and item progression until each item is verified",async()=>{
+ const f=await driverPickupFixture("audit-shop",2510);await value("select public.pickup_driver_action($1,'en-route')",[f.stop]);await value("select public.pickup_driver_action($1,'arrived')",[f.stop]);
+ await db.query("insert into public.documents(unit_id,type,file_name,job_id,pick_return_stop_id,status) values($1,'Receiving Evidence','audit-received.jpg',$2,$3,'Available')",[unit,f.job,f.stop]);
+ await value("select public.pickup_driver_action($1,'picked-up')",[f.stop]);
+ assert.equal(await value("select work_stage from public.jobs where id=$1",[f.job]),"Received at Shop");
+ const status=await value<{tracking_stage:string;steps:string[]}>("select public.public_job_status($1)",[f.token]);assert.equal(status.tracking_stage,"Received at Shop");assert.ok(status.steps.includes("Received at Shop"));
+ const item=await value<string>("select id from public.job_items where job_id=$1 limit 1",[f.job]);
+ await assert.rejects(value("select public.advance_job_item($1,'next')",[item]),/Shop must verify/);
+ await assert.rejects(db.query("update public.jobs set work_stage='Preparing' where id=$1",[f.job]),/Shop must verify/);
+ await value("select public.verify_shop_item($1)",[item]);await value("select public.verify_shop_item($1)",[item]);
+ assert.equal(await value("select work_stage from public.jobs where id=$1",[f.job]),"Receiving Evidence");
+ await value("select public.advance_job($1,'receiving-done')",[f.job]);assert.equal(await value("select work_stage from public.jobs where id=$1",[f.job]),"Preparing");
+});
+
+test("Return cannot leave with an electronic balance, and cash loading must be verified per item",async()=>{
+ const f=await readyReturn("audit-load");const a=await value<{day:string;slots:{eta:string}[]}>("select public.route_availability($1,'Return',((now() at time zone 'America/Denver')::date+1800),$2)",[f.job,f.token]);
+ const stop=await value<string>("select public.route_schedule($1,'Return',$2,$3,$4)",[f.job,a.day,a.slots[0].eta,f.token]);const route=await value<string>("select route_id from public.pick_return_stops where id=$1",[stop]);
+ await assert.rejects(value("select public.return_driver_action($1,'en-route')",[stop]),/start the route/);
+ await assert.rejects(value("select public.depart_driver_route($1)",[route]),/Verify all items/);
+ const item=await value<string>("select id from public.job_items where job_id=$1 limit 1",[f.job]);
+ await assert.rejects(value("select public.verify_route_items($1,'Loaded',array[gen_random_uuid()])",[stop]),/Invalid item list/);
+ await value("select public.verify_route_items($1,'Loaded',array[$2::uuid])",[stop,item]);
+ await db.query("update public.pick_return_orders set delivery_payment_method='Zelle' where job_id=$1",[f.job]);
+ await assert.rejects(value("select public.depart_driver_route($1)",[route]),/Only cash deliveries/);
+ await db.query("update public.pick_return_orders set delivery_payment_method='Cash' where job_id=$1",[f.job]);
+ await value("select public.depart_driver_route($1)",[route]);await value("select public.return_driver_action($1,'en-route')",[stop]);
+ await assert.rejects(db.query("insert into public.documents(unit_id,type,file_name,job_id,pick_return_stop_id,status) values($1,'Delivery Evidence','too-early.jpg',$2,$3,'Available')",[unit,f.job,stop]),/Arrive before/);
+ await value("select public.return_driver_action($1,'arrived')",[stop]);await value("select public.customer_arrival_response($1,'Return')",[f.token]);
+ assert.equal(await value("select return_wait_until is null and return_customer_coming_at is not null from public.pick_return_stops where id=$1",[stop]),true);
+});
+
+test("A failed Return keeps the route open until the shop verifies all returned physical items",async()=>{
+ const f=await driverReturnFixture("audit-return-shop");const route=await value<string>("select route_id from public.pick_return_stops where id=$1",[f.stop]);
+ await value("select public.return_driver_action($1,'en-route')",[f.stop]);await value("select public.return_driver_action($1,'arrived')",[f.stop]);await db.query("update public.pick_return_stops set return_wait_until=now()-interval '1 second' where id=$1",[f.stop]);await value("select public.return_driver_action($1,'not-home')",[f.stop]);
+ await assert.rejects(value("select public.confirm_pick_return_route($1)",[route]),/Return all undelivered items/);
+ const checks=await value<{stop:string;items:{id:string}[]}[]>("select public.route_item_checklist($1,'Returned')",[route]);assert.equal(checks.length,1);
+ await value("select public.verify_route_items($1,'Returned',$2::uuid[])",[f.stop,checks[0].items.map(i=>i.id)]);await value("select public.confirm_pick_return_route($1)",[route]);assert.equal(await value("select status from public.pick_return_routes where id=$1",[route]),"Completed");
+});
+
+test("Opt-in additional addresses belong to the customer and preserve original personal/company addresses",async()=>{
+ const customer=await createCustomer("Audit addresses","audit-addresses");const quote=await createQuote(customer.id);const token=await value<string>("select public.send_quote($1)",[quote]);
+ await value("select public.accept_review_with_logistics($1,true,true,$2::jsonb)",[token,JSON.stringify({option_code:"dropoff_delivery",delivery_address:"909 Saved Street, Draper UT",save_delivery_address:true})]);
+ assert.equal(Number(await value("select count(*) from private.customer_extra_addresses where customer_id=$1",[customer.id])),1);
+ assert.equal(await value("select address from public.customers where id=$1",[customer.id]),"101 Personal Way, Draper, UT 84020");
+ const second=await createQuote(customer.id);const context=await value<{extra_addresses:string[]}>("select private.quote_logistics_context($1)",[second]);assert.deepEqual(context.extra_addresses,["909 Saved Street, Draper UT"]);
+ await value("select public.accept_review_with_logistics($1,true,true,$2::jsonb)",[token,JSON.stringify({option_code:"dropoff_delivery",delivery_address:"909 Saved Street, Draper UT",save_delivery_address:true})]);assert.equal(Number(await value("select count(*) from private.customer_extra_addresses where customer_id=$1",[customer.id])),1);
+});
+
+test("Return availability and automatic assignment never precede a future pickup",async()=>{
+ const f=await readyReturn("audit-return-date");const pickup=await value<string>("select ((now() at time zone 'America/Denver')::date+2200)::text");
+ await db.query("update public.pick_return_orders set pickup_window_start=($2::date+time '08:00') at time zone 'America/Denver' where job_id=$1",[f.job,pickup]);
+ const a=await value<{day:string}>("select public.route_availability($1,'Return',(now() at time zone 'America/Denver')::date,$2)",[f.job,f.token]);assert.ok(a.day>=pickup);
+ const stop=await value<string>("select private.auto_return($1)",[f.job]);assert.ok(await value<boolean>("select (window_start at time zone 'America/Denver')::date >= $2::date from public.pick_return_stops where id=$1",[stop,pickup]));
+});
+
+test("Payment cutoff reminders are dated, idempotent and do not replay historical notifications",async()=>{
+ const f=await readyReturn("audit-cutoff");const stop=await value<string>("select s.id from public.pick_return_stops s join public.pick_return_routes r on r.id=s.route_id where s.job_id=$1 and r.leg='Return' and s.status='Scheduled'",[f.job]);
+ await db.query("update public.pick_return_stops set window_start=now()+interval '47 hours',window_end=now()+interval '51 hours' where id=$1",[stop]);
+ const old=Number(await value("select count(*) from public.notifications where event='QUOTE_SENT' and status='Sent'"));
+ await value("select private.audit_cutoff_reminders()");await value("select private.audit_cutoff_reminders()");
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key like $1",['audit-cutoff:'+stop+':%'])),1);
+ assert.match(await value<string>("select payload->>'text' from public.notifications where dedupe_key like $1",['audit-cutoff:'+stop+':%']),/Payment deadline:.*America\/Denver/);
+ assert.equal(Number(await value("select count(*) from public.notifications where event='QUOTE_SENT' and status='Sent'")),old);
+});
+
+test("Controlled cash Return flow accepts receipt from the customer's status link only after paid attended handover",async()=>{
+ const f=await driverReturnFixture("audit-complete-flow");
+ await assert.rejects(value("select public.customer_delivery_acknowledge($1)",[f.token]),/Delivery has not occurred/);
+ await value("select public.return_driver_action($1,'en-route')",[f.stop]);await value("select public.return_driver_action($1,'arrived')",[f.stop]);
+ await db.query("insert into public.documents(unit_id,type,file_name,job_id,pick_return_stop_id,status) values($1,'Delivery Evidence','audit-delivered.jpg',$2,$3,'Available')",[unit,f.job,f.stop]);
+ await assert.rejects(value("select public.return_driver_action($1,'delivered',true)",[f.stop]),/Outstanding balance|Payment|Collect and confirm payment/);
+ await value("select public.return_driver_action($1,'cash',true)",[f.stop]);
+ assert.equal(Number(await value("select balance_due from public.job_commercial_totals where id=$1",[f.job])),0);
+ await value("select public.return_driver_action($1,'delivered',true)",[f.stop]);
+ await assert.rejects(value("select public.customer_delivery_acknowledge('foreign')"),/Status link unavailable/);
+ await value("select public.customer_delivery_acknowledge($1)",[f.token]);await value("select public.customer_delivery_acknowledge($1)",[f.token]);
+ assert.equal(Number(await value("select count(*) from public.delivery_acknowledgments where job_id=$1",[f.job])),1);
+ assert.equal(await value("select status from public.jobs where id=$1",[f.job]),"Completed");
 });

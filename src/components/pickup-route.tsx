@@ -14,6 +14,7 @@ export async function PickupRoute({date}:{date:string}){
  const {data:routes,error}=await db.from("pick_return_routes").select("*").eq("unit_id",unit).eq("leg","Pickup").eq("route_date",date);
  if(error)throw new Error("Could not load Pickup routes");
  const ids=(routes??[]).map(r=>r.id);
+ const liveChannels=await Promise.all(ids.map(async id=>(await db.rpc("route_live_channel",{p_route:id})).data));
  const {data:stops,error:stopError}=ids.length?await db.from("pick_return_stops").select("*").eq("unit_id",unit).in("route_id",ids).order("sequence"):{data:[],error:null};
  if(stopError)throw new Error("Could not load Pickup stops");
  const {data:incidents,error:incidentError}=ids.length?await db.from("route_incidents").select("id,route_id,status,deadline").eq("unit_id",unit).in("route_id",ids):{data:[],error:null};
@@ -31,10 +32,10 @@ export async function PickupRoute({date}:{date:string}){
  const [orders,jobs,items,documents,flows,customers]=results.map(r=>r.data??[]);
  const allowed=new Set((orders??[]).filter(o=>o.pickup_window_start&&new Date(o.pickup_window_start).toLocaleDateString("en-CA",{timeZone:"America/Denver"})===date).map(o=>o.job_id));
  const visible=(stops??[]).filter(s=>s.status!=="Cancelled"&&allowed.has(s.job_id));
- return <section className="pickup-route driver-landing"><StatusRefresh />
+ return <section className="pickup-route driver-landing"><StatusRefresh channels={liveChannels.filter((value):value is string=>typeof value==="string")} />
  <Link className="button secondary" href="/pick-return">← All routes</Link><p className="eyebrow">SATURDAY / PICK UP</p><h1>{routeDateLabel(date)}</h1><p className="driver-window">8:00 AM–12:00 PM · Denver time</p><p>{visible.filter(s=>s.status==="Completed").length}/{visible.length} picked up</p>
- {(routes??[]).map(route=><RouteNotificationControls key={route.id} route={route.id} departed={route.departed_at} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}
- {(routes??[]).map(route=><RouteExceptionControls key={route.id} route={route.id} leg="Pickup" incident={(incidents??[]).find(i=>i.route_id===route.id)} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}
+ {(routes??[]).map(route=><RouteNotificationControls key={route.id} leg="Pickup" route={route.id} departed={route.departed_at} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}
+ {(routes??[]).map(route=><RouteExceptionControls key={route.id} arrived={(stops??[]).some(s=>s.route_id===route.id&&s.status==="Arrived")} route={route.id} leg="Pickup" incident={(incidents??[]).find(i=>i.route_id===route.id)} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}
  {!visible.length&&<div className="panel"><h2>No confirmed pickups</h2><p>Only scheduled Pickup services with confirmed payment appear here.</p></div>}
  {visible.map((stop,index)=>{
  const job=(jobs??[]).find(j=>j.id===stop.job_id);if(!job)return null;

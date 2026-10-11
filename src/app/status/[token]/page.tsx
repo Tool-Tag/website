@@ -1,4 +1,4 @@
-import {spanishTrackingStage,spanishStopStatus} from "@/lib/domain/customer-route-tracking";
+import {CustomerArrivalBanner,CustomerDeliveryAcknowledgment} from "@/components/customer-arrival-banner";
 import {CustomerRouteTimeline} from "@/components/customer-route-timeline";
 import {DriverIncidentChoice} from "@/components/driver-incident-choice";
 import {PickupMissChoice} from "@/components/pickup-miss-choice";
@@ -19,63 +19,64 @@ import { supabase } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 const labels: Record<string, { title: string; description: string }> = {
-  "Pending Delivery": {title:"Pending Delivery",description:"Confirma tu pago o elige una opción de entrega. Debes seleccionar efectivo antes del corte final."},
-  "Shop Pickup": {title:"Shop Pickup",description:"Tus piezas permanecen en el taller. Espera las instrucciones de ToolTag para recogerlas."},
+  "Pending Delivery": {title:"Pending Delivery",description:"Confirm your payment or choose a delivery option. Select Cash before the final cutoff."},
+  "Shop Pickup": {title:"Shop Pickup",description:"Your items remain at the shop. Wait for ToolTag pickup instructions."},
   "Pickup Fee": {
     title: "Pickup Fee",
-    description: "La tarifa de recolección y entrega debe pagarse y confirmarse antes de agendar.",
+    description: "The logistics fee must be paid and confirmed before scheduling.",
   },
   "Pickup Scheduled": {
     title: "Pickup Scheduled",
-    description: "Tus piezas están pendientes de la recolección programada de ToolTag.",
+    description: "Your items are awaiting the scheduled ToolTag Pickup.",
   },
   "Pickup In Progress": {
     title: "Pickup In Progress",
-    description: "ToolTag está recorriendo la ruta de recolección.",
+    description: "ToolTag is working through the Pickup route.",
   },
   "Picked Up": {
     title: "Picked Up",
-    description: "ToolTag recibió tus piezas.",
+    description: "ToolTag collected your items.",
   },
+  "Received at Shop": {title:"Received at Shop",description:"The shop is verifying your items against the receiving list and photos before production."},
   "In Process": {
     title: "In Process",
-    description: "Tu trabajo está activo y se prepara para producción.",
+    description: "Your job is being prepared for production.",
   },
   Engraving: {
     title: "Engraving",
-    description: "Estamos grabando tus piezas.",
+    description: "We are engraving your items.",
   },
   "Final Details": {
     title: "Final Details",
-    description: "Tu trabajo está en revisión final.",
+    description: "Your job is in final review.",
   },
   "Delivery In Progress": {
     title: "Delivery In Progress",
-    description: "Tus piezas terminadas se están preparando para la entrega.",
+    description: "Your finished items are being prepared for delivery.",
   },
   "Return Scheduled": {
     title: "Return Scheduled",
-    description: "La fecha y ventana de entrega ya están programadas.",
+    description: "Your delivery date and window are scheduled.",
   },
   "Out for Delivery": {
     title: "Out for Delivery",
-    description: "ToolTag va en camino con tus piezas terminadas.",
+    description: "ToolTag is on the way with your finished items.",
   },
   Delivered: {
     title: "Delivered",
-    description: "Tus piezas fueron entregadas y se registró la evidencia.",
+    description: "Your items were delivered and evidence was recorded.",
   },
   Cancelled: {
     title: "Cancelled",
-    description: "Este servicio de ToolTag fue cancelado.",
+    description: "This ToolTag service was cancelled.",
   },
   "Cancellation Balance": {
     title: "Cancellation Balance",
-    description: "Debe confirmarse el saldo de cancelación antes de devolver las piezas que ya tiene ToolTag.",
+    description: "The cancellation balance must be confirmed before returning items held by ToolTag.",
   },
   Completed: {
     title: "Completed",
-    description: "Tu trabajo de ToolTag ha terminado.",
+    description: "Your ToolTag job is complete.",
   },
 };
 
@@ -98,8 +99,8 @@ export default async function JobStatusPage({
   if (error || !data) {
     return (
       <main className="public"><StatusRefresh />
-        <p className="eyebrow">ToolTag · Seguimiento</p>
-        <h1>Este enlace de seguimiento no está disponible.</h1>
+        <p className="eyebrow">ToolTag · Tracking</p>
+        <h1>This tracking link is unavailable.</h1>
       </main>
     );
   }
@@ -127,39 +128,44 @@ export default async function JobStatusPage({
   const activeStage = data.tracking_stage ?? data.stage ?? "In Process";
   const current = labels[activeStage] ?? labels["In Process"];
   const pickup = data.pickup_return;
+  const deliveryWaiting=pickup?.pickup_status==="Picked Up"&&(!pickup.production_ready_at||!["Pickup & Delivery","Drop-off + Delivery"].includes(pickup.service_method));
   const {data:driverIncident,error:incidentError}=await db.rpc("driver_incident_context",{p_job:data.id,p_token:token});
   if(incidentError)throw new Error("Could not load route update");
   const {data:customerRoutes,error:routesError}=await db.rpc("customer_route_tracking",{p_job:data.id,p_token:token});
-  if(routesError)throw new Error("No se pudo cargar el seguimiento de la ruta");
+  if(routesError)throw new Error("Could not load route tracking");
+  const {data:liveChannel}=await db.rpc("status_live_channel",{p_token:token});
+  const {data:arrival}=await db.rpc("customer_arrival_context",{p_token:token});
+  const arrivedLeg=arrival?.leg as "Pickup"|"Return"|undefined;
   const itemsTotal = Number(data.items_total ?? 0);
   const itemsCompleted = Number(data.items_completed ?? 0);
   const itemsStarted = Number(data.items_started ?? 0);
 
   return (
-    <main className="public"><StatusRefresh />
-      <p className="eyebrow">ToolTag · Seguimiento</p>
+    <main className="public"><StatusRefresh channels={liveChannel?[liveChannel]:[]} />
+      {arrivedLeg&&<CustomerArrivalBanner token={token} leg={arrivedLeg} responded={Boolean(arrival?.responded)} />}
+      <p className="eyebrow">ToolTag · Tracking</p>
       <h1>{data.code}</h1>
       {data.customer_name && <p className="muted">{data.customer_name}</p>}
 
       {data.cancelled && (
         <p className="notice error">
-          <strong>ESTE SERVICIO HA SIDO CANCELADO.</strong>
+          <strong>THIS SERVICE HAS BEEN CANCELLED.</strong>
         </p>
       )}
 
       <section className="panel status-card">
-        <p className="status-kicker">Estado actual</p>
-        <h2>{spanishTrackingStage[activeStage]??"En preparación"}</h2>
+        <p className="status-kicker">Current status</p>
+        <h2>{activeStage}</h2>
         <p className="muted">{current.description}</p>
 
         {itemsTotal > 0 && (
           <div className="status-progress-summary">
             <strong>
-              {itemsCompleted}/{itemsTotal} piezas terminadas
+              {itemsCompleted}/{itemsTotal} pieces finished
             </strong>
             {itemsStarted > itemsCompleted && (
               <span className="muted">
-                {itemsStarted}/{itemsTotal} piezas iniciadas o terminadas
+                {itemsStarted}/{itemsTotal} pieces started or finished
               </span>
             )}
           </div>
@@ -169,41 +175,44 @@ export default async function JobStatusPage({
           <div className="status-logistics">
 
             <div>
-              <small>Recolección</small>
-              <strong>{spanishStopStatus[pickup.pickup_status]??spanishTrackingStage[pickup.pickup_status]??"Pendiente"}</strong>
+              <small>Pickup</small>
+              <strong>{pickup.pickup_status}</strong>
               {formatWindow(pickup.pickup_window_start, pickup.pickup_window_end) && (
                 <span>{formatWindow(pickup.pickup_window_start, pickup.pickup_window_end)}</span>
               )}
 
               {pickup.pickup_eta && (
                 <span>
-                  Horario programado: {denverDateTime(pickup.pickup_eta)}
+                  Scheduled time: {denverDateTime(pickup.pickup_eta)}
                 </span>
               )}
             </div>
-            <div>
-              <small>Entrega</small>
-              <strong>{spanishStopStatus[pickup.return_status]??spanishTrackingStage[pickup.return_status]??"Pendiente"}</strong>
+            <div aria-disabled={deliveryWaiting} className={deliveryWaiting?"delivery-waiting":""}>
+              {deliveryWaiting&&<p>Delivery — Waiting for delivery details, if applicable.</p>}
+              <small>Delivery</small>
+              <strong>{pickup.return_status}</strong>
               {formatWindow(pickup.return_window_start, pickup.return_window_end) && (
                 <span>{formatWindow(pickup.return_window_start, pickup.return_window_end)}</span>
               )}
 
               {pickup.return_eta && (
                 <span>
-                  Horario programado: {denverDateTime(pickup.return_eta)}
+                  Scheduled time: {denverDateTime(pickup.return_eta)}
                 </span>
               )}
             </div>
           </div>
         )}
 
-        {pickup?.return_window_start && !pickup.return_reservation_stop_id && pickup.delivery_payment_status !== "Shop Pickup" && !["Delivered","En Route","Arrived","Cancelled"].includes(pickup.return_status) && <details><summary>Reagendar entrega</summary><RouteCalendar job={data.id} leg="Return" token={token} locale="es" /></details>}
-        {["Not Scheduled","Scheduled"].includes(pickup?.pickup_status) && <details><summary>Reagendar recolección</summary><RouteCalendar job={data.id} leg="Pickup" token={token} locale="es" /></details>}
+        {pickup?.return_window_start && !pickup.return_reservation_stop_id && pickup.delivery_payment_status !== "Shop Pickup" && !["Delivered","En Route","Arrived","Cancelled"].includes(pickup.return_status) && <details><summary>Reschedule delivery</summary><RouteCalendar job={data.id} leg="Return" token={token} locale="en" /></details>}
+        {["Not Scheduled","Scheduled"].includes(pickup?.pickup_status) && <details><summary>Reschedule Pickup</summary><RouteCalendar job={data.id} leg="Pickup" token={token} locale="en" /></details>}
         <StatusTimeline steps={steps} current={activeStage} updated={data.updated_at} finished={itemsCompleted} total={itemsTotal} />
       </section>
 
       {Array.isArray(customerRoutes)&&customerRoutes.length>0&&<CustomerRouteTimeline routes={customerRoutes} />}
 
+      {data.job_status==="Delivered – Pending Customer Acceptance"&&<CustomerDeliveryAcknowledgment token={token} />}
+      {pickup?.delivery_payment_method==="Cash"&&!pickup.returned_at&&Number(data.payment?.balance_due)>0&&<section className="panel"><h2>Please make your cash payment of {money(data.payment.balance_due)}</h2><p>Do not pay more than this amount.</p><p className="notice error">Tipping the driver is optional.</p></section>}
       {driverIncident && <DriverIncidentChoice job={data.id} token={token} data={driverIncident} />}
       {pickupMissed && !data.cancelled && <PickupMissChoice job={data.id} token={token} />}
       {pickup?.delivery_attempts === 1 && pickup.delivery_payment_status !== "Shop Pickup" && pickup.return_reservation_stop_id && <ReturnChoice token={token} job={data.id} fee={Number(data.second_return_fee)} chosen={Boolean(data.second_return_chosen)} />}
@@ -298,7 +307,7 @@ export default async function JobStatusPage({
       )}
 
       <p className="muted">
-        Guarda este enlace privado. Puedes volver cuando quieras para consultar el avance de tu trabajo.
+        Save this private link. Return anytime to check your job progress.
       </p>
     </main>
   );

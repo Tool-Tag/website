@@ -4,7 +4,13 @@ import {supabase} from "@/lib/supabase/server";
 import {dispatchWorkerMail} from "@/lib/integrations/mail-dispatch";
 import {revalidatePath} from "next/cache";
 export async function driverIncidentAction(id:string,outcome?:string){
- const {db}=await context();const result=outcome?await db.rpc('resolve_driver_incident',{p_incident:id,p_outcome:outcome}):await db.rpc('report_driver_incident',{p_route:id});
+ const {db}=await context();
+ if (!outcome) {
+  const {data, error} = await db.from("pick_return_stops").select("id").eq("route_id", id).eq("status", "Arrived").limit(1);
+  if (error) return {error: "Could not verify the active stop."};
+  if (data?.length) return {error: "Resolve the Arrived stop before reporting driver unavailable."};
+ }
+ const result=outcome?await db.rpc('resolve_driver_incident',{p_incident:id,p_outcome:outcome}):await db.rpc('report_driver_incident',{p_route:id});
  if(result.error)return {error:result.error.message};await dispatchWorkerMail();revalidatePath('/pick-return','layout');revalidatePath('/app/refunds');return {ok:true};
 }
 export async function driverIncidentChoice(job:string,token:string,choice:string){

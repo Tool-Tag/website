@@ -25,6 +25,7 @@ export type ReviewLogisticsContext = {
   selected_option?: LogisticsOptionCode | null;
   personal_address?: string | null;
   company_address?: string | null;
+  extra_addresses?: string[];
   pickup_address?: string | null;
   delivery_address?: string | null;
   saturday_date?: string | null;
@@ -38,12 +39,14 @@ function AddressField({
   company,
   value,
   onChange,
+  extra=[],save=false,onSave,
 }: {
   label: string;
   personal?: string | null;
   company?: string | null;
   value: string;
   onChange: (value: string) => void;
+  extra?:string[];save?:boolean;onSave?:(value:boolean)=>void;
 }) {
   const saved = useMemo(
     () =>
@@ -54,17 +57,18 @@ function AddressField({
         company
           ? { value: "company", label: "Company address", address: company }
           : null,
+        ...extra.map((address,index)=>({value:`extra-${index}`,label:`Saved address ${index+1}`,address})),
       ].filter(Boolean) as { value: string; label: string; address: string }[],
-    [personal, company],
+    [personal, company, extra],
   );
 
-  const selected =
-    saved.find((entry) => entry.address === value)?.value ??
-    (value ? "new" : saved[0]?.value ?? "new");
-
+  const [selected, setSelected] = useState(() => saved.find(entry => entry.address === value)?.value ?? (value ? "new" : saved[0]?.value ?? "new"));
   useEffect(() => {
-    if (!value && saved[0]) onChange(saved[0].address);
-  }, [value, saved, onChange]);
+    if (selected !== "new" && !value) {
+      const address = saved.find(entry => entry.value === selected)?.address;
+      if (address) onChange(address);
+    }
+  }, [selected, value, saved, onChange]);
 
   return (
     <div className="logistics-address">
@@ -75,6 +79,7 @@ function AddressField({
             value={selected}
             onChange={(event) => {
               const next = event.target.value;
+              setSelected(next);
               const found = saved.find((entry) => entry.value === next);
               onChange(found?.address ?? "");
             }}
@@ -101,6 +106,7 @@ function AddressField({
           />
         </label>
       )}
+      {selected==="new"&&value.trim()&&onSave&&<label className="checkbox"><input type="checkbox" checked={save} onChange={event=>onSave(event.target.checked)}/>Add this address to my saved address list</label>}
       {selected !== "new" && value && <p className="muted">{value}</p>}
     </div>
   );
@@ -142,6 +148,7 @@ export function ReviewAcceptanceFlow({
   const [saturdayDate, setSaturdayDate] = useState(
     logistics.saturday_date ?? "",
   );
+  const [savePickup,setSavePickup]=useState(false);const [saveDelivery,setSaveDelivery]=useState(false);
   const [quoteConfirmed, setQuoteConfirmed] = useState(false);
   const [agreementConfirmed, setAgreementConfirmed] = useState(false);
   const [state, action, pending] = useActionState<ActionState, FormData>(
@@ -177,6 +184,8 @@ export function ReviewAcceptanceFlow({
 
   const payload = JSON.stringify({
     option_code: optionCode || null,
+    save_pickup_address:selected?.pickup&&savePickup,
+    save_delivery_address:selected?.delivery&&(selected?.pickup&&sameAsPickup?savePickup:saveDelivery),
     pickup_address: selected?.pickup ? pickupAddress.trim() : null,
     delivery_address: selected?.delivery
       ? effectiveDeliveryAddress.trim()
@@ -262,6 +271,7 @@ export function ReviewAcceptanceFlow({
               company={logistics.company_address}
               value={pickupAddress}
               onChange={setPickupAddress}
+              extra={logistics.extra_addresses} save={savePickup} onSave={setSavePickup}
             />
             <label>
               Requested Pickup date
@@ -322,6 +332,7 @@ export function ReviewAcceptanceFlow({
                 company={logistics.company_address}
                 value={deliveryAddress}
                 onChange={setDeliveryAddress}
+                extra={logistics.extra_addresses} save={saveDelivery} onSave={setSaveDelivery}
               />
             ) : (
               <p className="muted">Delivery address: {pickupAddress}</p>
