@@ -191,10 +191,14 @@ test("Stripe adapter creates hosted Checkout in pending state and uses idempoten
       (requestInit?.headers as Record<string, string>)["Idempotency-Key"],
       paymentInput.attemptId,
     );
+    assert.equal((requestInit?.headers as Record<string,string>)["Stripe-Version"],"2025-06-30.basil");
     const body = new URLSearchParams(String(requestInit?.body));
     assert.equal(body.get("line_items[0][price_data][unit_amount]"), "1999");
     assert.equal(body.get("metadata[attempt_id]"), paymentInput.attemptId);
     assert.equal(body.get("metadata[payment_scope]"), "fee_only");
+    await stripe.start({...paymentInput,customerEmail:""});
+    assert.equal(new URLSearchParams(String(requestInit?.body)).has("customer_email"),false);
+
   } finally {
     if (previousSecret === undefined) delete process.env.STRIPE_SECRET_KEY;
     else process.env.STRIPE_SECRET_KEY = previousSecret;

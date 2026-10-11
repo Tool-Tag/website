@@ -381,12 +381,12 @@ export async function customerAction(
     try {
       if(!(await stripeTestCustomer(String(prepared.data.job_id)))) return {error:"Card payments are in TEST mode and available only for TEST- customers."};
       const base=toolTagPublicUrl();
-      const result=await provider.start({attemptId,amountCents:Math.round(Number(prepared.data.amount)*100),currency:"usd",description:`ToolTag balance · ${prepared.data.job_code}`,customerEmail:prepared.data.customer_email,successUrl:`${base}/${kind === "route-payment" ? "status" : "payment"}/${encodeURIComponent(token)}`,cancelUrl:`${base}/${kind === "route-payment" ? "status" : "payment"}/${encodeURIComponent(token)}`,jobId:prepared.data.job_id,quoteId:prepared.data.quote_id,paymentScope:"full"});
+      const result=await provider.start({attemptId,amountCents:Math.round(Number(prepared.data.amount)*100),currency:"usd",description:`ToolTag balance · ${prepared.data.job_code}`,customerEmail:String(prepared.data.customer_email || ""),successUrl:`${base}/${kind === "route-payment" ? "status" : "payment"}/${encodeURIComponent(token)}`,cancelUrl:`${base}/${kind === "route-payment" ? "status" : "payment"}/${encodeURIComponent(token)}`,jobId:prepared.data.job_id,quoteId:prepared.data.quote_id,paymentScope:"full"});
       if(!result.redirectUrl || !result.providerReference) return {error:"Card checkout unavailable."};
       const attached=await db.rpc("attach_route_card_session",{p_token:token,p_attempt:attemptId,p_reference:result.providerReference});
       if(attached.error)return {error:attached.error.message};
       return {ok:true,link:result.redirectUrl};
-    } catch {return {error:"Could not start card checkout."};}
+    } catch (error) {console.error("STRIPE_CHECKOUT_START_FAILED",{name:error instanceof Error?error.name:"unknown",code:(error as {cause?:{code?:string}})?.cause?.code ?? "CHECKOUT_FAILED"});return {error:"Could not start card checkout."};}
   }
   if (kind === "logistics-payment") {
     const scope = String(form.get("scope") || "") as PaymentScope;

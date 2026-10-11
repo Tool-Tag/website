@@ -22,7 +22,7 @@ Subscribed events:
 - checkout.session.completed
 - checkout.session.async_payment_succeeded
 
-No new endpoint path or database migration is needed. The handler verifies the raw-body signature and timestamp, rejects live events/non-TEST sessions, requires a paid USD session and valid metadata, and uses the existing confirm_logistics_card_payment RPC for logistics and remaining-balance payments. Existing attempt/session/amount checks and idempotent confirmation are preserved. Other signed TEST event types are acknowledged without processing payment.
+The existing endpoint path is preserved. An additive migration adds a restricted worker lookup and isolated TEST accounting, without granting table access. The handler verifies the raw-body signature and timestamp, rejects live events/non-TEST sessions, requires a paid USD session and valid metadata, and uses the existing confirm_logistics_card_payment RPC for logistics and remaining-balance payments. Existing attempt/session/amount checks and idempotent confirmation are preserved. Other signed TEST event types are acknowledged without processing payment.
 
 ## Local test forwarding
 
@@ -36,4 +36,19 @@ Use Stripe test card 4242 4242 4242 4242, a future expiry and any three-digit CV
 
 ## Current verification status
 
-Stripe API key was validated with livemode=false. The TEST endpoint above was registered successfully. Typecheck/lint/build and automated tests pass. The real 4242 Checkout + local webhook/ledger test requires SUPABASE_SERVICE_ROLE_KEY in ignored .env.local; Vercel marks that value sensitive and does not allow retrieval. Until supplied, do not claim real end-to-end completion or a payment/session ID.
+The controlled 4242 payment succeeded on TEST-J-20261011-17 for $75.00 simulated USD. No live keys or real customer payments were used.
+
+- Checkout: cs_test_a1PlTRNWpysQTbrnNO3e4DvXBOcZvO0vHjRVn8S40gBZujGvOF0WpRop7n
+- PaymentIntent: pi_3UPWCECb87wF1fzi1717srYE
+- Event: evt_1UPWCGCb87wF1fzi3ZFbhWJj
+- Attempt: 64a3fa28-e91f-44c7-b963-8aa7d06a498d
+- Collection: 62ce8050-0fc2-4333-a65c-a5bf6e0fa850
+- Migration applied: 20261011232019_stripe_test_customer_access.sql
+
+The CLI forwarded the completed event and the local webhook returned HTTP 200. Re-delivery of the identical signed event also returned 200 and left exactly one collection. Supabase confirms paid_confirmed, collected $75 and balance_due $0. The collection used the existing TEST sandbox account; the real payment account setting and its $168.96 ledger balance remained unchanged. Earlier rejected starts remain auditable as pending attempts without a Checkout reference; they did not create additional charges.
+
+The account defaults to API 2026-09-30.endive, which removed payment_method_types. The adapter pins requests to supported API 2025-06-30.basil to preserve its existing card-only Checkout behavior. No account-wide API configuration was changed. Empty customer_email is omitted and Checkout locale is explicitly English.
+
+Martin must configure the three TEST environment variables in Vercel and redeploy before deployed card payments can be used. The dashboard endpoint secret, rather than the local CLI listener secret, belongs in Vercel.
+
+TEST confirmations use a private explicitly configured TEST account and TEST physical account; a missing/mismatched sandbox account fails closed. The real unit payment account setting is not modified. Existing confirmation matching, duplicate handling and non-TEST account selection remain intact.

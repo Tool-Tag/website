@@ -8,6 +8,8 @@ import type {
   StartPaymentResult,
 } from "./provider";
 
+export const STRIPE_API_VERSION = "2025-06-30.basil";
+
 type FetchLike = typeof fetch;
 
 type StripeCheckoutSession = {
@@ -68,9 +70,9 @@ export class StripePaymentProvider implements PaymentProvider {
 
     const params = new URLSearchParams({
       mode: "payment",
+      locale: "en",
       success_url: input.successUrl,
       cancel_url: input.cancelUrl,
-      customer_email: input.customerEmail,
       client_reference_id: input.attemptId,
       "payment_method_types[0]": "card",
       "line_items[0][price_data][currency]": input.currency,
@@ -84,6 +86,8 @@ export class StripePaymentProvider implements PaymentProvider {
       "payment_intent_data[metadata][attempt_id]": input.attemptId,
     });
 
+    if (input.customerEmail?.trim()) params.set("customer_email",input.customerEmail.trim());
+
     const response = await this.fetcher(
       `${stripeApiBase()}/checkout/sessions`,
       {
@@ -91,6 +95,7 @@ export class StripePaymentProvider implements PaymentProvider {
         headers: {
           Authorization: `Bearer ${secret}`,
           "Content-Type": "application/x-www-form-urlencoded",
+          "Stripe-Version": STRIPE_API_VERSION,
           "Idempotency-Key": input.attemptId,
         },
         body: params,
@@ -98,10 +103,11 @@ export class StripePaymentProvider implements PaymentProvider {
     );
 
     const body = (await response.json()) as StripeCheckoutSession & {
-      error?: { message?: string };
+      error?: { message?: string; code?: string; param?: string };
     };
 
     if (!response.ok || !body.id?.startsWith("cs_test_") || !body.url || body.livemode === true) {
+      console.error("STRIPE_CHECKOUT_REJECTED",{status:response.status,code:body.error?.code,param:body.error?.param,diagnostic:body.error?.param==="payment_method_types"?body.error?.message:undefined});
       throw new Error(
         body.error?.message || "Card checkout could not be started.",
       );

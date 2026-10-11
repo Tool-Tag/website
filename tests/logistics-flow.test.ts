@@ -709,7 +709,9 @@ test("Card stays pending until a matching provider confirmation and then opens t
     [unit, account],
   );
 
-  const customer = await createCustomer("Card Logistics", "card-logistics");
+  const sandbox = await value<string>("with p as(insert into public.physical_accounts(name) values('TEST-Stripe sandbox') returning id) insert into public.accounts(unit_id,physical_account_id,name) select $1,id,'TEST-Stripe collections' from p returning id",[unit]);
+  await db.query("insert into private.stripe_test_settings(unit_id,account_id) values($1,$2)",[unit,sandbox]);
+  const customer = await createCustomer("TEST-Card Logistics", "card-logistics");
   const quote = await createQuote(customer.id, "45.00");
   const token = await value<string>("select public.send_quote($1)", [quote]);
   const accepted = await acceptWithLogistics(token, {
@@ -768,6 +770,9 @@ test("Card stays pending until a matching provider confirmation and then opens t
 
   assert.equal(confirmed.status, "paid_confirmed");
   assert.equal(Number(confirmed.confirmed_amount), 9.99);
+  assert.equal(await value("select account_id from public.transactions where reference='STRIPE:cs_test_tooltag_93'"),sandbox);
+  assert.equal(await value("select payment_account_id from public.unit_settings where unit_id=$1",[unit]),account);
+
 
   await db.exec(
     "select set_config('request.jwt.claim.role','authenticated',false)",
@@ -1572,4 +1577,15 @@ test("Short SMS context uses original Quote link before Job and existing status 
  }finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
  assert.equal(await value("select token from private.job_status_links where job_id=$1",[job]),oldToken);
  assert.equal(await value("select token from private.quote_delivery where quote_id=$1",[quote]),token);
+});
+
+test("Stripe TEST worker lookup does not expose tables or accept real customers", async () => {
+ const real=await createCustomer("Real Stripe guard","real-stripe-guard"),q=await createQuote(real.id);
+ const token=await value<string>("select public.send_quote($1)",[q]);const accepted=await acceptWithLogistics(token,{option_code:"dropoff_pickup"});
+ await assert.rejects(value("select public.stripe_test_customer($1)",[accepted.job_id]),/Worker credentials/);
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+ try {
+  assert.equal(await value("select public.stripe_test_customer($1)",[accepted.job_id]),false);
+  await assert.rejects(value("select private.stripe_payment_account($1,$2,'cs_test_guard')",[unit,accepted.job_id]),/TEST- customer/);
+ }finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
 });
