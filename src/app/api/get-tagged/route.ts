@@ -1,3 +1,4 @@
+import { PHONE_VERIFICATION_COOKIE, verifiedPhone } from "@/lib/integrations/phone-verification";
 import { createHash, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
@@ -148,6 +149,7 @@ export async function POST(request: NextRequest) {
     }
 
     const customerRequest = parsed.data;
+    if (!(await verifiedPhone(customerRequest.contact.phone, request.cookies.get(PHONE_VERIFICATION_COOKIE)?.value))) return noStore(NextResponse.json({error:"Verify your phone number before submitting your request."},{status:400}));
     const pickup = customerRequest.service.method === "Pickup";
 
     const payload = {

@@ -1,4 +1,5 @@
 "use client";
+import { PhoneVerification } from "./phone-verification";
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -229,6 +230,7 @@ export function GetTaggedForm({
           </label>
         </div>
 
+        <PhoneVerification phone={request.contact.phone} />
         <details>
           <summary>Company details (optional)</summary>
           <div className="intake-grid">

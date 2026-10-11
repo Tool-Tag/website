@@ -1522,3 +1522,32 @@ test("TEST SMS alerts only queue for the configured shared test recipient", asyn
  assert.equal(await value("select reason from private.sms_deliveries where notification_id=$1",[blocked]),"TEST_RECIPIENT_MISMATCH");
  await db.query("update private.sms_settings set enabled=false where unit_id=$1",[unit]);
 });
+
+test("Phone codes require server access, delivery, matching session/phone and expire", async () => {
+ const id="91000000-0000-0000-0000-000000000001",session="a".repeat(64),code="b".repeat(64),network="c".repeat(64),phone="+18015550801";
+ await assert.rejects(value("select public.begin_phone_verification($1,$2,$3,$4,$5)",[id,phone,session,code,network]),/Server credentials/);
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+ try {
+  await value("select public.begin_phone_verification($1,$2,$3,$4,$5)",[id,phone,session,code,network]);
+  assert.equal(await value("select public.check_phone_verification($1,$2,$3)",[id,session,code]),false);
+  await value("select public.phone_verification_result($1,'Sent')",[id]);
+  assert.equal(await value("select public.check_phone_verification($1,$2,$3)",[id,"x".repeat(64),code]),false);
+  assert.equal(await value("select public.check_phone_verification($1,$2,$3)",[id,session,code]),true);
+  assert.equal(await value("select public.phone_verification_valid($1,$2,$3)",[id,session,phone]),true);
+  assert.equal(await value("select public.phone_verification_valid($1,$2,'+18015550802')",[id,session]),false);
+  await db.query("update private.phone_verifications set expires_at=now()-interval '1 second' where id=$1",[id]);
+  assert.equal(await value("select public.phone_verification_valid($1,$2,$3)",[id,session,phone]),false);
+ }finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
+});
+test("Phone verification caps code guesses and rate limits resends", async () => {
+ const id="91000000-0000-0000-0000-000000000002",session="d".repeat(64),code="e".repeat(64),network="f".repeat(64),phone="+18015550803";
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+ try {
+  await value("select public.begin_phone_verification($1,$2,$3,$4,$5)",[id,phone,session,code,network]);
+  await assert.rejects(value("select public.begin_phone_verification('91000000-0000-0000-0000-000000000003',$1,$2,$3,$4)",[phone,session,code,network]),/60 seconds/);
+  await value("select public.phone_verification_result($1,'Sent')",[id]);
+  for(let i=0;i<5;i++)assert.equal(await value("select public.check_phone_verification($1,$2,$3)",[id,session,"0".repeat(64)]),false);
+  assert.equal(await value("select public.check_phone_verification($1,$2,$3)",[id,session,code]),false);
+  assert.equal(await value("select attempts from private.phone_verifications where id=$1",[id]),5);
+ }finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
+});

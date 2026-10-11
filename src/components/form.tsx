@@ -1,5 +1,6 @@
 "use client";
-import { useActionState } from "react";
+import { PhoneVerification } from "./phone-verification";
+import { useActionState, useState } from "react";
 import { mutate, type ActionState } from "@/app/actions";
 export type Field = {
   name: string;
@@ -28,6 +29,7 @@ export function Form({
   back?: string;
   children?: React.ReactNode;
 }) {
+  const [customerPhone, setCustomerPhone] = useState(fields.find(f=>f.name==="phone")?.value??"");
   const [state, action, pending] = useActionState<ActionState, FormData>(
     mutate.bind(null, operation, back),
     {},
@@ -70,6 +72,7 @@ export function Form({
               <input
                 list={f.suggestions ? `suggest-${f.name}` : undefined}
                 name={f.name}
+                onChange={operation==="customer" && f.name==="phone" ? e=>setCustomerPhone(e.target.value) : undefined}
                 type={f.type ?? "text"}
                 required={f.required}
                 defaultValue={f.value}
@@ -87,6 +90,7 @@ export function Form({
           {f.help && <small>{f.help}</small>}
         </label>
       ))}
+      {operation==="customer" && <PhoneVerification phone={customerPhone} />}
       {children}
       {state.error && (
         <div role="alert" className="notice error wide">

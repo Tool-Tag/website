@@ -54,9 +54,9 @@ export class SnsSmsTransport {
   constructor(private config: SmsConfig, private env: Env = process.env, client?: SmsSender) {
     this.client = client ?? new SNSClient({ region: config.region, credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey, sessionToken: config.sessionToken }, maxAttempts: 1 });
   }
-  async send(phone: string, message: string, test = false) {
+  async send(phone: string, message: string, test = false, verification = false) {
     if (!smsNetworkAllowed(this.env)) throw new SmsFailure("SMS_NETWORK_DISABLED", "Skipped");
-    if ((!test && (!this.config.enabled || this.env.TOOLTAG_SMS_MODE !== "live")) || (test && phone !== this.config.testPhone)) throw new SmsFailure("SMS_MODE_BLOCKED", "Skipped");
+    if ((verification && this.env.PHONE_VERIFICATION_ENABLED !== "true") || (!test && ((!verification && !this.config.enabled) || this.env.TOOLTAG_SMS_MODE !== "live")) || (test && phone !== this.config.testPhone)) throw new SmsFailure("SMS_MODE_BLOCKED", "Skipped");
     if (normalizeSmsPhone(phone) !== phone || !message.trim() || message.length > 1000) throw new SmsFailure("SMS_INPUT_INVALID", "Failed");
     let optedOut: boolean | undefined;
     try { optedOut = (await this.client.send(new CheckIfPhoneNumberIsOptedOutCommand({ phoneNumber: phone }), { abortSignal: AbortSignal.timeout(8000) })).isOptedOut; }

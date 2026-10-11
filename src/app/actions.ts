@@ -1,4 +1,5 @@
 "use server";
+import { phoneVerificationEnabled, verifiedPhone } from "@/lib/integrations/phone-verification";
 import { normalizeSmsPhone } from "@/lib/integrations/sms";
 import { paymentProofError } from "@/lib/payments/proof";
 import {storageAdmin} from "@/lib/storage/admin";
@@ -118,6 +119,10 @@ export async function mutate(
           phone: z.string().min(3),
           address: z.string().min(1),
         }).parse(p);
+        if (phoneVerificationEnabled()) {
+          const existing = p.id ? await db.from("customers").select("phone").eq("id",p.id).eq("unit_id",p.unit_id).maybeSingle() : null;
+          if ((!existing?.data || normalizeSmsPhone(String(existing.data.phone ?? "")) !== normalizeSmsPhone(String(p.phone ?? ""))) && !(await verifiedPhone(String(p.phone ?? "")))) return {error:"Verify the customer's phone number before saving."};
+        }
         name = "save_customer";
         break;
       case "get-tagged-review":

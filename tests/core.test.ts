@@ -360,3 +360,18 @@ test("SMS templates preserve route/payment text, avoid foreign links and include
   assert.throws(() => renderSms("unrecognized", {}, "https://tooltag.example"));
   assert.throws(() => renderSms("PAYMENT_DUE", { text: "test" }, "http://tooltag.example"));
 });
+
+test("Phone verification is strictly opt-in and disabled registration needs no proof", async () => {
+ const {phoneVerificationEnabled,verifiedPhone,verificationSession}=await import("../src/lib/integrations/phone-verification");
+ assert.equal(phoneVerificationEnabled({}),false);assert.equal(phoneVerificationEnabled({PHONE_VERIFICATION_ENABLED:"false"}),false);assert.equal(phoneVerificationEnabled({PHONE_VERIFICATION_ENABLED:"true"}),true);
+ assert.equal(await verifiedPhone("not-a-phone"),true);
+ assert.equal(verificationSession("forged"),null);
+});
+
+test("Verification SMS needs its own enabled flag and respects test recipient restrictions", async () => {
+ const mock={async send(command:PublishCommand|CheckIfPhoneNumberIsOptedOutCommand){return command instanceof PublishCommand?{MessageId:"verification-code"}:{isOptedOut:false};}};
+ const config={...smsTestConfig,enabled:false};
+ await assert.rejects(new SnsSmsTransport(config,smsTestEnv,mock).send("+18015550103","Code 123456",false,true),/SMS_MODE_BLOCKED/);
+ assert.equal(await new SnsSmsTransport(config,{...smsTestEnv,PHONE_VERIFICATION_ENABLED:"true"},mock).send("+18015550103","Code 123456",false,true),"verification-code");
+ await assert.rejects(new SnsSmsTransport(config,{...smsTestEnv,PHONE_VERIFICATION_ENABLED:"true",TOOLTAG_SMS_MODE:"test"},mock).send("+18015550103","Code 123456",true,true),/SMS_MODE_BLOCKED/);
+});
