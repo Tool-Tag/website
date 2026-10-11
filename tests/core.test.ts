@@ -303,3 +303,60 @@ test("Payment proofs reject oversize and unsupported files before upload", async
   assert.ok(paymentProofError({size: 10, type: "application/pdf"}));
   assert.equal(paymentProofError({size: 100, type: "image/webp"}), null);
 });
+
+import { encryptSmsCredentials, decryptSmsCredentials, normalizeSmsPhone, resolveSmsConfig, smsNetworkAllowed, SnsSmsTransport, SmsFailure, renderSms } from "../src/lib/integrations/sms";
+import { PublishCommand, CheckIfPhoneNumberIsOptedOutCommand } from "@aws-sdk/client-sns";
+const smsTestCredentials = { accessKeyId: "TEST-NOT-AN-AWS-KEY", secretAccessKey: "TEST-NOT-A-SECRET" };
+const smsTestConfig = { ...smsTestCredentials, region: "us-west-2", originationNumber: "+18015550101", testPhone: "+18015550102", enabled: true };
+const smsTestEnv = { TOOLTAG_SMS_MODE: "live", VERCEL_ENV: "production" };
+test("SMS credentials use authenticated encryption and never resolve incomplete configuration", () => {
+  const env = { TOOLTAG_SMS_SETTINGS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") };
+  const cipher = encryptSmsCredentials(smsTestCredentials, env);
+  assert.ok(!cipher.includes(smsTestCredentials.secretAccessKey));
+  assert.deepEqual(decryptSmsCredentials(cipher, env), smsTestCredentials);
+  assert.notEqual(encryptSmsCredentials(smsTestCredentials, env), cipher);
+  assert.throws(() => decryptSmsCredentials(cipher, { TOOLTAG_SMS_SETTINGS_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64") }));
+  assert.throws(() => encryptSmsCredentials(smsTestCredentials, {}));
+  assert.equal(resolveSmsConfig({}, {}), null);
+  assert.equal(resolveSmsConfig({}, { AWS_ACCESS_KEY_ID: "TEST" }), null);
+  assert.equal(resolveSmsConfig({ region: "us-west-2", origination_number: "+18015550101" }, {}), null);
+});
+test("SMS local/test safety, phone normalization and test-recipient restriction", async () => {
+  assert.equal(normalizeSmsPhone("(801) 555-0100"), "+18015550100");
+  assert.equal(normalizeSmsPhone("+44 7700 900123"), "+447700900123");
+  assert.equal(normalizeSmsPhone("8015550100junk"), null);
+  assert.equal(normalizeSmsPhone("555"), null);
+  assert.equal(smsNetworkAllowed({ TOOLTAG_SMS_MODE: "live", NODE_ENV: "production" }), false);
+  assert.equal(smsNetworkAllowed({ ...smsTestEnv, TOOLTAG_SMS_MODE: "preview" }), false);
+  let requests = 0; const mock = { async send() { requests++; return { isOptedOut: false, MessageId: "mock" }; } };
+  await assert.rejects(new SnsSmsTransport(smsTestConfig, {}, mock).send("+18015550103", "test"), /SMS_NETWORK_DISABLED/);
+  await assert.rejects(new SnsSmsTransport(smsTestConfig, { ...smsTestEnv, TOOLTAG_SMS_MODE: "test" }, mock).send("+18015550103", "test"), /SMS_MODE_BLOCKED/);
+  await assert.rejects(new SnsSmsTransport(smsTestConfig, smsTestEnv, mock).send("+18015550103", "test", true), /SMS_MODE_BLOCKED/);
+  assert.equal(requests, 0);
+});
+test("SNS checks provider opt-out, uses transactional origination and reports actual acceptance", async () => {
+  const commands: (PublishCommand | CheckIfPhoneNumberIsOptedOutCommand)[] = [];
+  const mock = { async send(command: PublishCommand | CheckIfPhoneNumberIsOptedOutCommand) { commands.push(command); return command instanceof PublishCommand ? { MessageId: "sns-test-id" } : { isOptedOut: false }; } };
+  const id = await new SnsSmsTransport(smsTestConfig, smsTestEnv, mock).send("+18015550103", "ToolTag test");
+  assert.equal(id, "sns-test-id"); assert.equal(commands.length, 2);
+  assert.ok(commands[0] instanceof CheckIfPhoneNumberIsOptedOutCommand);
+  const publish = commands[1] as PublishCommand;
+  assert.equal(publish.input.MessageAttributes?.["AWS.MM.SMS.OriginationNumber"].StringValue, smsTestConfig.originationNumber);
+  assert.equal(publish.input.MessageAttributes?.["AWS.SNS.SMS.SMSType"].StringValue, "Transactional");
+  const optedOut = { async send() { return { isOptedOut: true }; } };
+  await assert.rejects(new SnsSmsTransport(smsTestConfig, smsTestEnv, optedOut).send("+18015550103", "test"), /PROVIDER_OPT_OUT/);
+});
+test("SNS ambiguous failures are terminal Unknown; definitive rejects are Failed", async () => {
+  for (const [error, expected] of [[new Error("timeout"), "Unknown"], [{ $metadata: { httpStatusCode: 403 } }, "Failed"]] as const) {
+    const mock = { async send(command: PublishCommand | CheckIfPhoneNumberIsOptedOutCommand) { if (command instanceof PublishCommand) throw error; return { isOptedOut: false }; } };
+    await assert.rejects(new SnsSmsTransport(smsTestConfig, smsTestEnv, mock).send("+18015550103", "test"), (failure: unknown) => failure instanceof SmsFailure && failure.status === expected);
+  }
+});
+test("SMS templates preserve route/payment text, avoid foreign links and include opt-out", () => {
+  const message = renderSms("RETURN_DRIVER_NEARBY", { text: "3 stops remaining. ETA approx. 40 minutes", action_path: "/status/test-token" }, "https://tooltag.example");
+  assert.match(message, /3 stops remaining/); assert.match(message, /ETA approx/); assert.match(message, /https:\/\/tooltag.example\/status\/test-token/); assert.match(message, /Reply STOP/);
+  assert.ok(!renderSms("PAYMENT_DUE", { text: "Pay before 1 PM", action_path: "https://evil.example" }, "https://tooltag.example").includes("evil"));
+  assert.match(renderSms("Agreement accepted copy", {}, "https://tooltag.example"), /accepted/);
+  assert.throws(() => renderSms("unrecognized", {}, "https://tooltag.example"));
+  assert.throws(() => renderSms("PAYMENT_DUE", { text: "test" }, "http://tooltag.example"));
+});

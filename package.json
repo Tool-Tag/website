@@ -13,6 +13,7 @@
     "test:ui-fixture": "node tests/ui-fixture-server.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-sns": "3.1149.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.57.0",
     "next": "^16.0.0",

@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { customerAction, type ActionState } from "@/app/actions";
+import { SmsConsentFields } from "@/components/sms-consent";
 import { Panel } from "@/components/ui";
 import { QuoteScope } from "@/components/quote-scope";
 import { money } from "@/lib/domain/money";
@@ -119,6 +120,7 @@ export function ReviewAcceptanceFlow({
   notes,
   policy,
   logistics,
+  smsConsent,
 }: {
   token: string;
   items: QuoteItem[];
@@ -126,6 +128,7 @@ export function ReviewAcceptanceFlow({
   notes?: string | null;
   policy: { title: string; version: number | string; content: string };
   logistics: ReviewLogisticsContext;
+  smsConsent?: { phone?: string; granted?: boolean };
 }) {
   const router = useRouter();
   const predefined = Boolean(logistics.predefined);
@@ -362,6 +365,7 @@ export function ReviewAcceptanceFlow({
         </p>
         <form action={action} className="stack">
           <input type="hidden" name="logistics" value={payload} />
+          <SmsConsentFields phone={smsConsent?.phone} granted={smsConsent?.granted} />
           <label className="checkbox">
             <input
               type="checkbox"

@@ -1,3 +1,4 @@
+import { SmsPreferences } from "@/components/sms-consent";
 export const maxDuration = 300;
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/server";
@@ -26,6 +27,7 @@ export default async function Review({
       </main>
     );
 
+  const {data: smsConsent} = await db.rpc("sms_consent_state", {p_token:token,p_scope:"quote"});
   const logisticsStatus = q.logistics?.payment_status as string | undefined;
   const paymentOutstanding =
     q.accepted &&
@@ -128,9 +130,11 @@ export default async function Review({
           notes={q.notes}
           policy={q.policy}
           logistics={q.logistics}
+          smsConsent={smsConsent}
         />
       )}
 
+      {q.accepted && <SmsPreferences token={token} scope="quote" phone={smsConsent?.phone} granted={smsConsent?.granted} />}
       {q.snapshot_hash && (
         <p className="muted quote-mark-summary">
           Record verification: {q.snapshot_hash}

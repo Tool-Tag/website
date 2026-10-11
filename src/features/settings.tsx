@@ -1,3 +1,4 @@
+import { SmsSettings } from "@/components/sms-settings";
 import {denverDateTime} from "@/lib/domain/time";
 import { rows, context } from "@/lib/domain/context";
 import { Heading, Panel, Table, Empty } from "@/components/ui";
@@ -11,6 +12,7 @@ export async function Settings() {
   ]);
   const {db,role}=await context();
   const {data:mail}=await db.rpc("customer_mail_status");
+  const sms = role === "admin" ? await db.rpc("sms_settings_status") : null;
   const s = settings[0];
   return (
     <>
@@ -18,6 +20,7 @@ export async function Settings() {
         title="Settings"
         subtitle="ToolTag · Bandits of the Framing LLC"
       />
+      {role === "admin" && <SmsSettings info={sms?.data ?? {}} mode={process.env.TOOLTAG_SMS_MODE || "preview"} envConfigured={Boolean(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY)} envRegion={process.env.AWS_REGION || ""} envOrigin={process.env.TOOLTAG_SMS_ORIGINATION_NUMBER || ""} envTestPhone={process.env.TOOLTAG_SMS_TEST_PHONE || ""} encryptionReady={Boolean(process.env.TOOLTAG_SMS_SETTINGS_ENCRYPTION_KEY)} />}
       <Panel title="Production Email">
         <p>Modo del servidor: {process.env.TOOLTAG_MAIL_MODE || "preview"}</p>
         <p>Eligible notifications start: {mail?.activated_at || "Pending Activation"}</p>

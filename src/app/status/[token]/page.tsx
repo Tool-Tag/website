@@ -1,3 +1,4 @@
+import { SmsPreferences } from "@/components/sms-consent";
 import {CustomerArrivalBanner,CustomerDeliveryAcknowledgment} from "@/components/customer-arrival-banner";
 import {CustomerRouteTimeline} from "@/components/customer-route-timeline";
 import {DriverIncidentChoice} from "@/components/driver-incident-choice";
@@ -140,6 +141,7 @@ export default async function JobStatusPage({
   const itemsCompleted = Number(data.items_completed ?? 0);
   const itemsStarted = Number(data.items_started ?? 0);
 
+  const {data: smsConsent} = await db.rpc("sms_consent_state", {p_token:token,p_scope:"status"});
   return (
     <main className="public"><StatusRefresh channels={liveChannel?[liveChannel]:[]} />
       {arrivedLeg&&<CustomerArrivalBanner token={token} leg={arrivedLeg} responded={Boolean(arrival?.responded)} />}
@@ -309,6 +311,7 @@ export default async function JobStatusPage({
       <p className="muted">
         Save this private link. Return anytime to check your job progress.
       </p>
+      <SmsPreferences token={token} scope="status" phone={smsConsent?.phone} granted={smsConsent?.granted} />
     </main>
   );
 }

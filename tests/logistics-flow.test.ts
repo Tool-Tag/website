@@ -1445,3 +1445,48 @@ test("Controlled cash Return flow accepts receipt from the customer's status lin
  assert.equal(Number(await value("select count(*) from public.delivery_acknowledgments where job_id=$1",[f.job])),1);
  assert.equal(await value("select status from public.jobs where id=$1",[f.job]),"Completed");
 });
+
+test("SMS explicit consent is capability-scoped and revocation stops queued messages", async () => {
+ const customer = await createCustomer("SMS consent customer", "sms-consent");
+ const quote = await createQuote(customer.id);
+ const token = await value<string>("select public.send_quote($1)",[quote]);
+ const phone = "+18015550123";
+ await assert.rejects(value("select public.set_sms_consent('wrong','quote',$1,true)",[phone]),/unavailable/);
+ await assert.rejects(value("select public.set_sms_consent($1,'quote','bad',true)",[token]),/mobile number/);
+ assert.equal((await value<{granted:boolean}>("select public.sms_consent_state($1,'quote')",[token])).granted,false);
+ await value("select public.set_sms_consent($1,'quote',$2,true)",[token,phone]);
+ const state=await value<{phone:string;granted:boolean}>("select public.sms_consent_state($1,'quote')",[token]);assert.equal(state.granted,true);assert.equal(state.phone,phone);
+ await db.query("update private.sms_settings set enabled=true,activated_at=now()-interval '1 second' where unit_id=$1",[unit]);
+ const id=await value<string>("insert into public.notifications(unit_id,event,entity_id,dedupe_key,payload) values($1,'PAYMENT_DUE',$2,'sms-consent-pending','{\"text\":\"Payment cutoff tomorrow\"}') returning id",[unit,quote]);
+ assert.equal(await value("select status from private.sms_deliveries where notification_id=$1",[id]),"Pending");
+ await value("select public.set_sms_consent($1,'quote','',false)",[token]);
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+ try { await value("select public.claim_sms()"); } finally {await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
+ assert.equal(await value("select reason from private.sms_deliveries where notification_id=$1",[id]),"NO_OPT_IN");
+ await db.query("update private.sms_settings set enabled=false where unit_id=$1",[unit]);
+});
+test("SMS disabled activation never replays history and worker claims are one-shot", async () => {
+ const customer=await createCustomer("SMS queue customer","sms-queue"),quote=await createQuote(customer.id);
+ const token=await value<string>("select public.send_quote($1)",[quote]);await value("select public.set_sms_consent($1,'quote','+18015550124',true)",[token]);
+ const old=await value<string>("insert into public.notifications(unit_id,event,entity_id,dedupe_key,payload) values($1,'PAYMENT_DUE',$2,'sms-disabled','{\"text\":\"Old cutoff\"}') returning id",[unit,quote]);
+ assert.equal(await value("select reason from private.sms_deliveries where notification_id=$1",[old]),"DISABLED");
+ await value("select public.save_sms_settings($1::jsonb,null)",[JSON.stringify({enabled:true,region:"us-west-2",origination_number:"+18015550101",test_phone:"+18015550102"})]);
+ const id=await value<string>("insert into public.notifications(unit_id,event,entity_id,dedupe_key,payload) values($1,'PICKUP_ARRIVED',$2,'sms-new-arrival','{\"text\":\"Driver here\"}') returning id",[unit,quote]);
+ await assert.rejects(value("select public.sms_runtime_config()"),/Worker credentials/);
+ await assert.rejects(value("select public.claim_sms()"),/Worker credentials/);
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+ try {
+  const claimed=await value<{id:string;claim:string}>("select public.claim_sms()");assert.equal(claimed.id,id);
+  assert.equal(await value("select public.claim_sms()"),null);
+  assert.equal(await value("select public.finish_sms($1,$2,'Unknown',null,'SNS_DELIVERY_UNKNOWN')",[id,claimed.claim]),true);
+  assert.equal(await value("select public.claim_sms()"),null);
+ }finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
+ assert.equal(await value("select status from private.sms_deliveries where notification_id=$1",[old]),"Skipped");
+ await db.query("update private.sms_settings set enabled=false where unit_id=$1",[unit]);
+});
+test("SMS settings hide secrets and restrict administrative configuration", async () => {
+ await db.query("update private.sms_settings set encrypted_credentials='fakeiv.faketag.fakecipher' where unit_id=$1",[unit]);
+ const settings=await value<Record<string,unknown>>("select public.sms_settings_status()");assert.equal(settings.credentials_saved,true);assert.equal(settings.encrypted_credentials,undefined);
+ await db.query("select set_config('request.jwt.claim.sub','',false)");
+ try {await assert.rejects(value("select public.sms_settings_status()"),/Administrative/);await assert.rejects(value("select public.save_sms_settings('{}',null)"),/Administrative/);} finally {await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
+});

@@ -1,4 +1,5 @@
 "use server";
+import { normalizeSmsPhone } from "@/lib/integrations/sms";
 import { paymentProofError } from "@/lib/payments/proof";
 import {storageAdmin} from "@/lib/storage/admin";
 import { dispatchQuoteMail, dispatchWorkerMail } from "@/lib/integrations/mail-dispatch";
@@ -604,6 +605,12 @@ export async function customerAction(
     } catch {
       return { error: "Review your logistics selection and try again." };
     }
+
+    const smsGranted = form.get("sms_opt_in") === "on";
+    const smsPhone = normalizeSmsPhone(String(form.get("sms_phone") || ""));
+    if (smsGranted && !smsPhone) return { error: "Enter a valid mobile number for SMS updates." };
+    const consent = await db.rpc("set_sms_consent", {p_token: token, p_scope: "quote", p_phone: smsPhone || "", p_granted: smsGranted});
+    if (consent.error) return {error: "SMS preferences could not be saved. Please try again."};
 
     const { data, error } = await db.rpc("accept_review_with_logistics", {
       p_token: token,

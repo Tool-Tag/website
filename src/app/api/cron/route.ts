@@ -1,3 +1,4 @@
+import { dispatchSms } from "@/lib/integrations/sms-dispatch";
 import {processRouteRefunds} from "@/lib/payments/route-refunds";
 import { processAcceptedQueue } from "@/lib/documents/accepted-delivery";
 export const maxDuration = 300;
@@ -26,5 +27,6 @@ export async function GET(request: Request) {
     return Response.json({ error: "Scheduled tasks failed" }, { status: 500 });
   await processRouteRefunds(db);
   await processAcceptedQueue(db);
-  return Response.json({ ok: true, messaging: await dispatchQuoteMail(db) });
+  const [messaging, sms] = await Promise.all([dispatchQuoteMail(db), dispatchSms(db)]);
+  return Response.json({ ok: true, messaging, sms });
 }

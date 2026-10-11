@@ -1,3 +1,4 @@
+import { dispatchSms } from "./sms-dispatch";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@supabase/supabase-js";
 import { GmailTransport, mailEnabled, MailFailure } from "./gmail";
@@ -54,6 +55,7 @@ export async function dispatchQuoteMail(db: SupabaseClient, quoteId?: string) {
 export async function dispatchWorkerMail() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!key || !url || !mailEnabled()) return;
-  await dispatchQuoteMail(createClient(url, key, {auth:{persistSession:false,autoRefreshToken:false}}));
+  if (!key || !url) return;
+  const db = createClient(url, key, {auth:{persistSession:false,autoRefreshToken:false}});
+  await Promise.allSettled([mailEnabled() ? dispatchQuoteMail(db) : Promise.resolve(), dispatchSms(db)]);
 }
