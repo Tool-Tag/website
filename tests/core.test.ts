@@ -352,13 +352,20 @@ test("SNS ambiguous failures are terminal Unknown; definitive rejects are Failed
     await assert.rejects(new SnsSmsTransport(smsTestConfig, smsTestEnv, mock).send("+18015550103", "test"), (failure: unknown) => failure instanceof SmsFailure && failure.status === expected);
   }
 });
-test("SMS templates preserve route/payment text, avoid foreign links and include opt-out", () => {
-  const message = renderSms("RETURN_DRIVER_NEARBY", { text: "3 stops remaining. ETA approx. 40 minutes", action_path: "/status/test-token" }, "https://tooltag.example");
-  assert.match(message, /3 stops remaining/); assert.match(message, /ETA approx/); assert.match(message, /https:\/\/tooltag.example\/status\/test-token/); assert.match(message, /Reply STOP/);
-  assert.ok(!renderSms("PAYMENT_DUE", { text: "Pay before 1 PM", action_path: "https://evil.example" }, "https://tooltag.example").includes("evil"));
-  assert.match(renderSms("Agreement accepted copy", {}, "https://tooltag.example"), /accepted/);
-  assert.throws(() => renderSms("unrecognized", {}, "https://tooltag.example"));
-  assert.throws(() => renderSms("PAYMENT_DUE", { text: "test" }, "http://tooltag.example"));
+test("SMS alerts use one short English format and retain full trusted links", () => {
+ const payload={job_code:"TT-J-2026-00123",stage:"Engraving",action_path:"/status/test-token"};
+ const message=renderSms("JOB_STATUS_UPDATE",payload,"https://tooltag.martinlab.studio");
+ assert.equal(message,"Your order TT-J-2026-00123 moved to Engraving. Details: https://tooltag.martinlab.studio/status/test-token");
+ assert.ok(message.length<=160);
+ for(const [event,stage] of [["RETURN_DRIVER_NEARBY","3 Stops Away"],["PICKUP_ARRIVED","Driver Arrived"],["PAYMENT_DUE","Payment Due"],["JOB_CONFIRMED","Confirmed"]]) {
+  assert.ok(renderSms(event,payload,"https://tooltag.example").includes("moved to "+stage+"."));
+ }
+ const longPath="/status/"+"a".repeat(72);
+ assert.ok(renderSms("PAYMENT_DUE",{...payload,action_path:longPath},"https://tooltag.martinlab.studio").endsWith(longPath));
+ assert.throws(()=>renderSms("PAYMENT_DUE",{...payload,action_path:"https://evil.example"},"https://tooltag.example"));
+ assert.throws(()=>renderSms("PAYMENT_DUE",payload,"http://tooltag.example"));
+ assert.throws(()=>renderSms("unknown",payload,"https://tooltag.example"));
+ assert.match(renderSms("QUOTE_SENT",{job_code:"TT-Q-2026-00123",action_path:"/review/quote-token"},"https://tooltag.example"),/TT-Q-2026-00123 moved to Quote Ready/);
 });
 
 test("Phone verification is strictly opt-in and disabled registration needs no proof", async () => {

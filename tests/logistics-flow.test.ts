@@ -1551,3 +1551,25 @@ test("Phone verification caps code guesses and rate limits resends", async () =>
   assert.equal(await value("select attempts from private.phone_verifications where id=$1",[id]),5);
  }finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
 });
+
+test("Short SMS context uses original Quote link before Job and existing status link afterwards", async () => {
+ const customer=await createCustomer("Short SMS context","short-sms-context"),quote=await createQuote(customer.id);
+ const token=await value<string>("select public.send_quote($1)",[quote]);
+ const notification=await value<string>("select id from public.notifications where entity_id=$1 and event='Quote Sent' order by created_at desc limit 1",[quote]);
+ await assert.rejects(value("select public.sms_message_context($1)",[notification]),/Worker credentials/);
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+ try {
+  const ctx=await value<{job_code:string;action_path:string}>("select public.sms_message_context($1)",[notification]);
+  assert.equal(ctx.action_path,"/review/"+token);assert.match(ctx.job_code,/TT-Q-/);
+ }finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
+ const accepted=await acceptWithLogistics(token,{option_code:"dropoff_pickup"});
+ const job=accepted.job_id;
+ const oldToken=await value<string>("select private.ensure_job_status_link($1)",[job]);
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+ try {
+  const ctx=await value<{job_code:string;action_path:string}>("select public.sms_message_context($1)",[notification]);
+  assert.equal(ctx.action_path,"/status/"+oldToken);assert.match(ctx.job_code,/TT-J-/);
+ }finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
+ assert.equal(await value("select token from private.job_status_links where job_id=$1",[job]),oldToken);
+ assert.equal(await value("select token from private.quote_delivery where quote_id=$1",[quote]),token);
+});

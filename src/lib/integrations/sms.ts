@@ -77,17 +77,43 @@ export class SnsSmsTransport {
     }
   }
 }
+const SMS_EVENT_STAGE: Record<string, string> = {
+ PICKUP_ROUTE_DEPARTED: "Driver En Route", RETURN_ROUTE_DEPARTED: "Driver En Route",
+ PICKUP_EN_ROUTE: "Driver En Route", RETURN_EN_ROUTE: "Driver En Route",
+ PICKUP_DRIVER_NEARBY: "3 Stops Away", RETURN_DRIVER_NEARBY: "3 Stops Away",
+ PICKUP_ARRIVED: "Driver Arrived", RETURN_ARRIVED: "Driver Arrived",
+ PICKUP_SCHEDULED: "Pickup Scheduled", RETURN_SCHEDULED: "Return Scheduled",
+ PICKUP_RESCHEDULED: "Pickup Rescheduled", RETURN_RESCHEDULED: "Return Rescheduled",
+ PICKUP_MISSED: "Pickup Missed", RETURN_MISSED: "Delivery Pending",
+ PAYMENT_DUE: "Payment Due", PAYMENT_CUTOFF_REMINDER: "Payment Reminder",
+ PICKUP_FEE_REQUIRED: "Pickup Fee Due", AGREEMENT_ACCEPTED_COPY: "Agreement Accepted",
+ JOB_CONFIRMED: "Confirmed", JOB_READY: "Ready", COMPLETION_ACKNOWLEDGMENT: "Delivered",
+ COMPLETION_REMINDER: "Delivery Confirmation", PAYMENT_RECEIPT: "Payment Received",
+ FINAL_PAID_RECEIPT: "Paid", QUOTE_SENT: "Quote Ready", QUOTE_EXPIRATION_REMINDER: "Quote Reminder",
+ DRIVER_UNAVAILABLE: "Route Delayed", ROUTE_INTERRUPTED: "Route Delayed",
+ JOB_STATUS_LINK: "Confirmed", DELIVERY_IN_PROGRESS: "Delivery In Progress", SHOP_PICKUP: "Shop Pickup",
+};
+const SMS_WORK_STAGE: Record<string,string> = {
+ "Authorized":"Confirmed","Scheduled":"Scheduled","Receiving":"Receiving","In Process":"In Process",
+ "Pickup Scheduled":"Pickup Scheduled","Pickup In Progress":"Pickup In Progress","Picked Up":"Picked Up",
+ "Return Scheduled":"Return Scheduled","Out for Delivery":"Out for Delivery","Delivered":"Delivered",
+ "Pending Agreement":"Agreement Pending","Issue / Review":"Review","Ready":"Ready",
+ "Not Started":"Scheduled","Receiving Evidence":"Receiving","Receiving Documentation":"Receiving",
+ "Received at Shop":"Received at Shop","Preparing":"Preparation","Engraving":"Engraving",
+ "Final Evidence":"Engraving","Final Details":"Final Details","Delivery In Progress":"Delivery In Progress",
+ "Awaiting Delivery Acceptance":"Delivery Confirmation","Payment":"Payment Pending",
+ "Payment Verification":"Payment Verification","Closed":"Completed","Completed":"Completed",
+ "Ready for Delivery":"Ready for Delivery","Pending Delivery":"Delivery Pending",
+ "Cancellation Requested / Production Hold":"On Hold","Issue Review":"Review","Cancelled":"Cancelled",
+};
 export function renderSms(event: string, payload: Record<string, unknown>, origin: string) {
-  const site = new URL(origin); if (site.protocol !== "https:") throw new Error("SMS_PUBLIC_URL_REQUIRED");
-  const normalized = event.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
-  const defaults: Record<string, string> = { AGREEMENT_ACCEPTED_COPY: "Your quote and Agreement were accepted. Thank you for choosing ToolTag!", JOB_CONFIRMED: "Your ToolTag job is confirmed.", QUOTE_SENT: "Your ToolTag quote is ready to review.", COMPLETION_ACKNOWLEDGMENT: "Your items were delivered. Please confirm receipt in tracking.", COMPLETION_REMINDER: "Please review your ToolTag delivery confirmation.", PAYMENT_RECEIPT: "Your ToolTag payment was recorded.", FINAL_PAID_RECEIPT: "Your ToolTag final payment was recorded." };
-  const text = typeof payload.text === "string" && payload.text.trim() ? payload.text : defaults[normalized];
-  if (!text) throw new Error("SMS_TEMPLATE_UNAVAILABLE");
-  let link = "";
-  if (typeof payload.action_path === "string" && /^\/(status|review|pickup|payment|work|completion|extension)\//.test(payload.action_path)) {
-    const url = new URL(payload.action_path, site);
-    if (url.origin === site.origin) link = ` ${url.href}`;
-  }
-  const clean = text.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
-  return `ToolTag: ${clean.slice(0, 420)}${clean.length > 420 ? "…" : ""}${link} Reply STOP to opt out. Help: ${new URL("/help", site).href}`;
+ const site=new URL(origin);if(site.protocol!=="https:" || site.username || site.password)throw new Error("SMS_PUBLIC_URL_REQUIRED");
+ const normalized=event.toUpperCase().replace(/[^A-Z0-9]+/g,"_");
+ const stage=normalized==="JOB_STATUS_UPDATE" ? SMS_WORK_STAGE[String(payload.stage)]??"Status Updated" : SMS_EVENT_STAGE[normalized];
+ if(!stage)throw new Error("SMS_TEMPLATE_UNAVAILABLE");
+ const code=String(payload.job_code??""),path=String(payload.action_path??"");
+ if(!/^[A-Z0-9][A-Z0-9/-]{0,63}$/.test(code)||!/^\/(status|review)\/[A-Za-z0-9-]{8,200}$/.test(path))throw new Error("SMS_CONTEXT_UNAVAILABLE");
+ const url=new URL(path,site);if(url.origin!==site.origin)throw new Error("SMS_CONTEXT_UNAVAILABLE");
+ // Keep capability links intact; plain English/ASCII avoids UCS-2 segmentation.
+ return "Your order "+code+" moved to "+stage+". Details: "+url.href;
 }
