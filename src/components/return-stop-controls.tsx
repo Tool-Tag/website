@@ -1,15 +1,19 @@
 "use client";
+import {useAccess} from "./permission-provider";
+import {canAny} from "@/lib/auth/permissions";
 import {driverLocation} from "@/lib/domain/driver-location";
 import {useEffect,useState,useTransition} from "react";
 import {denverDateTime} from "@/lib/domain/time";
 import {useRouter} from "next/navigation";
 import {returnDriverAction} from "@/app/return-driver-actions";
 export function ReturnStopControls({stop,status,waitUntil,coming,blocked,hasEvidence,phone,nextStop,cash,balance,address,retryExpires}:{stop:string;status:string;waitUntil?:string|null;coming?:string|null;blocked:boolean;hasEvidence:boolean;phone?:string;nextStop?:string;cash:boolean;balance:number;address?:string;retryExpires?:string|null}){
+ const access=useAccess();
  const router=useRouter();const [now,setNow]=useState(0);const [pending,start]=useTransition();const [error,setError]=useState("");const [present,setPresent]=useState(false);
  useEffect(()=>{const tick=()=>setNow(Date.now());tick();const id=setInterval(tick,1000);return()=>clearInterval(id);},[]);
  useEffect(()=>{if(status==="Completed"||status==="Failed"){const next=sessionStorage.getItem("return-next-stop");if(next){document.getElementById(`return-stop-${next}`)?.scrollIntoView({behavior:"smooth",block:"start"});sessionStorage.removeItem("return-next-stop");}}},[status]);
  const left=waitUntil&&now?Math.max(0,Math.ceil((Date.parse(waitUntil)-now)/1000)):300;const count=`${Math.floor(left/60)}:${String(left%60).padStart(2,"0")}`;
  const run=(action:string)=>start(async()=>{setError("");const r=await returnDriverAction(stop,action,present,driverLocation());if(r.error)setError(r.error);else {if(nextStop&&["delivered","not-home"].includes(action))sessionStorage.setItem("return-next-stop",nextStop);router.refresh();}});
+ if(!canAny(access,["driver.routes","pr.routes.live"]))return null;
  return <div className="pickup-controls">
  <label className="checkbox"><input type="checkbox" />Start recording before exiting the vehicle</label>
  <p className="notice">Customer must be present. Never leave items at the door, even when fully paid.</p>
@@ -19,7 +23,7 @@ export function ReturnStopControls({stop,status,waitUntil,coming,blocked,hasEvid
  {status==="En Route"&&<button disabled={pending||blocked} onClick={()=>run("arrived")}>Arrived</button>}
  {status==="Arrived"&&<>
  <label className="checkbox"><input type="checkbox" checked={present} onChange={e=>setPresent(e.target.checked)} />Customer is here to receive the items</label>
- {cash&&balance>0&&<button disabled={pending||blocked||!present} onClick={()=>{if(window.confirm("Confirm that you have received the cash payment in full?"))run("cash");}}>Pago recibido · ${balance.toFixed(2)}</button>}
+ {cash&&balance>0&&canAny(access,["driver.routes","payments.record"])&&<button disabled={pending||blocked||!present} onClick={()=>{if(window.confirm("Confirm that you have received the cash payment in full?"))run("cash");}}>Pago recibido · ${balance.toFixed(2)}</button>}
  <button disabled={pending||blocked||!hasEvidence||!present||balance>0} onClick={()=>run("delivered")}>Delivered</button>
  {!hasEvidence&&<p className="muted">Add Delivery Evidence photos before confirming delivery.</p>}{balance>0&&<p className="notice">Payment required before handover.</p>}
  <p className="pickup-timer">{coming?"Customer is coming out":`Arrival wait · ${count}`}</p>

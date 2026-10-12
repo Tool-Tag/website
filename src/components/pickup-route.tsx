@@ -1,3 +1,4 @@
+import { RouteDeparture } from "@/components/route-departure";
 import {RouteExceptionControls} from "@/components/route-exception-controls";
 import {RouteNotificationControls} from "@/components/route-notification-controls";
 import Link from "next/link";
@@ -32,7 +33,7 @@ export async function PickupRoute({date}:{date:string}){
  const [orders,jobs,items,documents,flows,customers]=results.map(r=>r.data??[]);
  const allowed=new Set((orders??[]).filter(o=>o.pickup_window_start&&new Date(o.pickup_window_start).toLocaleDateString("en-CA",{timeZone:"America/Denver"})===date).map(o=>o.job_id));
  const visible=(stops??[]).filter(s=>s.status!=="Cancelled"&&allowed.has(s.job_id));
- return <section className="pickup-route driver-landing"><StatusRefresh channels={liveChannels.filter((value):value is string=>typeof value==="string")} />
+ return <section className="pickup-route driver-landing"><RouteDeparture/><StatusRefresh channels={liveChannels.filter((value):value is string=>typeof value==="string")} />
  <Link className="button secondary" href="/pick-return">← All routes</Link><p className="eyebrow">SATURDAY / PICK UP</p><h1>{routeDateLabel(date)}</h1><p className="driver-window">8:00 AM–12:00 PM · Denver time</p><p>{visible.filter(s=>s.status==="Completed").length}/{visible.length} picked up</p>
  {(routes??[]).map(route=><RouteNotificationControls key={route.id} leg="Pickup" route={route.id} departed={route.departed_at} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}
  {(routes??[]).map(route=><RouteExceptionControls key={route.id} arrived={(stops??[]).some(s=>s.route_id===route.id&&s.status==="Arrived")} route={route.id} leg="Pickup" incident={(incidents??[]).find(i=>i.route_id===route.id)} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}

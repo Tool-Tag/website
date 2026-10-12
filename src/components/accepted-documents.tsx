@@ -1,3 +1,4 @@
+import { can } from "@/lib/auth/permissions";
 import {denverDateTime} from "@/lib/domain/time";
 import { Form } from "./form";
 import { context } from "@/lib/domain/context";
@@ -12,7 +13,7 @@ export async function AcceptedDocuments({
   quoteId?: string;
   jobId?: string;
 }) {
-  const { db, role, unit } = await context();
+  const { db, access, unit } = await context();
   const { data: documents, error } = await db
     .from("accepted_documents")
     .select(
@@ -35,7 +36,7 @@ export async function AcceptedDocuments({
       .from("agreements")
       .select("quote_id,commercial_snapshot")
       .eq(quoteId ? "quote_id" : "job_id", quoteId || jobId!);
-    if (role !== "admin" || !agreements?.length) return null;
+    if (!can(access,"quotes.manage") || !agreements?.length) return null;
     return (
       <Panel title="Prepare Existing Acceptance Document">
         <p>
@@ -121,7 +122,7 @@ export async function AcceptedDocuments({
                   </a>
                 </p>
               )}
-              {role === "admin" && (
+              {can(access,"quotes.manage") && (
                 <AcceptedDocumentActions
                   id={d.id}
                   back={

@@ -1,6 +1,6 @@
 import {denverDateTime} from "@/lib/domain/time";
 import Link from "next/link";
-import { context } from "@/lib/domain/context";
+import { requirePermission } from "@/lib/domain/context";
 import { Heading, Panel, Empty, Badge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ type GetTaggedAttentionRow = {
 };
 
 export default async function GetTaggedRequestsPage() {
-  const { db } = await context();
+  const { db } = await requirePermission("quotes.view");
   const { data, error } = await db.rpc("get_tagged_attention");
 
   if (error) {

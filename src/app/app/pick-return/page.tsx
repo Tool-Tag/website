@@ -1,5 +1,7 @@
+import { can, canAny } from "@/lib/auth/permissions";
+import { RouteOperator } from "@/components/route-operator";
 import Link from "next/link";
-import { context } from "@/lib/domain/context";
+import { requirePermission } from "@/lib/domain/context";
 import { Heading, Panel } from "@/components/ui";
 import { ShopItemVerification } from "@/components/shop-item-verification";
 import { RouteItemVerification } from "@/components/route-item-verification";
@@ -14,7 +16,8 @@ export const dynamic = "force-dynamic";
 export default async function ShopPickReturn({ searchParams }: {
   searchParams: Promise<{ view?: string; date?: string }>;
 }) {
-  const { db, unit, role } = await context();
+  const { db, unit, access } = await requirePermission("pr.routes.plan","pr.routes.live","pr.receiving","pr.returns","pr.reschedule");
+  const operators = can(access,"pr.routes.plan") ? (await db.rpc("route_operators")).data ?? [] : [];
   const query = await searchParams;
   const views = ["receiving", "returns", "routes", "pending", "rescheduled"];
   const view = views.includes(query.view ?? "") ? query.view! : "receiving";
@@ -55,13 +58,13 @@ export default async function ShopPickReturn({ searchParams }: {
     <nav className="actions" aria-label="Shop logistics sections">
       {[["receiving", "Receiving / Verification", receiving.length], ["returns", "Returned items", returnRoutes.length], ["routes", "Routes", routes.filter(r => !r.confirmed_at && r.status !== "Cancelled").length], ["pending", "Pending · 15 days", pending.length], ["rescheduled", "Re Scheduled", pickupQueue.length + deliveryQueue.length]].map(([key, label, count]) => <Link key={key} className={`button ${view === key ? "" : "secondary"}`} aria-current={view === key ? "page" : undefined} href={`/app/pick-return?view=${key}`}>{label} ({count})</Link>)}
     </nav>
-    {role !== "admin" && <p className="notice">Shop verification and scheduling require admin access.</p>}
+    {!canAny(access,["pr.receiving","pr.returns","pr.reschedule"]) && <p className="notice">Shop verification and scheduling require the corresponding permission.</p>}
     {view === "receiving" && <Panel title="Receiving / Verification">
       <p>Match every piece against the receiving evidence. Production remains locked until every piece is verified.</p>
       {!receiving.length && <p>No pickups awaiting shop verification.</p>}
       {receiving.map(order => <article className="panel" key={order.id}><h3>{jobTitle(order.job_id)}</h3>
         <EvidenceGallery files={documents.filter(file => file.job_id === order.job_id && file.type === "Receiving Evidence" && file.status === "Available")} />
-        {role === "admin" && <ShopItemVerification items={pieces(order.job_id)} />}
+        {can(access,"pr.receiving") && <ShopItemVerification items={pieces(order.job_id)} />}
       </article>)}
     </Panel>}
     {view === "returns" && <Panel title="Undelivered items returned to the shop">
@@ -69,7 +72,7 @@ export default async function ShopPickReturn({ searchParams }: {
       {!returnRoutes.length && <p>No routes awaiting returned-item verification.</p>}
       {returnRoutes.map(route => <article className="panel" key={route.id}><h3>{route.route_date} · Return</h3>
         {stops.filter(stop => stop.route_id === route.id && stop.status === "Failed").map(stop => <div key={stop.id}><h4>{jobTitle(stop.job_id)}</h4><EvidenceGallery files={documents.filter(file => file.job_id === stop.job_id && file.status === "Available" && ["Delivery Evidence", "Completed Evidence"].includes(file.type))} /></div>)}
-        {role === "admin" && <><RouteItemVerification route={route.id} kind="Returned" /><Form operation="route-confirm" hidden={{ route_id: route.id }} fields={[]} back="/app/pick-return?view=returns" button="Confirm returned items and close route" /></>}
+        {can(access,"pr.returns") && <><RouteItemVerification route={route.id} kind="Returned" /><Form operation="route-confirm" hidden={{ route_id: route.id }} fields={[]} back="/app/pick-return?view=returns" button="Confirm returned items and close route" /></>}
       </article>)}
     </Panel>}
     {view === "routes" && <Panel title="Routes · plan and execute">
@@ -78,8 +81,8 @@ export default async function ShopPickReturn({ searchParams }: {
         {routes.filter(route => route.route_date === date && route.leg === leg).map(route => {
           const routeStops = stops.filter(stop => stop.route_id === route.id && stop.status !== "Cancelled").sort((a,b) => a.sequence - b.sequence);
           return <section key={route.id}><p>{route.status} · {routeStops.filter(stop => stop.status === "Completed").length}/{routeStops.length} completed · {route.confirmed_at ? "Shop confirmed" : "Route open"}</p><ol>{routeStops.map(stop => <li key={stop.id}>{jobTitle(stop.job_id)} · {stop.status} · ETA {denverDateTime(stop.eta)}</li>)}</ol>
-            {role === "admin" && leg === "Return" && !route.departed_at && !route.confirmed_at && <RouteItemVerification route={route.id} kind="Loaded" />}
-            {role === "admin" && leg === "Pickup" && !route.confirmed_at && <Form operation="route-confirm" hidden={{route_id:route.id}} fields={[]} back={`/app/pick-return?view=routes&date=${date}`} button="Confirm arrival at shop" />}
+            {can(access,"pr.routes.plan") && !route.confirmed_at && !["Completed","Cancelled"].includes(route.status) && <RouteOperator route={route.id} current={route.operator_id} operators={operators}/>}{can(access,"pr.returns") && leg === "Return" && !route.departed_at && !route.confirmed_at && <RouteItemVerification route={route.id} kind="Loaded" />}
+            {can(access,"pr.receiving") && leg === "Pickup" && !route.confirmed_at && <Form operation="route-confirm" hidden={{route_id:route.id}} fields={[]} back={`/app/pick-return?view=routes&date=${date}`} button="Confirm arrival at shop" />}
           </section>;
         })}
         <Link className="button" href={`/pick-return/${leg.toLowerCase()}?date=${date}`}>Execute {leg} route ↗</Link>
@@ -89,11 +92,11 @@ export default async function ShopPickReturn({ searchParams }: {
     {view === "pending" && <Panel title="Pending · 15-day resolution">
       <p>Second attempts remain provisional until the $10 fee is paid. The existing worker releases unpaid reservations at the route cutoff or the 15-day deadline. Shop pickup is free; previous attempt fees remain nonrefundable.</p>
       {!pending.length && <p>No pending reservations or shop collections.</p>}
-      {pending.map(order => <article className="panel" key={order.id}><h3>{jobTitle(order.job_id)}</h3><p>{order.delivery_payment_status === "Shop Pickup" ? "Collect at shop · no further delivery" : "Provisional Return · awaiting resolution"}</p><p>{pieces(order.job_id).length} pieces · {order.delivery_payment_status}</p>{order.return_reservation_expires_at && <p>Resolution deadline: {denverDateTime(order.return_reservation_expires_at)}</p>}<p>Open the Job to verify payment or complete the shop handover.</p>{role === "admin" && order.delivery_payment_status === "Shop Pickup" && <Form operation="shop-handover" hidden={{id:order.job_id}} fields={[]} back="/app/pick-return?view=pending" button="Confirm paid handover at shop" />}</article>)}
+      {pending.map(order => <article className="panel" key={order.id}><h3>{jobTitle(order.job_id)}</h3><p>{order.delivery_payment_status === "Shop Pickup" ? "Collect at shop · no further delivery" : "Provisional Return · awaiting resolution"}</p><p>{pieces(order.job_id).length} pieces · {order.delivery_payment_status}</p>{order.return_reservation_expires_at && <p>Resolution deadline: {denverDateTime(order.return_reservation_expires_at)}</p>}<p>Open the Job to verify payment or complete the shop handover.</p>{can(access,"pr.returns") && order.delivery_payment_status === "Shop Pickup" && <Form operation="shop-handover" hidden={{id:order.job_id}} fields={[]} back="/app/pick-return?view=pending" button="Confirm paid handover at shop" />}</article>)}
     </Panel>}
     {view === "rescheduled" && <Panel title="Re Scheduled">
       <p>Calendars use configured route days, available slots, payment gates and cutoffs. A missed pickup remains the customer&apos;s choice: reschedule or cancel, without refund.</p>
-      {[["Pickup", pickupQueue], ["Return", deliveryQueue]] .map(([leg, queue]) => <section className="panel" key={String(leg)}><h3>{leg === "Return" ? "Delivery" : "Pickup"} to schedule</h3>{!(queue as typeof orders).length && <p>No stops awaiting scheduling.</p>}{(queue as typeof orders).map(order => <details key={order.id}><summary>{jobTitle(order.job_id)} · {leg === "Pickup" ? order.pickup_status : order.return_status}</summary>{leg === "Pickup" && order.pickup_status === "Failed" ? <p>Awaiting customer reschedule or cancellation choice. Open the Job for details.</p> : role === "admin" && <RouteCalendar job={order.job_id} leg={leg as "Pickup" | "Return"} />}</details>)}</section>)}
+      {[["Pickup", pickupQueue], ["Return", deliveryQueue]] .map(([leg, queue]) => <section className="panel" key={String(leg)}><h3>{leg === "Return" ? "Delivery" : "Pickup"} to schedule</h3>{!(queue as typeof orders).length && <p>No stops awaiting scheduling.</p>}{(queue as typeof orders).map(order => <details key={order.id}><summary>{jobTitle(order.job_id)} · {leg === "Pickup" ? order.pickup_status : order.return_status}</summary>{leg === "Pickup" && order.pickup_status === "Failed" ? <p>Awaiting customer reschedule or cancellation choice. Open the Job for details.</p> : can(access,"pr.reschedule") && <RouteCalendar job={order.job_id} leg={leg as "Pickup" | "Return"} />}</details>)}</section>)}
     </Panel>}
   </>;
 }

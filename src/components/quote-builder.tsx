@@ -1,4 +1,6 @@
 "use client";
+import { useAccess } from "./permission-provider";
+import { can } from "@/lib/auth/permissions";
 import { useState, useActionState, useRef } from "react";
 import { QuoteImageInput } from "@/components/quote-image-input";
 import { QuoteScope } from "@/components/quote-scope";
@@ -30,6 +32,7 @@ export function QuoteBuilder({
   extensionId?: string;
   getTaggedQuoteId?: string;
 }) {
+  const access = useAccess();
   const [items, setItems] = useState<QuoteItem[]>(
     (initial ?? []).filter((i) => !i.adaptation_fee && !i.paint_fee && !i.additional_engraving_fee).map((item) => ({ ...item, marks: item.marks?.map((m) => ({ ...m, paint_fill: m.paint_fill ?? item.paint_fill, paint_details: m.paint_details ?? (item.paint_fill ? item.paint_details : undefined) })) })),
   );
@@ -96,6 +99,7 @@ export function QuoteBuilder({
     /* The item form validates prices before adding. */
   }
   const designs = imageLinks(items);
+  if (!can(access,"quotes.manage")) return null;
   return (
     <>
       <form action={action}>

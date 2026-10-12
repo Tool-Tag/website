@@ -1,4 +1,4 @@
-import { context } from "@/lib/domain/context";
+import { requirePermission } from "@/lib/domain/context";
 import {
   renderQuoteMail,
 } from "@/lib/integrations/quote-mail";
@@ -9,7 +9,7 @@ export default async function EmailPreview({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { db } = await context();
+  const { db } = await requirePermission("quotes.view");
   const { data, error } = await db.rpc("quote_delivery", { p_id: id });
   if (error || !data?.token)
     return (

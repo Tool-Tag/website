@@ -1,4 +1,5 @@
 "use server";
+import { canAny, evidencePermissions } from "@/lib/auth/permissions";
 
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
@@ -43,8 +44,8 @@ export async function registerEvidenceAction(
   form: FormData,
 ): Promise<EvidenceActionState> {
   try {
-    const { db, unit, role } = await context();
-    if (role !== "admin") return { error: "Administrative access required." };
+    const { db, unit, access } = await context();
+    if (!canAny(access,evidencePermissions(config.type,Boolean(config.pickReturnStopId)))) return { error: "Evidence permission required." };
 
     if (config.type === "Delivery Evidence" && config.pickReturnStopId) {
       const {data:stop, error} = await db.from("pick_return_stops").select("status,job_id").eq("id",config.pickReturnStopId).eq("unit_id",unit).single();

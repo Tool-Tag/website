@@ -1,3 +1,4 @@
+import { can } from "@/lib/auth/permissions";
 import {denverDateTime} from "@/lib/domain/time";
 import Link from "next/link";
 import { cache } from "react";
@@ -11,7 +12,7 @@ import { extensionStatusLabel, paymentStatusLabel } from "@/lib/domain/status-la
 type JobLifecycleSection = "customer" | "commercial" | "delivery" | "activity";
 
 const getLifecycleData = cache(async (id: string) => {
-  const { db, role } = await context();
+  const { db, access } = await context();
   const [extensions, totals, ack, receipts, paymentRequests, activity, { data: lifecycle }] =
     await Promise.all([
       rows("job_extensions", { field: "job_id", value: id, order: "sequence" }),
@@ -24,7 +25,7 @@ const getLifecycleData = cache(async (id: string) => {
     ]);
 
   return {
-    role,
+    access,
     extensions,
     totals,
     ack,
@@ -42,7 +43,7 @@ export async function JobLifecycle({
   id: string;
   section: JobLifecycleSection;
 }) {
-  const { role, extensions, totals, ack, receipts, paymentRequests, activity, lifecycle } =
+  const { access, extensions, totals, ack, receipts, paymentRequests, activity, lifecycle } =
     await getLifecycleData(id);
   const t = totals[0];
 
@@ -58,7 +59,7 @@ export async function JobLifecycle({
 
   if (section === "commercial") {
     const proofLinks = new Map<string, string>();
-    if (role === "admin") {
+    if (can(access,"payments.view")) {
       const { db } = await context();
       await Promise.all(
         paymentRequests
@@ -82,7 +83,7 @@ export async function JobLifecycle({
             </p>
           ))}
           {!extensions.length && <p>Sin ampliaciones.</p>}
-          {role === "admin" && (
+          {can(access,"jobs.manage") && (
             <details>
               <summary>Add Additional Work Request</summary>
               <Form
@@ -158,7 +159,7 @@ export async function JobLifecycle({
                       : ""}
                   </p>
                 )}
-                {role === "admin" && request.status === "Pending Verification" && (
+                {can(access,"payments.record") && request.status === "Pending Verification" && (
                   <Form
                     operation="confirm-payment"
                     hidden={{ id: request.id }}
@@ -183,7 +184,7 @@ export async function JobLifecycle({
               · {r.storage_status}
             </p>
           ))}
-          {role === "admin" && (
+          {can(access,"jobs.manage") && (
             <Form
               operation="generate-receipt"
               hidden={{ job_id: id }}

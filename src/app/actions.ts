@@ -1,4 +1,5 @@
 "use server";
+import { canMutate, driverOnly } from "@/lib/auth/permissions";
 import { stripeTestCustomer } from "@/lib/payments/stripe-test-customer";
 import { phoneVerificationEnabled, verifiedPhone } from "@/lib/integrations/phone-verification";
 import { normalizeSmsPhone } from "@/lib/integrations/sms";
@@ -48,7 +49,8 @@ export async function login(
     });
     return { error: failure.message };
   }
-  redirect("/app");
+  const ctx = await context();
+  redirect(driverOnly(ctx.access) ? "/pick-return" : "/app");
 }
 export async function logout() {
   const db = await supabase();
@@ -63,8 +65,8 @@ export async function mutate(
 ): Promise<ActionState> {
   let destination: string | undefined;
   try {
-    const { db, unit, role } = await context();
-    if (role !== "admin") return { error: "This account has read-only access." };
+    const { db, unit, access } = await context();
+    if (!canMutate(access, operation)) return { error: "You do not have permission for this action." };
     const p: Record<string, unknown> = {
       ...Object.fromEntries(form.entries()),
       unit_id: unit,
@@ -275,6 +277,9 @@ export async function mutate(
       case "close":
         name = "close_month";
         args = { p_unit: unit, p_month: p.month };
+        break;
+      case "workspace-profile":
+        name = "save_workspace_profile";
         break;
       case "settings":
         for(const key of ["pickup_route_iso_weekdays","return_route_iso_weekdays"]) {

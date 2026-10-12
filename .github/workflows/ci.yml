@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/pick-return-ui
+      - feature/roles-support-inbox
   pull_request:
 
 permissions:

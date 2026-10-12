@@ -1,3 +1,5 @@
+import { PermissionGate } from "@/components/permission-provider";
+import { requirePermission } from "@/lib/domain/context";
 import { AcceptedDocuments } from "@/components/accepted-documents";
 import Link from "next/link";
 import { rows, context } from "@/lib/domain/context";
@@ -18,6 +20,7 @@ export async function Quotes({
   revise?: string;
 }) {
   if (id === "new") {
+    await requirePermission("quotes.manage");
     const customers = await rows("customers");
     const original = revise ? (await rows("quotes", { id: revise }))[0] : null;
     const originalFlow = original
@@ -89,12 +92,12 @@ export async function Quotes({
       <>
         <Heading title={q.code} subtitle={`Version ${q.revision}`}>
           <Badge>{quoteStatusLabel(q.status)}</Badge>
-          <Link
+          <PermissionGate blocks={["quotes.manage"]}><Link
             className="button secondary"
             href={`/app/quotes/new?revise=${q.id}`}
           >
             Create Revision
-          </Link>
+          </Link></PermissionGate>
         </Heading>
         {needsIntakeReview ? (
           <>
@@ -282,9 +285,9 @@ export async function Quotes({
         title="Quotes"
         subtitle="Organized by commercial stage."
       >
-        <Link className="button" href="/app/quotes/new">
+        <PermissionGate blocks={["quotes.manage"]}><Link className="button" href="/app/quotes/new">
           + New Quote
-        </Link>
+        </Link></PermissionGate>
       </Heading>
 
       <QuoteTabs

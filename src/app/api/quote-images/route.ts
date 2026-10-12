@@ -1,9 +1,8 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { context } from "@/lib/domain/context";
+import { requirePermission } from "@/lib/domain/context";
 export async function POST(request:NextRequest) {
- const {db,role,unit}=await context();
- if(role!=="admin") return NextResponse.json({error:"Unauthorized access."},{status:403});
+ const {db,unit}=await requirePermission("quotes.manage");
  if(Number(request.headers.get("content-length")||0)>3300000) return NextResponse.json({error:"Maximum file size is 3 MB."},{status:413});
  const form=await request.formData(),file=form.get("file");
  if(!(file instanceof File)||file.size===0||file.size>3*1024*1024) return NextResponse.json({error:"Select an image up to 3 MB."},{status:400});

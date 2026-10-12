@@ -401,3 +401,65 @@ test("Stripe configuration rejects live, swapped and mismatched key prefixes", a
   assert.equal(stripeTestEvent({id:"evt_wrong_mode",type:"checkout.session.completed",livemode:true,data:{object:{id:"cs_wrong_mode"}}}),false);
  }finally{for(const n of names){if(before[n]===undefined)delete process.env[n];else process.env[n]=before[n];}}
 });
+
+import { can, canAny, canMutate, driverOnly, EMPLOYEE_BLOCKS, PERMISSION_BLOCKS, sectionPermissions } from "../src/lib/auth/permissions";
+test("RBAC uses role unions, future Owner permissions, and fail-closed action defaults", () => {
+  const owner = { owner: true, blocks: [] };
+  const employee = { owner: false, blocks: EMPLOYEE_BLOCKS };
+  const driver = { owner: false, blocks: ["driver.routes"] };
+  assert.equal(new Set(PERMISSION_BLOCKS.map(b => b[0])).size, PERMISSION_BLOCKS.length);
+  assert.equal(can(owner, "future.block"), true);
+  assert.equal(can(employee, "quotes.view"), true);
+  assert.equal(canMutate(employee, "quote"), false);
+  assert.equal(canMutate(employee, "confirm-payment"), true);
+  assert.equal(canMutate(employee, "cancellation-refund"), false);
+  assert.equal(canMutate(employee, "unknown-operation"), false);
+  assert.equal(canMutate({owner:false,blocks:["settings.manage"]}, "settings"), false);
+  assert.equal(canMutate(driver, "route-cash"), true);
+  assert.equal(canMutate(driver, "confirm-payment"), false);
+  assert.equal(driverOnly(driver), true);
+  assert.equal(driverOnly({ owner: false, blocks: [...driver.blocks, "jobs.view"] }), false);
+  assert.equal(driverOnly(owner), false);
+  assert.equal(canAny(driver, sectionPermissions("finance")), false);
+  assert.equal(canAny(employee, sectionPermissions("settings")), false);
+  assert.equal(can({ owner: false, blocks: ["quotes.view", "quotes.manage"] }, "quotes.manage"), true);
+});
+
+import { SupportGmail, parseSupportMessage, supportEnabled, supportMime, type SupportReply } from "../src/lib/integrations/support-gmail";
+const supportTestEnv={NODE_ENV:"production",VERCEL_ENV:"production",TOOLTAG_SUPPORT_INBOX_ENABLED:"true",GOOGLE_CLIENT_ID:"fixture",GOOGLE_CLIENT_SECRET:"fixture",GOOGLE_REFRESH_TOKEN:"fixture",TOOLTAG_MAIL_MODE:"test-delivery",TOOLTAG_MAIL_TEST_RECIPIENT:"customer@example.test"};
+const supportReply:SupportReply={id:"90000000-0000-0000-0000-000000000095",mailbox:"support",to:"customer@example.test",subject:"[TT-C-2026-00001] Re: Tools",body:"Hello\n\nMartin\nToolTag",message_id:"",thread_id:"thread-1",in_reply_to:"<incoming@example.test>",references:"<older@example.test> <incoming@example.test>"};
+test("Support parser only imports Support/Hello incoming mail and renders HTML as inert text",()=>{
+ const incoming={id:"in",threadId:"thread",internalDate:String(Date.now()),payload:{mimeType:"text/html",headers:[{name:"To",value:"ToolTag <support@tooltag.martinlab.studio>"},{name:"From",value:"Customer <customer@example.test>"},{name:"Message-ID",value:"<incoming@example.test>"}],body:{data:Buffer.from('<script>alert(1)</script><p>Hello &amp; welcome</p>').toString("base64url")}}};
+ const parsed=parseSupportMessage(incoming);assert.equal(parsed?.mailbox,"support");assert.equal(parsed?.sender_email,"customer@example.test");assert.ok(!parsed?.body.includes("alert"));assert.match(parsed!.body,/Hello & welcome/);
+ assert.equal(parseSupportMessage({...incoming,labelIds:["SENT"]}),null);
+ assert.equal(parseSupportMessage({...incoming,payload:{...incoming.payload,headers:[{name:"To",value:"quotes@tooltag.martinlab.studio"},{name:"From",value:"customer@example.test"}]}}),null);
+ assert.equal(parseSupportMessage({...incoming,payload:{...incoming.payload,headers:[{name:"To",value:"billing@tooltag.martinlab.studio"},{name:"From",value:"customer@example.test"}]}}),null);
+ assert.equal(supportEnabled({...supportTestEnv,NODE_ENV:"development"}),false);assert.equal(supportEnabled({...supportTestEnv,VERCEL_ENV:"preview"}),false);assert.equal(supportEnabled({}),false);
+});
+test("Support MIME routes From/Reply-To, preserves reply headers and signs with user name",()=>{
+ const mime=supportMime(supportReply);assert.match(mime,/From: .*<support@tooltag.martinlab.studio>/);assert.match(mime,/Reply-To: support@tooltag.martinlab.studio/);assert.match(mime,/In-Reply-To: <incoming@example.test>/);assert.match(mime,/References: <older@example.test> <incoming@example.test>/);assert.match(mime,/Message-ID: <90000000-0000-0000-0000-000000000095@tooltag.martinlab.studio>/);
+ assert.match(supportMime({...supportReply,mailbox:"hello"}),/Reply-To: hello@tooltag.martinlab.studio/);
+ assert.throws(()=>supportMime({...supportReply,to:"victim@example.test\r\nBcc: attacker@example.test"}));
+});
+test("Support Gmail honors test recipient and uses OAuth/raw/threadId; failure does not pretend delivery",async()=>{
+ const calls:{url:string;init?:RequestInit}[]=[];
+ const request:typeof fetch=async(url,init)=>{calls.push({url:String(url),init});return new Response(JSON.stringify(String(url).includes("oauth2") ? {access_token:"fixture-token"}:{id:"sent-1",threadId:"thread-new"}),{status:200});};
+ const gmail=new SupportGmail(supportTestEnv,request);assert.deepEqual(await gmail.send(supportReply),{id:"sent-1",threadId:"thread-new"});
+ const payload=JSON.parse(String(calls[1].init?.body));assert.equal(payload.threadId,"thread-1");assert.match(Buffer.from(payload.raw,"base64url").toString(),/In-Reply-To:/);
+ await assert.rejects(gmail.send({...supportReply,to:"real-customer@example.test"}),/MAIL_TEST_RECIPIENT_REQUIRED/);assert.equal(calls.length,2);
+ const failing:typeof fetch=async(url)=>String(url).includes("oauth2") ? new Response(JSON.stringify({access_token:"fixture-token"})):Promise.reject(Error("timeout"));
+ await assert.rejects(new SupportGmail(supportTestEnv,failing).send(supportReply),/GMAIL_DELIVERY_UNKNOWN/);
+ const forbidden:typeof fetch=async(url)=>String(url).includes("oauth2") ? new Response(JSON.stringify({access_token:"fixture-token"})):new Response("denied",{status:403});
+ await assert.rejects(new SupportGmail(supportTestEnv,forbidden).list(new Date().toISOString()),/GMAIL_REJECTED_403/);
+});
+test("Support subject mismatch retries only a definite 400, never an ambiguous send",async()=>{
+ const bodies:string[]=[];
+ const request:typeof fetch=async(url,init)=>{
+  if(String(url).includes("oauth2"))return new Response(JSON.stringify({access_token:"fixture-token"}));
+  bodies.push(String(init?.body));return bodies.length===1 ? new Response("bad thread",{status:400}):new Response(JSON.stringify({id:"sent-new",threadId:"new-thread"}));
+ };
+ const sent=await new SupportGmail(supportTestEnv,request).send(supportReply);assert.equal(sent.threadId,"new-thread");assert.equal(JSON.parse(bodies[0]).threadId,"thread-1");assert.equal(JSON.parse(bodies[1]).threadId,undefined);assert.equal(JSON.parse(bodies[0]).raw,JSON.parse(bodies[1]).raw);
+ let attempts=0;const ambiguous:typeof fetch=async(url)=>String(url).includes("oauth2") ? new Response(JSON.stringify({access_token:"fixture-token"})):(attempts++,new Response("server error",{status:503}));
+ await assert.rejects(new SupportGmail(supportTestEnv,ambiguous).send(supportReply),/GMAIL_DELIVERY_UNKNOWN/);assert.equal(attempts,1);
+ assert.throws(()=>parseSupportMessage({id:"x",threadId:"x",internalDate:String(Date.now())},{TOOLTAG_INBOX_SUPPORT_ADDRESS:"quotes@tooltag.martinlab.studio"}),/SUPPORT_ALIAS_INVALID/);
+});

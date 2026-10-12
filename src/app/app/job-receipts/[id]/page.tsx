@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { rows } from "@/lib/domain/context";
+import { rows, requirePermission } from "@/lib/domain/context";
 import {
   receiptText,
   type ReceiptSnapshot,
@@ -11,6 +11,7 @@ export default async function Receipt({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requirePermission("payments.view");
   const { id } = await params;
   const r = (await rows("job_receipts", { id }))[0];
   if (!r) return <p>Receipt not found.</p>;

@@ -21,4 +21,4 @@ export async function proxy(request: NextRequest) {
   response.headers.set("Cache-Control", "private, no-store");
   return response;
 }
-export const config = { matcher: ["/app/:path*", "/login", "/auth/:path*"] };
+export const config = { matcher: ["/app/:path*", "/pick-return/:path*", "/login", "/auth/:path*"] };

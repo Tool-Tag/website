@@ -1,7 +1,10 @@
 "use client";
+import { useAccess } from "./permission-provider";
+import { can } from "@/lib/auth/permissions";
 import { useActionState, useEffect, useState } from "react";
 import { mutate } from "@/app/actions";
 export function SendQuote({ id, email, companyEmail, sent = false, lastRequestedAt }: { id: string; email?: string; companyEmail?: string; sent?: boolean; lastRequestedAt?: string }) {
+  const access = useAccess();
   const recipients = [
     { label: "Personal Email", email: email?.trim() || "" },
     { label: "Company Email", email: companyEmail?.trim() || "" },
@@ -19,6 +22,7 @@ export function SendQuote({ id, email, companyEmail, sent = false, lastRequested
   const requestedAt = state.mailRequestedAt || lastRequestedAt;
   const isResend = sent || Boolean(state.mailRequestedAt);
   const seconds = isResend && requestedAt ? Math.max(0, Math.ceil((Date.parse(requestedAt) + 90000 - (now || Date.parse(requestedAt))) / 1000)) : 0;
+  if (!can(access,"quotes.manage")) return null;
   return (
     <>
       <form action={action}>

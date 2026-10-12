@@ -5,6 +5,7 @@ export type WorkspaceAttention = {
   quotes: number;
   jobs: number;
   refunds: number;
+  notifications: number;
 };
 
 type GetTaggedAttentionRow = {
@@ -16,6 +17,7 @@ const ZERO: WorkspaceAttention = {
   quotes: 0,
   jobs: 0,
   refunds: 0,
+  notifications: 0,
 };
 
 export async function workspaceAttention(
@@ -23,7 +25,7 @@ export async function workspaceAttention(
   unit: string,
 ): Promise<WorkspaceAttention> {
   try {
-    const [requests, quotes, jobs, refunds, routeRefunds] = await Promise.all([
+    const [requests, quotes, jobs, refunds, routeRefunds, support] = await Promise.all([
       db.rpc("get_tagged_attention"),
       db
         .from("quotes")
@@ -40,6 +42,7 @@ export async function workspaceAttention(
         .eq("unit_id", unit)
         .eq("refund_status", "Pending"),
       db.from("route_compensations").select("id,status,amount,paid_amount").eq("unit_id",unit).neq("status","Completed"),
+      db.rpc("support_attention"),
     ]);
 
     const requestRows: GetTaggedAttentionRow[] = Array.isArray(requests.data)
@@ -79,6 +82,7 @@ export async function workspaceAttention(
     );
 
     return {
+      notifications: Number(support.data || 0),
       getTagged: requestRows.length,
       quotes: openQuotes.length,
       jobs: openJobs.length,

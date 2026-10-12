@@ -1,3 +1,6 @@
+import { PermissionProvider } from "@/components/permission-provider";
+import { canAny, driverOnly } from "@/lib/auth/permissions";
+import { redirect } from "next/navigation";
 import { BackNavigation } from "@/components/back-navigation";
 import Link from "next/link";
 import { context } from "@/lib/domain/context";
@@ -11,9 +14,10 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const ctx = isConfigured() ? await context() : null;
+  if (ctx && driverOnly(ctx.access)) redirect("/pick-return");
   const attention = ctx ? await workspaceAttention(ctx.db, ctx.unit) : undefined;
   return (
-    <div className="shell">
+    <PermissionProvider access={ctx?.access ?? {owner:false,blocks:[]}}><div className="shell">
       <aside className="sidebar">
         <Link className="brand" href="/app">
           Tool<span>Tag</span>
@@ -21,14 +25,14 @@ export default async function AppLayout({
             WORKSPACE
           </small>
         </Link>
-        <Nav attention={attention} />
+        <Nav attention={attention} access={ctx?.access} />
         <div className="sidebar-bottom">
-          <Nav bottom />
-          <p>
+          <Nav bottom access={ctx?.access} />
+          {ctx && canAny(ctx.access,["driver.routes","pr.routes.live","pr.routes.plan","pr.receiving","pr.returns","pr.reschedule"]) && <p>
             <Link className="muted" href="/pick-return">
               Pick & Return Mode ↗
             </Link>
-          </p>
+          </p>}
           <p>
             <Link className="muted" href="/">
               ↗ Public Site
@@ -41,14 +45,14 @@ export default async function AppLayout({
       </aside>
       <div className="workspace">
         <header className="topbar">
-          <Link className="button secondary" href="/app/pick-return">Pick up &amp; Return</Link>
-          <form action="/app/customers">
+          {ctx && canAny(ctx.access,["pr.routes.plan","pr.routes.live","pr.receiving","pr.returns","pr.reschedule"]) && <Link className="button secondary" href="/app/pick-return">Pick up &amp; Return</Link>}
+          {ctx && canAny(ctx.access,["customers.view"]) && <form action="/app/customers">
             <input
               name="q"
               placeholder="Search customer, Job, or Quote…"
               aria-label="Search customer or record"
             />
-          </form>
+          </form>}
           <span className="muted user">
             {ctx?.user.email ?? "Initial setup"}
           </span>
@@ -72,6 +76,6 @@ export default async function AppLayout({
           ToolTag is a registered DBA of Bandits of the Framing LLC.
         </footer>
       </div>
-    </div>
+    </div></PermissionProvider>
   );
 }
