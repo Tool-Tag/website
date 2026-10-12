@@ -115,5 +115,5 @@ export function renderSms(event: string, payload: Record<string, unknown>, origi
  if(!/^[A-Z0-9][A-Z0-9/-]{0,63}$/.test(code)||!/^\/(status|review)\/[A-Za-z0-9-]{8,200}$/.test(path))throw new Error("SMS_CONTEXT_UNAVAILABLE");
  const url=new URL(path,site);if(url.origin!==site.origin)throw new Error("SMS_CONTEXT_UNAVAILABLE");
  // Keep capability links intact; plain English/ASCII avoids UCS-2 segmentation.
- return "Your order "+code+" moved to "+stage+". Details: "+url.href;
+ return "ToolTag: Your order "+code+" moved to "+stage+". Details: "+url.href;
 }

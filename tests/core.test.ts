@@ -359,7 +359,7 @@ test("SNS ambiguous failures are terminal Unknown; definitive rejects are Failed
 test("SMS alerts use one short English format and retain full trusted links", () => {
  const payload={job_code:"TT-J-2026-00123",stage:"Engraving",action_path:"/status/test-token"};
  const message=renderSms("JOB_STATUS_UPDATE",payload,"https://tooltag.martinlab.studio");
- assert.equal(message,"Your order TT-J-2026-00123 moved to Engraving. Details: https://tooltag.martinlab.studio/status/test-token");
+ assert.equal(message,"ToolTag: Your order TT-J-2026-00123 moved to Engraving. Details: https://tooltag.martinlab.studio/status/test-token");
  assert.ok(message.length<=160);
  for(const [event,stage] of [["RETURN_DRIVER_NEARBY","3 Stops Away"],["PICKUP_ARRIVED","Driver Arrived"],["PAYMENT_DUE","Payment Due"],["JOB_CONFIRMED","Confirmed"]]) {
   assert.ok(renderSms(event,payload,"https://tooltag.example").includes("moved to "+stage+"."));
