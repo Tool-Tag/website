@@ -1,4 +1,6 @@
 "use client";
+import { useAccess } from "./permission-provider";
+import { canAny, evidencePermissions } from "@/lib/auth/permissions";
 
 import {useRouter} from "next/navigation";
 import { useEffect, useActionState, useRef, useState } from "react";
@@ -16,6 +18,7 @@ export function EvidenceUpload({
   button?: string;
   accept?: string;
 }) {
+  const access = useAccess();
   const [state, action, pending] = useActionState(
     registerEvidenceAction.bind(null, config),
     {},
@@ -30,6 +33,7 @@ export function EvidenceUpload({
   const choose = (next: "camera" | "file") => { setChoice(next); if (warn) setWarning(next); else window.setTimeout(openPicker, 0); };
   const router=useRouter();
   useEffect(()=>{if(state.ok)router.refresh();},[state.ok,router]);
+  if (!canAny(access,evidencePermissions(config.type,Boolean(config.pickReturnStopId)))) return null;
   return (
     <form action={action} className="evidence-upload">
       <div className="photo-choice-buttons">

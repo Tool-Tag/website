@@ -1,3 +1,4 @@
+import {can, type Access} from "@/lib/auth/permissions";
 import {EvidenceCapture} from "@/components/evidence-capture";
 import { EvidenceGallery } from "@/components/evidence-gallery";
 import { Form } from "@/components/form";
@@ -25,14 +26,15 @@ export function JobItemWorkflow({
   jobId,
   items,
   files,
-  role,
+  access = {owner:false,blocks:[]},
   pickupReturn,
 }: {
   jobId: string;
   jobCode: string;
   items: JobItem[];
   files: EvidenceFile[];
-  role: string;
+  role?: string;
+  access?: Access;
   pickupReturn: boolean;
 }) {
   const ordered = [...items].sort((a, b) => a.sequence - b.sequence);
@@ -69,7 +71,7 @@ export function JobItemWorkflow({
           )}
         </Panel>
 
-        {!pickupReturn && role === "admin" && (
+        {!pickupReturn && can(access,"pr.receiving") && (
           <Form
             operation="complete-production"
             hidden={{ id: jobId }}
@@ -104,7 +106,7 @@ export function JobItemWorkflow({
               Review the approved scope for this item before engraving.
             </p>
             <WorkPreparation items={[scope]} />
-            {role === "admin" && (
+            {can(access,"production.work") && (
               <Form
                 operation="job-item"
                 hidden={{ id: current.id, action: "next" }}
@@ -128,11 +130,11 @@ export function JobItemWorkflow({
               <EvidenceGallery files={itemFiles} />
             </div>
 
-            {role === "admin" && current.stage === "Engraving" && (
+            {can(access,"production.work") && current.stage === "Engraving" && (
               <EvidenceCapture config={{jobId,jobItemId:current.id,type:"Production Evidence",defaultVisibility:"customer"}} />
             )}
 
-            {role === "admin" &&
+            {can(access,"production.work") &&
               current.stage === "Finished Evidence" &&
               itemFiles.length > 0 && (
                 <Form

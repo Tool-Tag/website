@@ -1,9 +1,19 @@
+import Link from "next/link";
+import { RolesSettings } from "@/components/roles-settings";
+import { requireOwner } from "@/lib/domain/context";
 import { SmsSettings } from "@/components/sms-settings";
 import {denverDateTime} from "@/lib/domain/time";
 import { rows, context } from "@/lib/domain/context";
 import { Heading, Panel, Table, Empty } from "@/components/ui";
 import { Form } from "@/components/form";
-export async function Settings() {
+export async function Settings({tab}: {tab?:string}) {
+  const owner = await requireOwner();
+  const tabs = <nav className="actions" aria-label="Settings tabs"><Link className="button secondary" href="/app/settings">Current settings</Link><Link className="button secondary" href="/app/settings?tab=users">Users and roles</Link></nav>;
+  if (tab === "users") {
+    const {data,error}=await owner.db.rpc("rbac_directory");
+    if(error || !data) throw new Error("Could not load users and roles.");
+    return <><Heading title="Settings"/>{tabs}<RolesSettings directory={data}/></>;
+  }
   const [settings, policies, notifications, categories] = await Promise.all([
     rows("unit_settings"),
     rows("policies", { order: "version" }),
@@ -20,6 +30,7 @@ export async function Settings() {
         title="Settings"
         subtitle="ToolTag · Bandits of the Framing LLC"
       />
+      {tabs}
       {role === "admin" && <SmsSettings info={sms?.data ?? {}} mode={process.env.TOOLTAG_SMS_MODE || "preview"} envConfigured={Boolean(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY)} envRegion={process.env.AWS_REGION || ""} envOrigin={process.env.TOOLTAG_SMS_ORIGINATION_NUMBER || ""} envTestPhone={process.env.TOOLTAG_SMS_TEST_PHONE || ""} encryptionReady={Boolean(process.env.TOOLTAG_SMS_SETTINGS_ENCRYPTION_KEY)} />}
       <Panel title="Production Email">
         <p>Modo del servidor: {process.env.TOOLTAG_MAIL_MODE || "preview"}</p>

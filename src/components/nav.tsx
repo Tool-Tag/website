@@ -1,5 +1,6 @@
 "use client";
 
+import { canAny, sectionPermissions, type Access } from "@/lib/auth/permissions";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -63,7 +64,9 @@ function parseAttention(value: unknown): WorkspaceAttention | null {
 export function Nav({
   bottom = false,
   attention,
+  access = { owner: false, blocks: [] },
 }: {
+  access?: Access;
   bottom?: boolean;
   attention?: WorkspaceAttention;
 }) {
@@ -311,7 +314,7 @@ export function Nav({
 
   return (
     <nav>
-      {links.map((link) => {
+      {links.filter(link => link.path === "settings" ? access.owner : canAny(access,sectionPermissions(link.path))).map((link) => {
         const href = `/app${link.path ? "/" + link.path : ""}`;
         const active = pathIsInside(path, href);
         const count = Number(link.count ?? 0);

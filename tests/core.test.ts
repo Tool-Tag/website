@@ -401,3 +401,26 @@ test("Stripe configuration rejects live, swapped and mismatched key prefixes", a
   assert.equal(stripeTestEvent({id:"evt_wrong_mode",type:"checkout.session.completed",livemode:true,data:{object:{id:"cs_wrong_mode"}}}),false);
  }finally{for(const n of names){if(before[n]===undefined)delete process.env[n];else process.env[n]=before[n];}}
 });
+
+import { can, canAny, canMutate, driverOnly, EMPLOYEE_BLOCKS, PERMISSION_BLOCKS, sectionPermissions } from "../src/lib/auth/permissions";
+test("RBAC uses role unions, future Owner permissions, and fail-closed action defaults", () => {
+  const owner = { owner: true, blocks: [] };
+  const employee = { owner: false, blocks: EMPLOYEE_BLOCKS };
+  const driver = { owner: false, blocks: ["driver.routes"] };
+  assert.equal(new Set(PERMISSION_BLOCKS.map(b => b[0])).size, PERMISSION_BLOCKS.length);
+  assert.equal(can(owner, "future.block"), true);
+  assert.equal(can(employee, "quotes.view"), true);
+  assert.equal(canMutate(employee, "quote"), false);
+  assert.equal(canMutate(employee, "confirm-payment"), true);
+  assert.equal(canMutate(employee, "cancellation-refund"), false);
+  assert.equal(canMutate(employee, "unknown-operation"), false);
+  assert.equal(canMutate({owner:false,blocks:["settings.manage"]}, "settings"), false);
+  assert.equal(canMutate(driver, "route-cash"), true);
+  assert.equal(canMutate(driver, "confirm-payment"), false);
+  assert.equal(driverOnly(driver), true);
+  assert.equal(driverOnly({ owner: false, blocks: [...driver.blocks, "jobs.view"] }), false);
+  assert.equal(driverOnly(owner), false);
+  assert.equal(canAny(driver, sectionPermissions("finance")), false);
+  assert.equal(canAny(employee, sectionPermissions("settings")), false);
+  assert.equal(can({ owner: false, blocks: ["quotes.view", "quotes.manage"] }, "quotes.manage"), true);
+});

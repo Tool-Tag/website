@@ -6,7 +6,7 @@ import { smsAdminClient } from "@/lib/integrations/sms-dispatch";
 import { encryptSmsCredentials, normalizeSmsPhone, resolveSmsConfig, SmsFailure, smsNetworkAllowed, SnsSmsTransport } from "@/lib/integrations/sms";
 export type SmsActionState = { error?: string; message?: string };
 export async function saveSmsSettings(_state: SmsActionState, form: FormData): Promise<SmsActionState> {
-  const { db, role } = await context(); if (role !== "admin") return { error: "Admin access required." };
+  const { db, access } = await context(); if (!access.owner) return { error: "Admin access required." };
   const enabled = form.get("enabled") === "on";
   const region = String(form.get("region") ?? "").trim(), origin = String(form.get("origin") ?? "").trim(), testPhone = String(form.get("test_phone") ?? "").trim();
   if (region && !/^[a-z]{2}(-[a-z]+)+-\d+$/.test(region)) return { error: "Enter an AWS region, for example us-west-2." };
@@ -30,7 +30,7 @@ export async function saveSmsSettings(_state: SmsActionState, form: FormData): P
   revalidatePath("/app/settings"); return { message: enabled ? "SMS enabled for new, consented notifications only." : "Settings saved. Customer SMS is disabled." };
 }
 export async function sendTestSms(_state: SmsActionState, form: FormData): Promise<SmsActionState> {
-  const { db, role } = await context(); if (role !== "admin") return { error: "Admin access required." };
+  const { db, access } = await context(); if (!access.owner) return { error: "Admin access required." };
   if (form.get("test_consent") !== "on") return { error: "Confirm that the configured test number is yours and you consent to this SMS." };
   const admin = smsAdminClient(); if (!admin || !smsNetworkAllowed()) return { error: "Configure SMS credentials and TOOLTAG_SMS_MODE=test or live in Vercel first." };
   try {

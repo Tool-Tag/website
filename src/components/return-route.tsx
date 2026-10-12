@@ -30,7 +30,7 @@ export async function ReturnRoute({date}:{date:string}){
  db.from("commercial_flows").select("id,customer_id").eq("unit_id",unit),
  db.from("customers").select("id,name,phone").eq("unit_id",unit),
  db.from("job_extensions").select("job_id,status").eq("unit_id",unit).in("job_id",jobIds),
- db.from("job_commercial_totals").select("id,balance_due").eq("unit_id",unit).in("id",jobIds)
+ Promise.all(ids.map(id=>db.rpc("driver_route_balances",{p_route:id}))).then(responses=>({data:responses.flatMap(r=>r.data??[]),error:responses.find(r=>r.error)?.error??null}))
  ]):[];
  if(results.some(r=>r.error))throw new Error("Could not load Return details");
  const [orders,jobs,logistics,items,documents,flows,customers,extensions,balances]=results.map(r=>r.data??[]);

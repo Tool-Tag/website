@@ -1,3 +1,4 @@
+import { canAny } from "@/lib/auth/permissions";
 import {RouteCalendar} from "@/components/route-calendar";
 import {denverDateTime} from "@/lib/domain/time";
 import Link from "next/link";
@@ -17,7 +18,7 @@ function dateTime(value?: string | null) {
 export async function DriverRoute({leg,date,routeId}:{leg:"pickup"|"return";date:string;routeId?:string}) {
   const query = {mode:leg,route:routeId};
   const mode = query.mode === "pickup" ? "Pickup" : query.mode === "return" ? "Return" : null;
-  const { db, unit, role } = await context();
+  const { db, unit, access } = await context();
 
   const [{ data: orders }, { data: jobs }, { data: routes }, { data: stops }, { data: docs }] =
     await Promise.all([
@@ -187,7 +188,7 @@ export async function DriverRoute({leg,date,routeId}:{leg:"pickup"|"return";date
                     <div className="item">
                       <h3>{evidenceLabel}</h3>
                       <EvidenceGallery files={evidence} />
-                      {role === "admin" && (
+                      {canAny(access,["driver.routes","pr.routes.live"]) && (
                         <details open={!evidence.length}>
                           <summary>{isPickup ? "Add Pickup Receiving Evidence" : "Add Return Delivery Evidence"}</summary>
                           <EvidenceCapture

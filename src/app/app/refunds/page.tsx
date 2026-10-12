@@ -1,5 +1,5 @@
 import {RouteRefundConfirm} from "@/components/route-refund-confirm";
-import { rows } from "@/lib/domain/context";
+import { rows, requirePermission } from "@/lib/domain/context";
 import { Heading, Panel, Empty, Badge } from "@/components/ui";
 import { Form } from "@/components/form";
 import { money } from "@/lib/domain/money";
@@ -7,6 +7,7 @@ import { money } from "@/lib/domain/money";
 export const dynamic = "force-dynamic";
 
 export default async function RefundsPage() {
+  await requirePermission("payments.refund");
   const [requests, jobs, routeRefunds] = await Promise.all([
     rows("cancellation_requests", { order: "requested_at", limit: 500 }),
     rows("jobs", { order: "created_at", limit: 500 }),

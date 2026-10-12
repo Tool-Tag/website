@@ -1,4 +1,6 @@
 export const maxDuration = 300;
+import { requireOwner, requirePermission } from "@/lib/domain/context";
+import { sectionPermissions } from "@/lib/auth/permissions";
 import { notFound } from "next/navigation";
 import { isConfigured } from "@/lib/supabase/server";
 import { Heading, Panel } from "@/components/ui";
@@ -39,6 +41,8 @@ export default async function AppPage({
         </Panel>
       </>
     );
+  if (path[0] === "settings") await requireOwner();
+  else await requirePermission(...sectionPermissions(path[0]));
   switch (path[0]) {
     case "customers":
       return <Customers id={path[1]} q={q.q} />;
@@ -55,7 +59,7 @@ export default async function AppPage({
         <Finance section={path[1]} id={path[2]} created={q.created} />
       );
     case "settings":
-      return <Settings />;
+      return <Settings tab={q.tab} />;
     case "finance-hub":
       return <FinanceHub />;
     default:

@@ -1,3 +1,4 @@
+import { can } from "@/lib/auth/permissions";
 import {ShopItemVerification} from "@/components/shop-item-verification";
 import {denverDateTime} from "@/lib/domain/time";
 import { EvidenceGallery } from "@/components/evidence-gallery";
@@ -125,7 +126,7 @@ export async function Jobs({ id }: { id?: string }) {
     );
   }
 
-  const { role } = await context();
+  const { access } = await context();
   const j = (await rows("jobs", { id }))[0];
   if (!j) return <Empty>Job not found.</Empty>;
 
@@ -209,7 +210,7 @@ export async function Jobs({ id }: { id?: string }) {
   const receivingEvidence = (
     <Panel title="Receiving Evidence">
       <EvidenceGallery files={receivingFiles} />
-      {role === "admin" && (
+      {can(access,"pr.receiving") && (
         <details open={!receivingFiles.length}>
           <summary>Add Receiving Evidence</summary>
           <EvidenceCapture
@@ -244,7 +245,7 @@ export async function Jobs({ id }: { id?: string }) {
               {currentItem.stage === "Finished Evidence" ? "Completed Evidence" : "Engraving"}
             </p>
             <EvidenceGallery files={itemEvidence} />
-            {role === "admin" && currentItem.stage === "Engraving" && (
+            {can(access,"production.work") && currentItem.stage === "Engraving" && (
               <details open={!itemEvidence.length}>
                 <summary>Add Completed Evidence for this item</summary>
                 <EvidenceCapture
@@ -330,7 +331,7 @@ export async function Jobs({ id }: { id?: string }) {
               </a>
             </p>
           )}
-          {role === "admin" && (
+          {can(access,"payments.record") && (
             <Form
               operation="confirm-payment"
               hidden={{ id: pendingPayment.id }}
@@ -414,7 +415,7 @@ export async function Jobs({ id }: { id?: string }) {
                 <strong>{pendingPayment.method}</strong> · {money(pendingPayment.amount)} ·{" "}
                 {paymentStatusLabel(pendingPayment.status)}
               </p>
-              {role === "admin" && pendingPayment.status === "Pending Verification" && (
+              {can(access,"payments.record") && pendingPayment.status === "Pending Verification" && (
                 <Form
                   operation="confirm-payment"
                   hidden={{ id: pendingPayment.id }}
@@ -548,7 +549,7 @@ export async function Jobs({ id }: { id?: string }) {
                   </a>
                 </p>
               )}
-              {role === "admin" && (
+              {can(access,"payments.record") && (
                 <Form
                   operation="confirm-payment"
                   hidden={{ id: pendingPayment.id }}
@@ -640,7 +641,7 @@ export async function Jobs({ id }: { id?: string }) {
 
       <Panel title="Issue / Review Evidence">
         <EvidenceGallery files={issueFiles} />
-        {role === "admin" && (
+        {can(access,"jobs.manage") && (
           <details>
             <summary>Add Issue / Review Evidence</summary>
             <EvidenceUpload

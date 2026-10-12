@@ -1,10 +1,10 @@
 "use server";
-import {context} from "@/lib/domain/context";
+import {requirePermission} from "@/lib/domain/context";
 import {supabase} from "@/lib/supabase/server";
 import {dispatchWorkerMail} from "@/lib/integrations/mail-dispatch";
 import {revalidatePath} from "next/cache";
 export async function driverIncidentAction(id:string,outcome?:string){
- const {db}=await context();
+ const {db}=await requirePermission("driver.routes","pr.routes.live");
  if (!outcome) {
   const {data, error} = await db.from("pick_return_stops").select("id").eq("route_id", id).eq("status", "Arrived").limit(1);
   if (error) return {error: "Could not verify the active stop."};
@@ -17,5 +17,5 @@ export async function driverIncidentChoice(job:string,token:string,choice:string
  const db=await supabase();const result=await db.rpc('driver_incident_choice',{p_job:job,p_token:token,p_choice:choice});if(result.error)return {error:result.error.message};await dispatchWorkerMail();revalidatePath(`/status/${token}`);revalidatePath('/pick-return','layout');return {ok:true};
 }
 export async function confirmRouteRefund(id:string,reference:string){
- const {db}=await context();const result=await db.rpc('confirm_route_refund',{p_id:id,p_reference:reference});if(result.error)return {error:result.error.message};await dispatchWorkerMail();revalidatePath('/app/refunds');return {ok:true};
+ const {db}=await requirePermission("payments.refund");const result=await db.rpc('confirm_route_refund',{p_id:id,p_reference:reference});if(result.error)return {error:result.error.message};await dispatchWorkerMail();revalidatePath('/app/refunds');return {ok:true};
 }

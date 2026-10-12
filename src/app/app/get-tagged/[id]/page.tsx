@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { context } from "@/lib/domain/context";
+import { requirePermission } from "@/lib/domain/context";
 import { Heading, Panel, Empty, Badge } from "@/components/ui";
 import { Form } from "@/components/form";
 
@@ -34,7 +34,7 @@ export default async function GetTaggedRequestDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { db } = await context();
+  const { db } = await requirePermission("quotes.view");
   const { data: request, error } = await db.rpc("get_get_tagged_request", {
     p_id: id,
   });

@@ -1,52 +1,56 @@
+import { can } from "@/lib/auth/permissions";
+import { PermissionGate } from "@/components/permission-provider";
 import Link from "next/link";
 import { rows, context } from "@/lib/domain/context";
 import { isConfigured } from "@/lib/supabase/server";
 import { Heading, Panel, Metric, Empty, Table, Badge } from "@/components/ui";
 export async function Dashboard() {
   const ready = isConfigured();
+  const ctx = ready ? await context() : null;
+  const finance = Boolean(ctx && can(ctx.access,"payments.view"));
   const [summaries, review, activity] = ready
     ? await Promise.all([
-        rows("finance_summary"),
+        finance ? rows("finance_summary") : Promise.resolve([]),
         rows("review_items"),
-        rows("recent_activity", { order: "created_at", limit: 10 }),
+        ctx?.access.owner ? rows("recent_activity", { order: "created_at", limit: 10 }) : Promise.resolve([]),
       ])
     : [[], [], []];
-  const ctx = ready ? await context() : null;
-  const { data: stats } = ctx
+  const { data: stats } = ctx && finance
     ? await ctx.db.rpc("dashboard_stats", { p_unit: ctx.unit })
     : { data: null };
   const s = summaries[0];
+  const [jobRows,quoteRows] = ctx ? await Promise.all([can(ctx.access,"jobs.view")?rows("jobs"):Promise.resolve([]),can(ctx.access,"quotes.view")?rows("quotes"):Promise.resolve([])]) : [[],[]];
   return (
     <>
       <Heading
         title="Todo bajo control."
         subtitle="Customers, work, and finances in one place."
       >
-        <Link className="button" href="/app/quotes/new">
+        <PermissionGate blocks={["quotes.manage"]}><Link className="button" href="/app/quotes/new">
           + New Quote
-        </Link>
-        <Link className="button secondary" href="/app/finance">
+        </Link></PermissionGate>
+        <PermissionGate blocks={["payments.view"]}><Link className="button secondary" href="/app/finance">
           ToolTag Finance
-        </Link>
+        </Link></PermissionGate>
       </Heading>
       <div className="grid">
         <Metric
           label="Active Jobs"
           currency={false}
-          value={stats?.active_jobs ?? 0}
+          value={stats?.active_jobs ?? jobRows.filter(j=>j.status!=="Cancelled"&&j.work_stage!=="Closed").length}
           help={`${stats?.ready_jobs ?? 0} ready for delivery · ${stats?.issue_jobs ?? 0} in review`}
         />
         <Metric
           label="Pending Quotes"
           currency={false}
-          value={stats?.pending_quotes ?? 0}
+          value={stats?.pending_quotes ?? quoteRows.filter(q=>["Draft","Sent","Viewed","Agreement Pending"].includes(q.status)).length}
           help={`${stats?.accepted_quotes ?? 0} aceptadas`}
         />
-        <Metric
+        <PermissionGate blocks={["payments.view"]}><Metric
           label="Main Account"
           value={s?.operating_balance}
           help="Balance attributed to ToolTag; it is not the entire bank balance."
-        />
+        /></PermissionGate>
       </div>
       <div className="grid two">
         <Panel title="Needs Attention">
@@ -73,20 +77,20 @@ export async function Dashboard() {
             <Link className="button secondary" href="/app/customers">
               Find Customer
             </Link>
-            <Link className="button secondary" href="/app/customers/new">
+            <PermissionGate owner><Link className="button secondary" href="/app/customers/new">
               + New Customer
-            </Link>
+            </Link></PermissionGate>
           </div>
         </Panel>
       </div>
-      <Panel title="Sales & Collections">
+      <PermissionGate blocks={["payments.view"]}><Panel title="Sales & Collections">
         <div className="grid">
           <Metric label="Sales This Month" value={stats?.sales_month} />
           <Metric label="Collected This Month" value={stats?.collected_month} />
           <Metric label="Outstanding Balance" value={stats?.balance_due} />
         </div>
       </Panel>
-      <Panel title="Recent Activity">
+      </PermissionGate><PermissionGate owner><Panel title="Recent Activity">
         {activity.length ? (
           <Table headers={["Record", "Change", "Date"]}>
             {activity.map((a) => (
@@ -106,7 +110,7 @@ export async function Dashboard() {
         ) : (
           <Empty />
         )}
-      </Panel>
+      </Panel></PermissionGate>
     </>
   );
 }

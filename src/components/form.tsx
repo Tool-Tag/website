@@ -1,4 +1,5 @@
 "use client";
+import { useActionPermission } from "./permission-provider";
 import { PhoneVerification } from "./phone-verification";
 import { useActionState, useState } from "react";
 import { mutate, type ActionState } from "@/app/actions";
@@ -29,11 +30,13 @@ export function Form({
   back?: string;
   children?: React.ReactNode;
 }) {
+  const allowed = useActionPermission(operation);
   const [customerPhone, setCustomerPhone] = useState(fields.find(f=>f.name==="phone")?.value??"");
   const [state, action, pending] = useActionState<ActionState, FormData>(
     mutate.bind(null, operation, back),
     {},
   );
+  if (!allowed) return null;
   return (
     <form action={action} className="formgrid">
       {Object.entries(hidden).map(([k, v]) => (

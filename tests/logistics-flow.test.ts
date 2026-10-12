@@ -185,7 +185,7 @@ before(async () => {
      create role service_role;
      create role supabase_admin;
      create schema auth;
-     create table auth.users(id uuid primary key);
+     create table auth.users(id uuid primary key,email text);
      create function auth.uid() returns uuid language sql stable
        as 'select nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
      create function auth.role() returns text language sql stable
@@ -224,7 +224,7 @@ before(async () => {
        as 'select string_to_array(name,''/'')';
      grant usage on schema storage to anon,authenticated,service_role;
      grant select,insert,update,delete on storage.objects to service_role;
-     grant select on storage.objects to authenticated;`,
+     grant select,insert,update on storage.objects to authenticated;`,
   );
 
   const baselineFiles = (
@@ -247,10 +247,6 @@ before(async () => {
     );
   }
 
-  for (const file of (await readdir("supabase/migrations")).filter(file => file.endsWith(".sql") && !file.includes("_baseline_")).sort()) {
-    await db.exec(await readFile(`supabase/migrations/${file}`, "utf8"));
-  }
-
   await db.exec(
     `insert into auth.users(id) values('${admin}');
      insert into public.memberships
@@ -258,6 +254,12 @@ before(async () => {
      select set_config('request.jwt.claim.sub','${admin}',false);
      select set_config('request.jwt.claim.role','authenticated',false);`,
   );
+
+  for (const file of (await readdir("supabase/migrations")).filter(file => file.endsWith(".sql") && !file.includes("_baseline_")).sort()) {
+    await db.exec(await readFile(`supabase/migrations/${file}`, "utf8"));
+  }
+
+
 
   await value("select public.publish_policy($1,$2,$3)", [
     unit,
@@ -1151,7 +1153,7 @@ test("Explicit route departure notifies confirmed customers once and rejects unk
  await value("select public.depart_driver_route($1)",[route]);
  assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key like $1",['route-departed:'+route+':%'])),count);
  assert.ok(await value("select departed_at from public.pick_return_routes where id=$1",[route]));
- await assert.rejects(value("select public.depart_driver_route(gen_random_uuid())"),/unavailable/);
+ await assert.rejects(value("select public.depart_driver_route(gen_random_uuid())"),/unavailable|not assigned/);
 });
 
 for(const leg of ["Pickup","Return"]){
@@ -1493,7 +1495,7 @@ test("SMS settings hide secrets and restrict administrative configuration", asyn
  await db.query("update private.sms_settings set encrypted_credentials='fakeiv.faketag.fakecipher' where unit_id=$1",[unit]);
  const settings=await value<Record<string,unknown>>("select public.sms_settings_status()");assert.equal(settings.credentials_saved,true);assert.equal(settings.encrypted_credentials,undefined);
  await db.query("select set_config('request.jwt.claim.sub','',false)");
- try {await assert.rejects(value("select public.sms_settings_status()"),/Administrative/);await assert.rejects(value("select public.save_sms_settings('{}',null)"),/Administrative/);} finally {await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
+ try {await assert.rejects(value("select public.sms_settings_status()"),/Administrative|Permission denied|Owner/);await assert.rejects(value("select public.save_sms_settings('{}',null)"),/Administrative|Permission denied|Owner/);} finally {await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
 });
 
 test("Real customer email and US phone are unique across formats and updates", async () => {
@@ -1588,4 +1590,149 @@ test("Stripe TEST worker lookup does not expose tables or accept real customers"
   assert.equal(await value("select public.stripe_test_customer($1)",[accepted.job_id]),false);
   await assert.rejects(value("select private.stripe_payment_account($1,$2,'cs_test_guard')",[unit,accepted.job_id]),/TEST- customer/);
  }finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
+});
+
+async function staffAs(user: string, action: () => Promise<void>) {
+ await db.query("select set_config('request.jwt.claim.sub',$1,false)",[user]);
+ await db.exec("set row_security=on;set role authenticated");
+ try {await action();} finally {await db.exec("reset role");await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
+}
+async function addStaff(roleKeys: string[], name: string) {
+ const user=await value<string>("insert into auth.users(id,email) values(gen_random_uuid(),$1) returning id",[`${name}@example.test`]);
+ const roles=(await db.query<{id:string}>("select id from public.roles where unit_id=$1 and system_key=any($2::text[])",[unit,roleKeys])).rows.map(r=>r.id);
+ await value("select public.rbac_save_user($1,$2,true,$3::uuid[])",[user,name,roles]);return user;
+}
+test("RBAC bootstraps Owner, permits role unions/future blocks and guards last active Owner",async()=>{
+ const access=await value<{owner:boolean;blocks:string[]}>("select public.staff_permissions()");assert.equal(access.owner,true);assert.equal(access.blocks.length,18);
+ await db.query("insert into public.permission_blocks values('future.test','Future test','System')");
+ assert.equal(await value<boolean>("select private.has_block($1,'future.test')",[unit]),true);
+ const employee=await addStaff(['Employee'],'rbac-employee');
+ await staffAs(employee,async()=>{
+ const a=await value<{owner:boolean;blocks:string[]}>("select public.staff_permissions()");assert.equal(a.owner,false);assert.ok(a.blocks.includes('production.work'));assert.ok(!a.blocks.includes('quotes.manage'));
+ await assert.rejects(value("select public.rbac_directory()"),/Owner/);
+ await assert.rejects(value("select public.rbac_save_role(null,'Escalate',array['users.manage'])"),/Owner/);
+ await assert.rejects(value("select public.save_settings($1::jsonb)",[JSON.stringify({unit_id:unit})]),/Permission denied|Owner/);
+ await assert.rejects(value("select public.record_movement($1::jsonb)",[JSON.stringify({unit_id:unit,type:'OWNER_DRAW',amount:1})]),/Permission denied/);
+ });
+ const extra=await value<string>("select public.rbac_save_role(null,'TEST Quote Editor',array['quotes.manage'])");
+ const employeeRole=await value<string>("select id from public.roles where unit_id=$1 and system_key='Employee'",[unit]);
+ await value("select public.rbac_save_user($1,'Employee plus quotes',true,$2::uuid[])",[employee,[employeeRole,extra]]);
+ await staffAs(employee,async()=>{
+ const a=await value<{blocks:string[]}>("select public.staff_permissions()");assert.ok(a.blocks.includes('quotes.manage'));assert.ok(a.blocks.includes('jobs.manage'));
+ // A direct RPC, not just UI, now permits creating a Quote.
+ const customer=await value<string>("select id from public.customers where unit_id=$1 limit 1",[unit]);
+ await createQuote(customer);
+ });
+ await assert.rejects(value("select public.rbac_save_user($1,'Owner',false,'{}')",[admin]),/at least one active Owner/);
+ const ownerRole=await value<string>("select id from public.roles where unit_id=$1 and system_key='Owner'",[unit]);
+ await assert.rejects(value("select public.rbac_save_role($1,'Owner renamed','{}')",[ownerRole]),/immutable/);
+ assert.ok(Number(await value("select count(*) from public.audit_log where actor_id=$1 and entity='rbac'",[admin]))>0);
+ await db.query("delete from public.permission_blocks where key='future.test'");
+});
+test("RBAC Driver routes are assigned-only in RLS/RPC, cash remains scoped and foreign evidence is rejected",async()=>{
+ const driver=await addStaff(['Driver'],'rbac-driver');const other=await addStaff(['Driver'],'rbac-other-driver');
+ const own=await readyReturn('rbac-own'),foreign=await readyReturn('rbac-foreign');
+ await value("select public.prepare_route_payment($1,'Cash',gen_random_uuid())",[own.token]);
+ const ownRoute=await value<string>("insert into public.pick_return_routes(unit_id,route_date,leg) values($1,current_date+400,'Return') returning id",[unit]);
+ const foreignRoute=await value<string>("insert into public.pick_return_routes(unit_id,route_date,leg) values($1,current_date+401,'Return') returning id",[unit]);
+ await value("select public.assign_route_operator($1,$2)",[ownRoute,driver]);await value("select public.assign_route_operator($1,$2)",[foreignRoute,other]);
+ const ownIncident=await value<string>("insert into public.route_incidents(unit_id,route_id,status) values($1,$2,'Continued') returning id",[unit,ownRoute]);
+ const foreignIncident=await value<string>("insert into public.route_incidents(unit_id,route_id,status) values($1,$2,'Continued') returning id",[unit,foreignRoute]);
+ const ownStop=await value<string>("insert into public.pick_return_stops(unit_id,route_id,job_id,sequence,status) values($1,$2,$3,1,'Arrived') returning id",[unit,ownRoute,own.job]);
+ const foreignStop=await value<string>("insert into public.pick_return_stops(unit_id,route_id,job_id,sequence,status) values($1,$2,$3,1,'Arrived') returning id",[unit,foreignRoute,foreign.job]);
+ await staffAs(driver,async()=>{
+ assert.equal(Number(await value("select count(*) from public.pick_return_routes where id=$1",[ownRoute])),1);
+ assert.equal(Number(await value("select count(*) from public.pick_return_routes where id=$1",[foreignRoute])),0);
+ assert.equal(Number(await value("select count(*) from public.route_incidents where id=$1",[ownIncident])),1);
+ assert.equal(Number(await value("select count(*) from public.route_incidents where id=$1",[foreignIncident])),0);
+ assert.equal(Number(await value("select count(*) from public.jobs where id=$1",[foreign.job])),0);
+ assert.equal(Number(await value("select count(*) from public.transactions where unit_id=$1",[unit])),0);
+ const balances=await value<{id:string;balance_due:number}[]>("select public.driver_route_balances($1)",[ownRoute]);assert.ok(Number(balances.find(b=>b.id===own.job)?.balance_due)>0);
+ await assert.rejects(value("select public.driver_route_balances($1)",[foreignRoute]),/not assigned/);
+ await assert.rejects(value("select public.route_live_channel($1)",[foreignRoute]),/not assigned/);
+ await assert.rejects(value("select public.return_driver_action($1,'customer-coming',false)",[foreignStop]),/not assigned/);
+ await assert.rejects(value("select public.assign_route_operator($1,$2)",[ownRoute,other]),/planning permission/);
+ await assert.rejects(value("select public.verify_route_items($1,'Returned',array[gen_random_uuid()])",[ownStop]),/Shop Return/);
+ await assert.rejects(value("select public.register_document_metadata($1::jsonb)",[JSON.stringify({unit_id:unit,job_id:foreign.job,pick_return_stop_id:foreignStop,type:'Delivery Evidence',file_name:'test.jpg'})]),/not assigned/);
+ await assert.rejects(value("select public.register_document_metadata($1::jsonb)",[JSON.stringify({unit_id:unit,job_id:own.job,pick_return_stop_id:ownStop,type:'Production Evidence',file_name:'test.jpg'})]),/Evidence permission/);
+ const photo=await value<string>("select public.register_document_metadata($1::jsonb)",[JSON.stringify({unit_id:unit,job_id:own.job,pick_return_stop_id:ownStop,type:'Delivery Evidence',file_name:'rbac-photo.jpg',original_file_name:'rbac-photo.jpg',mime_type:'image/jpeg',file_size:1,sha256:'e'.repeat(64),visibility:'customer'})]);
+ const photoPath=`${unit}/documents/${photo}/rbac-photo.jpg`;
+ await assert.rejects(value("select public.finish_document_storage($1,'tooltag-files',$2,'stored',null)",[photo,photoPath]),/must be stored/);
+ await db.query("insert into storage.objects(bucket_id,name) values('tooltag-files',$1)",[photoPath]);
+ await db.query("update storage.objects set name=name where name=$1",[photoPath]);
+ await value("select public.finish_document_storage($1,'tooltag-files',$2,'stored',null)",[photo,photoPath]);
+ assert.equal(Number(await value("select count(*) from storage.objects where name=$1",[photoPath])),1);
+ await assert.rejects(db.query("insert into storage.objects(bucket_id,name) values('tooltag-files',$1)",[`${unit}/documents/${foreign.job}/forged.jpg`]),/row-level security/);
+ await assert.rejects(value("select public.return_acknowledgment_link($1)",[ownStop]),/Permission denied/);
+ // Uses the existing cash confirmation chain; cannot confirm arbitrary payment requests.
+ await value("select public.collect_route_cash($1)",[ownStop]);
+ await value("select public.collect_route_cash($1)",[ownStop]);
+ const delivered=await value<{completion_token:string|null}>("select public.return_driver_action($1,'delivered',true)",[ownStop]);assert.equal(delivered.completion_token,null);
+ });
+ assert.equal(Number(await value("select balance_due from public.job_commercial_totals where id=$1",[own.job])),0);
+ assert.equal(Number(await value("select count(*) from public.payment_requests where request_key=$1",[ownStop])),1);
+ const request=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',1,'Final Balance') returning id",[unit,foreign.job]);
+ await staffAs(driver,async()=>{await assert.rejects(value("select public.confirm_payment_request($1)",[request]),/Only cash/);});
+ const role=await value<string>("select id from public.roles where unit_id=$1 and system_key='Driver'",[unit]);
+ await value("select public.rbac_save_user($1,'disabled driver',false,array[$2::uuid])",[driver,role]);
+ await staffAs(driver,async()=>{
+ const a=await value<{active:boolean;blocks:string[]}>("select public.staff_permissions()");assert.equal(a.active,false);assert.deepEqual(a.blocks,[]);
+ assert.equal(Number(await value("select count(*) from public.pick_return_routes where id=$1",[ownRoute])),0);
+ await assert.rejects(value("select public.route_live_channel($1)",[ownRoute]),/not assigned/);
+ });
+});
+test("RBAC Employee payment recording works; ToolTag roles do not grant BOFT access",async()=>{
+ const employee=await addStaff(['Employee'],'rbac-record-payment');const ready=await readyReturn('rbac-payment');
+ const due=await value<number>("select balance_due from public.job_commercial_totals where id=$1",[ready.job]);
+ const request=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',$3,'Final Balance') returning id",[unit,ready.job,due]);
+ const boft=await value<string>("select id from public.business_units where id<>$1 limit 1",[unit]);
+ await staffAs(employee,async()=>{
+ await value("select public.confirm_payment_request($1)",[request]);
+ await assert.rejects(value("select public.create_quote($1::jsonb)",[JSON.stringify({unit_id:unit})]),/Permission denied/);
+ await assert.rejects(value("select public.save_settings($1::jsonb)",[JSON.stringify({unit_id:boft})]),/Administrative/);
+ assert.equal(Number(await value("select count(*) from public.customers where unit_id=$1",[boft])),0);
+ });
+ assert.equal(Number(await value("select balance_due from public.job_commercial_totals where id=$1",[ready.job])),0);
+ // Legacy BOFT Owner still works; no BOFT memberships or authorization rules were migrated.
+ assert.equal(await value<boolean>("select private.can_access($1)",[boft]),true);
+ await value("select private.require_admin($1)",[boft]);
+ await value("select public.dashboard_stats($1)",[boft]);
+ await value("select public.search_records($1,'TT')",[boft]);
+});
+test("RBAC catalog and administration expose no anonymous execute or direct write grants",async()=>{
+ for(const name of ['public.rbac_directory()','public.rbac_save_role(uuid,text,text[])','public.rbac_save_user(uuid,text,boolean,uuid[])','public.assign_route_operator(uuid,uuid)','public.driver_route_balances(uuid)']) {
+  assert.equal(await value<boolean>("select has_function_privilege('anon',$1,'EXECUTE')",[name]),false);
+ }
+ for(const table of ['roles','role_blocks','user_roles','staff_access','permission_blocks']) {
+  assert.equal(await value<boolean>("select relrowsecurity from pg_class where oid=$1::regclass",[`public.${table}`]),true);
+  assert.equal(await value<boolean>("select has_table_privilege('authenticated',$1,'INSERT')",[`public.${table}`]),false);
+  assert.equal(await value<boolean>("select has_table_privilege('authenticated',$1,'UPDATE')",[`public.${table}`]),false);
+ }
+ const limitedRole=await value<string>("select public.rbac_save_role(null,'TEST Job Reader',array['jobs.view'])");
+ const limitedUser=await value<string>("insert into auth.users values(gen_random_uuid(),'job-reader@example.test') returning id");
+ await value("select public.rbac_save_user($1,'Job Reader',true,array[$2::uuid])",[limitedUser,limitedRole]);
+ const receipt=await value<string>("insert into public.documents(unit_id,type,file_name) values($1,'Receipt','private-receipt.pdf') returning id",[unit]);
+ await staffAs(limitedUser,async()=>{
+  assert.equal(Number(await value("select count(*) from public.documents where id=$1",[receipt])),0);
+  assert.equal(Number(await value("select count(*) from public.audit_log where entity='rbac'")),0);
+ });
+ const role=await value<string>("select public.rbac_save_role(null,'TEST delegated settings',array['settings.manage','users.manage'])");
+ const user=await value<string>("insert into auth.users values(gen_random_uuid(),'delegated-settings@example.test') returning id");
+ await value("select public.rbac_save_user($1,'Delegated settings',true,array[$2::uuid])",[user,role]);
+ await staffAs(user,async()=>{
+  await assert.rejects(value("select public.rbac_directory()"),/Owner/);
+  await assert.rejects(value("select public.sms_settings_status()"),/Owner/);
+  await assert.rejects(value("select public.save_settings($1::jsonb)",[JSON.stringify({unit_id:unit})]),/Owner/);
+ });
+});
+test("New Owner authority comes from roles, not legacy admin membership",async()=>{
+ const secondOwner=await addStaff(['Owner'],'rbac-second-owner');
+ assert.equal(await value("select role from public.memberships where unit_id=$1 and user_id=$2",[unit,secondOwner]),'viewer');
+ const proof=`${unit}/rbac-owner-proof.jpg`;await db.query("insert into storage.objects(bucket_id,name) values('payment-proofs',$1)",[proof]);
+ await staffAs(secondOwner,async()=>{
+ assert.equal((await value<{owner:boolean}>("select public.staff_permissions()")).owner,true);
+ await value("select public.sms_settings_status()");
+ assert.equal(Number(await value("select count(*) from storage.objects where name=$1",[proof])),1);
+ const directory=await value<{users:{id:string}[]}>("select public.rbac_directory()");assert.ok(directory.users.some(u=>u.id===secondOwner));
+ });
 });

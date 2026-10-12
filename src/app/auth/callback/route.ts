@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   if (code) {
     const db = await supabase();
     const { error } = await db.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(new URL("/app", url.origin));
+    if (!error) return NextResponse.redirect(new URL(url.searchParams.get("next") === "/auth/reset" ? "/auth/reset" : "/app", url.origin));
   }
   return NextResponse.redirect(new URL("/login", url.origin));
 }

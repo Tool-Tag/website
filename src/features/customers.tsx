@@ -1,3 +1,5 @@
+import { PermissionGate } from "@/components/permission-provider";
+import { requireOwner } from "@/lib/domain/context";
 import Link from "next/link";
 import { rows, context } from "@/lib/domain/context";
 import { Heading, Panel, Table, Empty, Metric } from "@/components/ui";
@@ -15,7 +17,8 @@ export const customerFields: Field[] = [
   { name: "company_address", label: "Company Address" },
 ];
 export async function Customers({ id, q }: { id?: string; q?: string }) {
-  if (id === "new")
+  if (id === "new") {
+    await requireOwner();
     return (
       <>
         <Heading
@@ -27,6 +30,7 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
         </Panel>
       </>
     );
+  }
   if (id) {
     const customer = (await rows("customers", { id }))[0];
     if (!customer) return <Empty>Customer not found.</Empty>;
@@ -48,9 +52,9 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
     return (
       <>
         <Heading title={customer.name} subtitle={customer.code}>
-          <Link className="button" href={`/app/quotes/new?customer=${id}`}>
+          <PermissionGate blocks={["quotes.manage"]}><Link className="button" href={`/app/quotes/new?customer=${id}`}>
             + New Quote
-          </Link>
+          </Link></PermissionGate>
         </Heading>
         <div className="grid">
           <Metric currency={false} label="Jobs" value={jobs.length} />
@@ -68,7 +72,7 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
               {customer.company_phone}
             </p>
           )}
-          <details>
+          <PermissionGate owner><details>
             <summary>Edit Details</summary>
             <Form
               operation="customer"
@@ -78,7 +82,7 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
                 value: customer[f.name] ?? "",
               }))}
             />
-          </details>
+          </details></PermissionGate>
         </Panel>
         <div className="grid two">
           <Panel title="Quotes">
@@ -160,9 +164,9 @@ export async function Customers({ id, q }: { id?: string; q?: string }) {
         title="Customers"
         subtitle="People, history, and related documents."
       >
-        <Link className="button" href="/app/customers/new">
+        <PermissionGate owner><Link className="button" href="/app/customers/new">
           + New Customer
-        </Link>
+        </Link></PermissionGate>
       </Heading>
       <Panel>
         <form className="actions">
