@@ -109,6 +109,7 @@ const SMS_WORK_STAGE: Record<string,string> = {
 export function renderSms(event: string, payload: Record<string, unknown>, origin: string) {
  const site=new URL(origin);if(site.protocol!=="https:" || site.username || site.password)throw new Error("SMS_PUBLIC_URL_REQUIRED");
  const normalized=event.toUpperCase().replace(/[^A-Z0-9]+/g,"_");
+ if(normalized==="SMS_WELCOME") return "ToolTag: Welcome! You are subscribed to delivery updates and shipping notifications. Reply HELP for help or STOP to opt-out.";
  const stage=normalized==="JOB_STATUS_UPDATE" ? SMS_WORK_STAGE[String(payload.stage)]??"Status Updated" : SMS_EVENT_STAGE[normalized];
  if(!stage)throw new Error("SMS_TEMPLATE_UNAVAILABLE");
  const code=String(payload.job_code??""),path=String(payload.action_path??"");

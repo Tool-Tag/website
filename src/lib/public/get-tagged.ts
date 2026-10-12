@@ -81,7 +81,7 @@ export const getTaggedRequestSchema = z
     contact: z.object({
       name: shortText.min(2, "Enter your full name."),
       email: z.string().email().max(254).transform((value) => value.toLowerCase()),
-      phone,
+      phone: z.union([z.literal(""), phone]),
       company_name: shortText,
       company_email: optionalEmail.transform((value) => value.toLowerCase()),
       company_phone: z.union([z.literal(""), phone]),
@@ -107,6 +107,7 @@ export const getTaggedRequestSchema = z
       .max(20),
     notes: z.string().trim().max(2000),
     sms_opt_in: z.boolean().default(false),
+    sms_policy_accepted: z.boolean().default(false),
     sms_phone: z.string().trim().max(40).default(""),
   })
   .superRefine((request, ctx) => {
@@ -159,6 +160,7 @@ export function emptyGetTaggedRequest(): GetTaggedRequest {
       company_phone: "",
     },
     sms_opt_in: false,
+    sms_policy_accepted: false,
     sms_phone: "",
     service: { method: "Not sure", address: "" },
     items: [emptyItem()],

@@ -1,4 +1,4 @@
-import { SmsPreferences } from "@/components/sms-consent";
+import { StatusSmsOptIn } from "@/components/sms-consent";
 import {CustomerArrivalBanner,CustomerDeliveryAcknowledgment} from "@/components/customer-arrival-banner";
 import {CustomerRouteTimeline} from "@/components/customer-route-timeline";
 import {DriverIncidentChoice} from "@/components/driver-incident-choice";
@@ -311,7 +311,7 @@ export default async function JobStatusPage({
       <p className="muted">
         Save this private link. Return anytime to check your job progress.
       </p>
-      <SmsPreferences token={token} scope="status" phone={smsConsent?.phone} granted={smsConsent?.granted} />
+      <StatusSmsOptIn token={token} phone={smsConsent?.phone} granted={smsConsent?.granted} />
     </main>
   );
 }

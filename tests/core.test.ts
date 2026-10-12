@@ -474,3 +474,9 @@ test("SMS policy links require approved HTTPS URLs and intake consent defaults t
  const {sms_opt_in,sms_phone,...legacy}=request;assert.equal(sms_opt_in,false);assert.equal(sms_phone,"");assert.equal(getTaggedRequestSchema.parse(legacy).sms_opt_in,false);
  assert.equal(getTaggedRequestSchema.parse({...request,sms_opt_in:true,sms_phone:"+13852142163"}).sms_opt_in,true);
 });
+
+ test("Get Tagged allows no phone or consent and welcome SMS includes STOP",()=>{
+ const request=emptyGetTaggedRequest();Object.assign(request.contact,{name:"TEST Optional",email:"optional@example.test",phone:""});Object.assign(request.items[0],{article:"Battery",brand:"Dewalt"});Object.assign(request.items[0].marks[0],{text:"TEST",location:"Left"});
+ const parsed=getTaggedRequestSchema.parse(request);assert.equal(parsed.contact.phone,"");assert.equal(parsed.sms_opt_in,false);assert.equal(parsed.sms_policy_accepted,false);
+ assert.match(renderSms("SMS_WELCOME",{},"https://tooltag.example"),/^ToolTag: Welcome!.*HELP.*STOP/);
+ });

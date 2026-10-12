@@ -628,6 +628,7 @@ export async function customerAction(
 
     const smsGranted = form.get("sms_opt_in") === "on";
     const smsPhone = normalizeSmsPhone(String(form.get("sms_phone") || ""));
+    if (smsGranted && form.get("sms_policy_accepted") !== "on") return {error:"Accept Terms of Service and Privacy Policy to enable SMS."};
     if (smsGranted && !smsPhone) return { error: "Enter a valid mobile number for SMS updates." };
     if(!(await smsGrantAllowed(db,token,"quote",smsPhone || "",smsGranted))) return {error:"New SMS subscriptions require published Privacy Policy and Terms links. You can continue without SMS."};
     const consent = await db.rpc("set_sms_consent", {p_token: token, p_scope: "quote", p_phone: smsPhone || "", p_granted: smsGranted});

@@ -1853,3 +1853,39 @@ test("Cancellation phone lookup opt-in is service-only and cannot change the con
  await supportWorker(async()=>{await assert.rejects(value("select public.request_cancellation_access_with_sms($1,$2,$3,$4,$5::jsonb)",[...args.slice(0,4),JSON.stringify(fixtureSmsConsent)]),/entered customer phone/);});
  assert.equal(await value("select has_function_privilege('anon','public.request_cancellation_access_with_sms(text,text,text,text,jsonb)','execute')"),false);
 });
+
+test("Status SMS opt-in queues one welcome first and never replays older notifications",async()=>{
+ const {job,token}=await readyReturn("sms-status-welcome");
+ const flow=await value<string>("select flow_id from public.jobs where id=$1",[job]);
+ await db.query("update private.sms_settings set enabled=true,activated_at=now()-interval '1 day' where unit_id=$1",[unit]);
+ const old=await value<string>("insert into public.notifications(unit_id,event,entity_id,dedupe_key,payload,created_at) values($1,'JOB_STATUS_UPDATE',$2,'sms-old:'||($2::uuid)::text,'{}',now()-interval '1 hour') returning id",[unit,job]);
+ await value("select public.set_sms_consent($1,'status','+18015550199',true)",[token]);
+ const grantedAt=await value("select granted_at::text from private.sms_consents where flow_id=$1",[flow]);
+ await value("select public.set_sms_consent($1,'status','+18015550199',true)",[token]);
+ assert.equal(String(await value("select granted_at::text from private.sms_consents where flow_id=$1",[flow])),String(grantedAt));
+ assert.equal(Number(await value("select count(*) from public.notifications where entity_id=$1 and event='SMS_WELCOME'",[job])),1);
+ assert.equal(await value("select status from private.sms_deliveries where notification_id=$1",[old]),"Skipped");
+ const welcome=await value<string>("select id from public.notifications where entity_id=$1 and event='SMS_WELCOME'",[job]);
+ const future=await value<string>("insert into public.notifications(unit_id,event,entity_id,dedupe_key,payload) values($1,'JOB_STATUS_UPDATE',$2,'sms-future:'||($2::uuid)::text,'{}') returning id",[unit,job]);
+ // Isolate this test's queue from earlier fixture notifications; never contacts SNS.
+ await db.query("update private.sms_deliveries set status='Skipped' where status='Pending' and flow_id is distinct from $1",[flow]);
+ await supportWorker(async()=>{
+ const first=await value<{id:string;claim:string}>("select public.claim_sms()");assert.equal(first.id,welcome);
+ assert.equal(await value("select public.claim_sms()"),null);
+ await value("select public.finish_sms($1,$2,'Sent','mock-welcome',null)",[first.id,first.claim]);
+ const second=await value<{id:string}>("select public.claim_sms()");assert.equal(second.id,future);
+ });
+ await assert.rejects(value("select public.set_sms_consent('bad','status','+18015550199',true)"),/unavailable/);
+});
+
+test("Public intake accepts an omitted phone without matching other blank-phone customers",async()=>{
+ const existing=await createCustomer("Blank Phone Existing","blank-phone-existing");
+ await db.query("update public.customers set phone='' where id=$1",[existing.id]);
+ await supportWorker(async()=>{
+ const payload={contact:{name:"Optional Phone Customer",email:"optional-intake@example.test",phone:""},service:{method:"Drop-off"},quote_items:[{article:"Battery",quantity:1}],sms:{granted:false}};
+ const key="92000000-0000-0000-0000-000000000099";
+ const result=await value<{reference:string}>("select public.submit_get_tagged_v2($1,$2,$3::jsonb)",[key,"1".repeat(64),JSON.stringify(payload)]);assert.ok(result.reference);
+ assert.equal(await value("select matching from private.get_tagged_receipts where id=$1",[key]),"new");
+ assert.equal(Number(await value("select cardinality(candidates) from private.get_tagged_receipts where id=$1",[key])),0);
+ });
+});

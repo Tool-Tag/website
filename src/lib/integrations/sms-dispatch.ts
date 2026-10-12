@@ -10,6 +10,7 @@ export async function dispatchSms(db: SupabaseClient) {
     const { data: stored, error } = await db.rpc("sms_runtime_config");
     if (error || !stored) return summary; // Deployment without the additive migration remains safe.
     const config = resolveSmsConfig(stored);
+    if (!config?.enabled || !["live","test"].includes(process.env.TOOLTAG_SMS_MODE ?? "")) return summary;
     for (let i = 0; i < 10; i++) {
       const { data: event, error: claimError } = await db.rpc("claim_sms");
       if (claimError || !event) break;

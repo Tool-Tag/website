@@ -1633,3 +1633,7 @@ body:has(.get-tagged-react-dialog[open]) {
 .legal-page section { margin-top: 2rem; }
 .legal-page h1 { line-height: 1.2; }
 .legal-page li { margin-bottom: .6rem; }
+
+.intake-sms-consent { grid-column: 1 / -1; font-size: .8rem; line-height: 1.5; }
+.sms-opt-in-dialog { width: min(95vw, 600px); max-height: 90vh; overflow: auto; border: 1px solid var(--line); border-radius: 16px; padding: 24px; background: var(--panel, #10151c); color: var(--text, #fff); }
+.sms-opt-in-dialog::backdrop { background: rgb(0 0 0 / .75); }

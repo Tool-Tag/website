@@ -1,4 +1,4 @@
-import { SMS_CONSENT_DISCLOSURE, smsPolicyLinks } from "@/lib/domain/sms-consent";
+import { SMS_CONSENT_DISCLOSURE, SMS_POLICY_ACCEPTANCE, smsPolicyLinks } from "@/lib/domain/sms-consent";
 import { normalizeSmsPhone } from "@/lib/integrations/sms";
 import { PHONE_VERIFICATION_COOKIE, verifiedPhone } from "@/lib/integrations/phone-verification";
 import { createHash, randomUUID } from "node:crypto";
@@ -151,14 +151,14 @@ export async function POST(request: NextRequest) {
     }
 
     const customerRequest = parsed.data;
-    if (!(await verifiedPhone(customerRequest.contact.phone, request.cookies.get(PHONE_VERIFICATION_COOKIE)?.value))) return noStore(NextResponse.json({error:"Verify your phone number before submitting your request."},{status:400}));
+    if (customerRequest.contact.phone && !(await verifiedPhone(customerRequest.contact.phone, request.cookies.get(PHONE_VERIFICATION_COOKIE)?.value))) return noStore(NextResponse.json({error:"Verify your phone number before submitting your request."},{status:400}));
     const links=smsPolicyLinks(), smsPhone=normalizeSmsPhone(customerRequest.sms_phone || customerRequest.contact.phone);
-    if(customerRequest.sms_opt_in && (!links || !smsPhone)) return noStore(NextResponse.json({error:"SMS updates require a valid mobile number and published Privacy/Terms links."},{status:400}));
+    if(customerRequest.sms_opt_in && (!links || !smsPhone || !customerRequest.sms_policy_accepted)) return noStore(NextResponse.json({error:"SMS updates require a valid mobile number and acceptance of Terms of Service and Privacy Policy."},{status:400}));
     const pickup = customerRequest.service.method === "Pickup";
 
     const payload = {
       ...customerRequest,
-      sms: {granted:customerRequest.sms_opt_in,phone:smsPhone || "",privacy_url:links?.privacy || "",terms_url:links?.terms || "",disclosure:SMS_CONSENT_DISCLOSURE},
+      sms: {granted:customerRequest.sms_opt_in,phone:smsPhone || "",privacy_url:links?.privacy || "",terms_url:links?.terms || "",policy_accepted:customerRequest.sms_policy_accepted,disclosure:SMS_CONSENT_DISCLOSURE+"\n"+SMS_POLICY_ACCEPTANCE},
       service: pickup
         ? {
             ...customerRequest.service,

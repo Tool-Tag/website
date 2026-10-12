@@ -48,9 +48,12 @@ export async function sendTestSms(_state: SmsActionState, form: FormData): Promi
 export async function saveSmsConsent(_state: SmsActionState, form: FormData): Promise<SmsActionState> {
   const db = await supabase(), granted = form.get("sms_opt_in") === "on";
   const phone = normalizeSmsPhone(String(form.get("sms_phone") ?? ""));
+  if (form.get("accept_sms") === "yes" && !granted) return {error:"Check the SMS consent checkbox before accepting."};
+  if (granted && form.get("sms_policy_accepted") !== "on") return {error:"Accept Terms of Service and Privacy Policy to enable SMS."};
   if (granted && !phone) return { error: "Enter a valid mobile number with country code." };
   if(!(await smsGrantAllowed(db,String(form.get("token") || ""),String(form.get("scope") || ""),phone || "",granted))) return {error:"New SMS subscriptions require published Privacy Policy and Terms links."};
   const { error } = await db.rpc("set_sms_consent", { p_token: String(form.get("token") ?? ""), p_scope: String(form.get("scope") ?? ""), p_phone: phone ?? "", p_granted: granted });
   if (error) return { error: "SMS preferences could not be saved. Check your secure link and try again." };
+  if(form.get("scope") === "status") revalidatePath(`/status/${String(form.get("token"))}`);
   return { message: granted ? "SMS consent saved for this quote/job." : "SMS consent withdrawn for this number." };
 }
