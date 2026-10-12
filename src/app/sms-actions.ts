@@ -1,4 +1,5 @@
 "use server";
+import { smsGrantAllowed } from "@/lib/integrations/sms-policy";
 import { revalidatePath } from "next/cache";
 import { context } from "@/lib/domain/context";
 import { supabase } from "@/lib/supabase/server";
@@ -48,6 +49,7 @@ export async function saveSmsConsent(_state: SmsActionState, form: FormData): Pr
   const db = await supabase(), granted = form.get("sms_opt_in") === "on";
   const phone = normalizeSmsPhone(String(form.get("sms_phone") ?? ""));
   if (granted && !phone) return { error: "Enter a valid mobile number with country code." };
+  if(!(await smsGrantAllowed(db,String(form.get("token") || ""),String(form.get("scope") || ""),phone || "",granted))) return {error:"New SMS subscriptions require published Privacy Policy and Terms links."};
   const { error } = await db.rpc("set_sms_consent", { p_token: String(form.get("token") ?? ""), p_scope: String(form.get("scope") ?? ""), p_phone: phone ?? "", p_granted: granted });
   if (error) return { error: "SMS preferences could not be saved. Check your secure link and try again." };
   return { message: granted ? "SMS consent saved for this quote/job." : "SMS consent withdrawn for this number." };

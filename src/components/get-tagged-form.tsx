@@ -1,4 +1,5 @@
 "use client";
+import { SmsConsentFields } from "./sms-consent";
 import { PhoneVerification } from "./phone-verification";
 
 import { useEffect, useRef, useState } from "react";
@@ -119,7 +120,8 @@ export function GetTaggedForm({
     if (submitting.current) return;
 
     setError("");
-    const parsed = getTaggedRequestSchema.safeParse(request);
+    const fields = new FormData(event.currentTarget);
+    const parsed = getTaggedRequestSchema.safeParse({...request,sms_opt_in:fields.get("sms_opt_in")==="on",sms_phone:String(fields.get("sms_phone") || request.contact.phone)});
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Review the form and try again.");
       return;
@@ -231,6 +233,8 @@ export function GetTaggedForm({
         </div>
 
         <PhoneVerification phone={request.contact.phone} />
+        <SmsConsentFields />
+        <p className="muted">SMS is optional. Leave the mobile number blank to use the contact phone above. Use your own mobile number if the company phone cannot receive texts.</p>
         <details>
           <summary>Company details (optional)</summary>
           <div className="intake-grid">

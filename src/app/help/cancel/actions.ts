@@ -1,4 +1,6 @@
 "use server";
+import { SMS_CONSENT_DISCLOSURE, smsPolicyLinks } from "@/lib/domain/sms-consent";
+import { normalizeSmsPhone } from "@/lib/integrations/sms";
 
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
@@ -44,12 +46,15 @@ export async function requestCancellationAccess(
       return { error: "Enter your name, email, and phone number." };
     }
 
+    const granted=form.get("sms_opt_in")==="on",links=smsPolicyLinks(),smsPhone=normalizeSmsPhone(phone);
+    if(granted && (!links || !smsPhone)) return {error:"SMS updates require a valid mobile number and published Privacy/Terms links."};
     const db = serviceClient();
-    const { data, error } = await db.rpc("request_cancellation_access", {
+    const { data, error } = await db.rpc(granted ? "request_cancellation_access_with_sms":"request_cancellation_access", {
       p_network: await networkFingerprint(),
       p_name: name,
       p_email: email,
       p_phone: phone,
+      ...(granted ? {p_sms:{granted:true,phone:smsPhone,privacy_url:links!.privacy,terms_url:links!.terms,disclosure:SMS_CONSENT_DISCLOSURE}}:{}),
     });
 
     if (error) return { error: error.message };

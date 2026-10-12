@@ -1,4 +1,5 @@
 "use server";
+import { smsGrantAllowed } from "@/lib/integrations/sms-policy";
 import { canMutate, driverOnly } from "@/lib/auth/permissions";
 import { stripeTestCustomer } from "@/lib/payments/stripe-test-customer";
 import { phoneVerificationEnabled, verifiedPhone } from "@/lib/integrations/phone-verification";
@@ -628,6 +629,7 @@ export async function customerAction(
     const smsGranted = form.get("sms_opt_in") === "on";
     const smsPhone = normalizeSmsPhone(String(form.get("sms_phone") || ""));
     if (smsGranted && !smsPhone) return { error: "Enter a valid mobile number for SMS updates." };
+    if(!(await smsGrantAllowed(db,token,"quote",smsPhone || "",smsGranted))) return {error:"New SMS subscriptions require published Privacy Policy and Terms links. You can continue without SMS."};
     const consent = await db.rpc("set_sms_consent", {p_token: token, p_scope: "quote", p_phone: smsPhone || "", p_granted: smsGranted});
     if (consent.error) return {error: "SMS preferences could not be saved. Please try again."};
 

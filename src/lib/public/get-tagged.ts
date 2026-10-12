@@ -106,6 +106,8 @@ export const getTaggedRequestSchema = z
       .min(1, "Add at least one item.")
       .max(20),
     notes: z.string().trim().max(2000),
+    sms_opt_in: z.boolean().default(false),
+    sms_phone: z.string().trim().max(40).default(""),
   })
   .superRefine((request, ctx) => {
     if (request.service.method === "Pickup" && !request.service.address) {
@@ -156,6 +158,8 @@ export function emptyGetTaggedRequest(): GetTaggedRequest {
       company_email: "",
       company_phone: "",
     },
+    sms_opt_in: false,
+    sms_phone: "",
     service: { method: "Not sure", address: "" },
     items: [emptyItem()],
     notes: "",

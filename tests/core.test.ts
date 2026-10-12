@@ -463,3 +463,14 @@ test("Support subject mismatch retries only a definite 400, never an ambiguous s
  await assert.rejects(new SupportGmail(supportTestEnv,ambiguous).send(supportReply),/GMAIL_DELIVERY_UNKNOWN/);assert.equal(attempts,1);
  assert.throws(()=>parseSupportMessage({id:"x",threadId:"x",internalDate:String(Date.now())},{TOOLTAG_INBOX_SUPPORT_ADDRESS:"quotes@tooltag.martinlab.studio"}),/SUPPORT_ALIAS_INVALID/);
 });
+
+import { smsPolicyLinks } from "../src/lib/domain/sms-consent";
+import { emptyGetTaggedRequest, getTaggedRequestSchema } from "../src/lib/public/get-tagged";
+test("SMS policy links require approved HTTPS URLs and intake consent defaults to unchecked",()=>{
+ assert.equal(smsPolicyLinks({}),null);assert.equal(smsPolicyLinks({privacy:"javascript:alert(1)",terms:"https://tooltag.example/terms"}),null);
+ assert.equal(smsPolicyLinks({privacy:"http://tooltag.example/privacy",terms:"https://tooltag.example/terms"}),null);
+ assert.deepEqual(smsPolicyLinks({privacy:"https://tooltag.example/privacy",terms:"https://tooltag.example/terms"}),{privacy:"https://tooltag.example/privacy",terms:"https://tooltag.example/terms"});
+ const request=emptyGetTaggedRequest();Object.assign(request.contact,{name:"TEST",email:"test@example.test",phone:"3852142163"});Object.assign(request.items[0],{article:"Battery",brand:"Dewalt"});Object.assign(request.items[0].marks[0],{text:"TEST",location:"Left"});
+ const {sms_opt_in,sms_phone,...legacy}=request;assert.equal(sms_opt_in,false);assert.equal(sms_phone,"");assert.equal(getTaggedRequestSchema.parse(legacy).sms_opt_in,false);
+ assert.equal(getTaggedRequestSchema.parse({...request,sms_opt_in:true,sms_phone:"+13852142163"}).sms_opt_in,true);
+});

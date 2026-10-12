@@ -1827,3 +1827,29 @@ test("Settings profile validates email and limits, supports clearing optional va
  assert.equal(await value("select business_contact_phone from public.unit_settings where unit_id=$1",[unit]),null);
  assert.equal(await value("select business_contact_email from public.unit_settings where unit_id=$1",[unit]),null);
 });
+
+const fixtureSmsConsent={granted:true,phone:"+13852142163",privacy_url:"https://tooltag.example/privacy",terms_url:"https://tooltag.example/terms",disclosure:"Fixture explicit ToolTag SMS consent"};
+test("Get Tagged records explicit consent on its Draft Quote flow, never auto-opts-in or replays notifications",async()=>{
+ const customer=await createCustomer("TEST-Intake Consent","intake-sms"),quote=await createQuote(customer.id);
+ const flow=await value<string>("select flow_id from public.quotes where id=$1",[quote]);
+ const deliveries=Number(await value("select count(*) from private.sms_deliveries"));
+ const receipt=await value<string>("insert into private.get_tagged_receipts(id,fingerprint,details,matching,candidates,quote_id,customer_id) values(gen_random_uuid(),repeat('a',64),$1::jsonb,'created','{}',$2,$3) returning id",[JSON.stringify({contact:{name:"TEST-Intake Consent",email:"intake-sms@example.test",phone:"3852142163"},sms:fixtureSmsConsent}),quote,customer.id]);
+ assert.equal(await value("select granted from private.sms_consents where flow_id=$1",[flow]),true);assert.equal(await value("select phone from private.sms_consents where flow_id=$1",[flow]),"+13852142163");
+ assert.match(await value<string>("select disclosure from private.sms_consent_events where flow_id=$1",[flow]),/Privacy Policy: https:\/\/tooltag.example\/privacy/);
+ await db.query("update private.get_tagged_receipts set quote_id=quote_id where id=$1",[receipt]);assert.equal(Number(await value("select count(*) from private.sms_consent_events where flow_id=$1",[flow])),1);
+ assert.equal(Number(await value("select count(*) from private.sms_deliveries")),deliveries);
+ const other=await createQuote(customer.id);const otherFlow=await value<string>("select flow_id from public.quotes where id=$1",[other]);
+ await value("select private.record_web_sms_consent($1,$2::jsonb,'get-tagged')",[otherFlow,JSON.stringify({...fixtureSmsConsent,granted:false})]);assert.equal(Number(await value("select count(*) from private.sms_consents where flow_id=$1",[otherFlow])),0);
+ await assert.rejects(value("select private.record_web_sms_consent($1,$2::jsonb,'get-tagged')",[otherFlow,JSON.stringify({...fixtureSmsConsent,privacy_url:""})]),/published policy links/);
+});
+test("Cancellation phone lookup opt-in is service-only and cannot change the consent recipient",async()=>{
+ const customer=await createCustomer("TEST-Lookup Consent","lookup-sms"),quote=await createQuote(customer.id);
+ await value("select public.send_quote($1)",[quote]);
+ const consent={...fixtureSmsConsent,phone:"+1"+customer.phone};
+ const args=['d'.repeat(64),"TEST-Lookup Consent","lookup-sms@example.test",customer.phone,JSON.stringify(consent)];
+ await assert.rejects(value("select public.request_cancellation_access_with_sms($1,$2,$3,$4,$5::jsonb)",args),/Server credentials/);
+ await supportWorker(()=>value("select public.request_cancellation_access_with_sms($1,$2,$3,$4,$5::jsonb)",args));
+ const flow=await value<string>("select flow_id from public.quotes where id=$1",[quote]);assert.equal(await value("select phone from private.sms_consents where flow_id=$1",[flow]),consent.phone);
+ await supportWorker(async()=>{await assert.rejects(value("select public.request_cancellation_access_with_sms($1,$2,$3,$4,$5::jsonb)",[...args.slice(0,4),JSON.stringify(fixtureSmsConsent)]),/entered customer phone/);});
+ assert.equal(await value("select has_function_privilege('anon','public.request_cancellation_access_with_sms(text,text,text,text,jsonb)','execute')"),false);
+});

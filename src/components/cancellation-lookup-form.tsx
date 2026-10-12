@@ -1,5 +1,6 @@
 "use client";
 
+import { SmsConsentCheckbox } from "./sms-consent";
 import { useActionState } from "react";
 import {
   requestCancellationAccess,
@@ -58,6 +59,7 @@ export function CancellationLookupForm() {
           <input name="phone" type="tel" required autoComplete="tel" />
         </label>
 
+        <SmsConsentCheckbox/>
         {state.error && <p className="notice error">{state.error}</p>}
 
         <button disabled={pending}>

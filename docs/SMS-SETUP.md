@@ -73,3 +73,18 @@ Current TEST fixtures use the shared test recipient configured in Settings. Mart
 ## Short customer SMS format
 
 No free-form email text, HTML, help footer or long explanations are copied into alert SMS. Plain English ASCII labels preserve GSM-7 encoding. Aim for one 160-character segment; the existing capability URL and identifier are never truncated. Longer full links can require multiple segments. No URL shortener or token rotation is introduced. SNS STOP handling and existing explicit consent/withdrawal remain enforced. One-time verification codes and admin test messages keep their dedicated formats.
+
+## Public phone forms / policy links (2026-10-12)
+
+Optional unchecked SMS consent now appears in Get Tagged (desktop modal and standalone/mobile form), Review & Accept/Quote, status SMS preferences and the public cancellation/service lookup. Get Tagged includes an optional SMS mobile field so a company landline need not receive alerts. The checkbox applies to the selected mobile number, not automatically to every company contact. Staff-only customer/contact, business settings, AWS origination and test-number fields are NOT customer consent surfaces; merely entering a number there never subscribes a customer.
+
+Both approved published HTTPS URLs are required in Vercel and the next rebuild:
+
+- `NEXT_PUBLIC_TOOLTAG_PRIVACY_URL`
+- `NEXT_PUBLIC_TOOLTAG_TERMS_URL`
+
+No approved URLs/pages were present in this repository at implementation time; these values remain blank, with no invented legal text, no broken placeholder links and no Customer Agreement changes. When missing, NEW subscriptions are disabled in UI and rejected by normal application grant actions; requests/quote acceptance still work without SMS. Existing subscribed customers can retain their same number or revoke consent. Configure actual approved URLs and rebuild before expecting new SMS opt-ins.
+
+The Get Tagged payload stores explicit consent/disclosure/policy URLs with the receipt. The additive receipt trigger attaches consent when the Draft Quote flow is created, including delayed admin matching. It does not generate/replay SMS notifications or overwrite an existing flow choice. Optional cancellation lookup uses the entered customer number and only records consent after the existing exact name/email/phone lookup matches active services; its new RPC is service-only. Ordinary lookup without SMS retains the existing RPC/behavior.
+
+Additive migration `20261012175943_public_intake_sms_consent.sql` applied and verified via connector in boft-core as history version `20261012180626`, name `20261012175943_public_intake_sms_consent`. Original applied migration files unchanged; no history repair. No real SMS/email was sent for implementation/testing. Local typecheck/lint/128 tests/build pass. Tests cover unchecked/default consent, policy URLs, intake-to-Draft-flow recording, idempotence, no replay and lookup recipient/service-role restrictions.
