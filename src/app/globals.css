@@ -1620,3 +1620,7 @@ body:has(.get-tagged-react-dialog[open]) {
 .customer-arrival-banner{position:sticky;top:0;z-index:30;background:#c75c08;color:#fff;padding:18px;border-radius:12px;display:grid;gap:12px}.delivery-waiting{opacity:.55;filter:grayscale(1)}.shop-item-check{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:12px 0}
 
 .route-check-pending{border-color:#e08b28;background:#35220e;color:#ffdaaa}.route-check-pending summary{font-size:18px;min-height:48px;cursor:pointer}.delivery-ack-panel .checkbox{min-height:48px}
+
+.support-layout{display:grid;grid-template-columns:minmax(240px,1fr) minmax(0,2fr);gap:18px;margin-top:20px;align-items:start}
+.support-tabs{flex-wrap:wrap}.support-card{display:flex;flex-direction:column;gap:7px;padding:16px;border:1px solid var(--border,#293241);border-radius:12px;margin:10px 0;overflow-wrap:anywhere}.support-card.selected{border-color:#e4b64b}.support-message{padding:16px;border:1px solid #293241;border-radius:12px;margin:14px 0;overflow-wrap:anywhere}.support-message.outbound{background:#141e30}.support-message small{display:block;color:#a2afc0;margin-top:8px}.support-message pre{white-space:pre-wrap;font:inherit;overflow-wrap:anywhere}.support-reply textarea{width:100%;margin:10px 0}
+@media(max-width:800px){.support-layout{grid-template-columns:1fr}.support-tabs .button{flex:1;text-align:center}}

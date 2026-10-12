@@ -1736,3 +1736,64 @@ test("New Owner authority comes from roles, not legacy admin membership",async()
  const directory=await value<{users:{id:string}[]}>("select public.rbac_directory()");assert.ok(directory.users.some(u=>u.id===secondOwner));
  });
 });
+
+async function supportWorker<T>(action:()=>Promise<T>) {
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+ try{return await action();}finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
+}
+function inboxMessage(id:string,thread:string,extra:Record<string,unknown>={}) {
+ return {gmail_message_id:id,gmail_thread_id:thread,mailbox:"support",sender_email:"support-customer@example.test",sender_name:"TEST-Support Customer",subject:"Question about my tools",rfc_message_id:`<${id}@example.test>`,references_header:"",in_reply_to:"",body:"Please help with my tools.",sent_at:new Date().toISOString(),...extra};
+}
+test("Support inbox deduplicates mail, opens a numbered case on reply, preserves signature and reopens closed cases",async()=>{
+ const customer=await createCustomer("TEST-Support Customer","support-customer");
+ const cid=await supportWorker(()=>rpc("support_ingest",inboxMessage("inbox-1","thread-1")));
+ assert.equal(await supportWorker(()=>rpc("support_ingest",inboxMessage("inbox-1","thread-1"))),cid);
+ assert.equal(Number(await value("select count(*) from public.support_messages where conversation_id=$1",[cid])),1);
+ assert.equal(await value("select customer_id from public.support_conversations where id=$1",[cid]),customer.id);
+ assert.equal(await value("select case_code from public.support_conversations where id=$1",[cid]),null);
+ await value("select public.support_mark_read($1,now())",[cid]);
+ assert.equal(Number(await value("select unread_count from public.support_conversations where id=$1",[cid])),0);
+ const replyId=await value<string>("select gen_random_uuid()");
+ const reply=await value<{case_code:string;body:string;to:string;mailbox:string}>("select public.support_prepare_reply($1,$2,'Happy to help')",[cid,replyId]);
+ assert.match(reply.case_code,/^TT-C-\d{4}-\d{5,}$/);assert.match(reply.body,/Happy to help\n\n/);assert.equal(reply.to,"support-customer@example.test");assert.equal(reply.mailbox,"support");
+ await assert.rejects(value("select public.support_prepare_reply($1,$2,'duplicate')",[cid,replyId]),/already submitted/);
+ await supportWorker(()=>value("select public.support_finish_reply($1,'Sent','outbox-1','thread-new',null)",[replyId]));
+ await value("select public.support_close($1)",[cid]);assert.equal(await value("select status from public.support_conversations where id=$1",[cid]),"Closed");
+ const next=await supportWorker(()=>rpc("support_ingest",inboxMessage("inbox-2","thread-new")));
+ assert.equal(next,cid);assert.equal(await value("select status from public.support_conversations where id=$1",[cid]),"Open");assert.equal(Number(await value("select unread_count from public.support_conversations where id=$1",[cid])),1);
+ // Subject and References fallbacks, but never cross customer/department solely from a guessed case folio.
+ assert.equal(await supportWorker(()=>rpc("support_ingest",inboxMessage("inbox-3","thread-fallback",{subject:`[${reply.case_code}] Re: tools` }))),cid);
+ assert.equal(await supportWorker(()=>rpc("support_ingest",inboxMessage("inbox-4","thread-header",{in_reply_to:`<${replyId}@tooltag.martinlab.studio>`}))),cid);
+ const foreign=await supportWorker(()=>rpc("support_ingest",inboxMessage("inbox-spoof","thread-spoof",{sender_email:"other@example.test",subject:`[${reply.case_code}] Question`})));assert.notEqual(foreign,cid);
+ const hello=await supportWorker(()=>rpc("support_ingest",inboxMessage("inbox-hello","thread-hello",{mailbox:"hello",subject:`[${reply.case_code}] Question`})));assert.notEqual(hello,cid);
+});
+test("Support permission is enforced by RLS and RPC, disabled accounts lose inbox access, workers alone can ingest",async()=>{
+ const driver=await addStaff(['Driver'],'support-denied-driver');
+ await staffAs(driver,async()=>{
+ assert.equal(Number(await value("select count(*) from public.support_conversations")),0);assert.equal(Number(await value("select count(*) from public.support_messages")),0);assert.equal(Number(await value("select count(*) from public.support_threads")),0);
+ assert.equal(Number(await value("select public.support_attention()")),0);
+ await assert.rejects(value("select public.support_close(gen_random_uuid())"),/Support inbox permission/);
+ await assert.rejects(rpc("support_ingest",inboxMessage("bad","bad")),/permission denied/);
+ });
+ const employee=await addStaff(['Employee'],'support-employee');
+ await staffAs(employee,async()=>{assert.ok(Number(await value("select count(*) from public.support_conversations"))>0);assert.ok(Number(await value("select public.support_attention()"))>0);await assert.rejects(db.exec("update public.support_conversations set status='Closed'"),/permission denied/);});
+ const roles=await value<string[]>("select array_agg(role_id) from public.user_roles where user_id=$1",[employee]);await value("select public.rbac_save_user($1,'Disabled',false,$2::uuid[])",[employee,roles]);
+ await staffAs(employee,async()=>{assert.equal(Number(await value("select count(*) from public.support_conversations")),0);});
+ await assert.rejects(rpc("support_ingest",inboxMessage("no-worker","no-worker")),/Worker credentials/);
+ assert.equal(await value("select has_function_privilege('anon','public.support_ingest(jsonb)','execute')"),false);
+ assert.equal(await value("select has_function_privilege('authenticated','public.support_finish_reply(uuid,text,text,text,text)','execute')"),false);
+});
+test("Support worker leases prevent concurrent pulls and ambiguous replies are never re-sent automatically",async()=>{
+ const lease=await supportWorker(()=>value<{lease:string}>("select public.support_begin_sync()"));assert.ok(lease.lease);
+ assert.equal(await supportWorker(()=>value("select public.support_begin_sync()")),null);
+ await supportWorker(()=>value("select public.support_finish_sync($1,'next-page',null)",[lease.lease]));
+ const next=await supportWorker(()=>value<{lease:string;page_token:string}>("select public.support_begin_sync()"));assert.equal(next.page_token,"next-page");
+ await supportWorker(()=>value("select public.support_finish_sync($1,null,null)",[next.lease]));
+ const cid=await supportWorker(()=>rpc("support_ingest",inboxMessage("unknown-in","unknown-thread")));
+ const id=await value<string>("select gen_random_uuid()");await value("select public.support_prepare_reply($1,$2,'Pending test')",[cid,id]);
+ await supportWorker(()=>value("select public.support_finish_reply($1,'Unknown',null,null,'GMAIL_DELIVERY_UNKNOWN')",[id]));
+ await assert.rejects(value("select public.support_prepare_reply($1,gen_random_uuid(),'do not duplicate')",[cid]),/pending verification/);
+ await assert.rejects(value("select public.support_close($1)",[cid]),/pending reply/);
+ await supportWorker(()=>value("select public.support_finish_reply($1,'Sent','unknown-reconciled','unknown-thread',null)",[id]));
+ assert.equal(await value("select delivery_status from public.support_messages where id=$1",[id]),"Sent");
+});

@@ -21,6 +21,7 @@ const EMPTY_ATTENTION: WorkspaceAttention = {
   quotes: 0,
   jobs: 0,
   refunds: 0,
+  notifications: 0,
 };
 
 const ATTENTION_KEYS: AttentionKey[] = [
@@ -28,6 +29,7 @@ const ATTENTION_KEYS: AttentionKey[] = [
   "quotes",
   "jobs",
   "refunds",
+  "notifications",
 ];
 
 const ATTENTION_PATHS: Record<AttentionKey, string> = {
@@ -35,6 +37,7 @@ const ATTENTION_PATHS: Record<AttentionKey, string> = {
   quotes: "/app/quotes",
   jobs: "/app/jobs",
   refunds: "/app/refunds",
+  notifications: "/app/notifications",
 };
 
 const POLL_INTERVAL_MS = 30_000;
@@ -83,6 +86,7 @@ export function Nav({
     quotes: false,
     jobs: false,
     refunds: false,
+    notifications: false,
   });
   const nudgeTimers = useRef<Partial<Record<AttentionKey, number>>>({});
   const lastNudgeAt = useRef<Record<AttentionKey, number>>({
@@ -90,6 +94,7 @@ export function Nav({
     quotes: 0,
     jobs: 0,
     refunds: 0,
+    notifications: 0,
   });
   const bootstrapped = useRef(false);
 
@@ -309,6 +314,7 @@ export function Nav({
           title: "Refunds waiting to be issued",
           attentionKey: "refunds",
         },
+        { path: "notifications", label: "Notifications", count: liveAttention.notifications, title: "New emails and unread case replies", attentionKey: "notifications" },
         { path: "equipment", label: "Equipment" },
       ];
 

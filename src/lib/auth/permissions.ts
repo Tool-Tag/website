@@ -55,6 +55,7 @@ export function sectionPermissions(section: string): readonly Permission[] {
   switch (section) {
     case "jobs": case "job-extensions": return ["jobs.view"];
     case "quotes": case "get-tagged": case "accepted-documents": return ["quotes.view"];
+    case "notifications": return ["support.inbox"];
     case "customers": return ["customers.view"];
     case "pick-return": return ["pr.routes.plan", "pr.routes.live", "pr.receiving", "pr.returns", "pr.reschedule"];
     case "finance": case "finance-hub": case "job-receipts": case "proofpayment": return ["payments.view"];

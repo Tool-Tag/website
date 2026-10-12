@@ -1,3 +1,4 @@
+import { syncSupportInbox } from "@/lib/integrations/support-sync";
 import { dispatchSms } from "@/lib/integrations/sms-dispatch";
 import {processRouteRefunds} from "@/lib/payments/route-refunds";
 import { processAcceptedQueue } from "@/lib/documents/accepted-delivery";
@@ -27,6 +28,6 @@ export async function GET(request: Request) {
     return Response.json({ error: "Scheduled tasks failed" }, { status: 500 });
   await processRouteRefunds(db);
   await processAcceptedQueue(db);
-  const [messaging, sms] = await Promise.all([dispatchQuoteMail(db), dispatchSms(db)]);
-  return Response.json({ ok: true, messaging, sms });
+  const [messaging, sms, inbox] = await Promise.all([dispatchQuoteMail(db), dispatchSms(db), syncSupportInbox(db)]);
+  return Response.json({ ok: true, messaging, sms, inbox });
 }
