@@ -1627,3 +1627,9 @@ body:has(.get-tagged-react-dialog[open]) {
 
 .settings-tabs{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px}.settings-tabs .button{min-height:44px}.settings-tabs [aria-current="page"]{box-shadow:0 0 0 2px #e4b64b}
 @media(max-width:600px){.settings-tabs{display:grid;grid-template-columns:1fr 1fr}.settings-tabs .button{text-align:center}}
+
+.legal-page { max-width: 850px; }
+.legal-page article { margin-top: 2rem; line-height: 1.7; }
+.legal-page section { margin-top: 2rem; }
+.legal-page h1 { line-height: 1.2; }
+.legal-page li { margin-bottom: .6rem; }
