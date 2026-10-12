@@ -1,3 +1,4 @@
+import { RouteDeparture } from "@/components/route-departure";
 import {RouteItemVerification} from "@/components/route-item-verification";
 import {RouteExceptionControls} from "@/components/route-exception-controls";
 import {RouteNotificationControls} from "@/components/route-notification-controls";
@@ -36,7 +37,7 @@ export async function ReturnRoute({date}:{date:string}){
  const [orders,jobs,logistics,items,documents,flows,customers,extensions,balances]=results.map(r=>r.data??[]);
  const allowed=new Set((orders??[]).filter(o=>o.return_status=== "Delivery In Progress" || (o.return_window_start&&new Date(o.return_window_start).toLocaleDateString("en-CA",{timeZone:"America/Denver"})===date)).map(o=>o.job_id));
  const visible=(stops??[]).filter(s=>s.status!=="Cancelled"&&allowed.has(s.job_id)&&(items??[]).some(i=>i.job_id===s.job_id)&&((items??[]).filter(i=>i.job_id===s.job_id).every(i=>["Finished","Cancelled"].includes(i.stage))||(extensions??[]).some(x=>x.job_id===s.job_id&&["Requested","Draft","Sent","Approved"].includes(x.status))));
- return <section className="return-route driver-landing"><StatusRefresh channels={liveChannels.filter((value):value is string=>typeof value==="string")} />
+ return <section className="return-route driver-landing"><RouteDeparture/><StatusRefresh channels={liveChannels.filter((value):value is string=>typeof value==="string")} />
  <Link className="button secondary" href="/pick-return">← All routes</Link><p className="eyebrow">SUNDAY / RETURN</p><h1>{routeDateLabel(date)}</h1><p className="driver-window">2:00 PM–6:00 PM · Denver time</p><p>{visible.filter(s=>s.status==="Completed").length}/{visible.length} delivered</p>
  {(routes??[]).map(route=><RouteNotificationControls key={route.id} leg="Return" route={route.id} departed={route.departed_at} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}
  {(routes??[]).map(route=><RouteExceptionControls key={route.id} arrived={(stops??[]).some(s=>s.route_id===route.id&&s.status==="Arrived")} route={route.id} leg="Return" incident={(incidents??[]).find(i=>i.route_id===route.id)} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}

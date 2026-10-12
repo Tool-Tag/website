@@ -1797,3 +1797,33 @@ test("Support worker leases prevent concurrent pulls and ambiguous replies are n
  await supportWorker(()=>value("select public.support_finish_reply($1,'Sent','unknown-reconciled','unknown-thread',null)",[id]));
  assert.equal(await value("select delivery_status from public.support_messages where id=$1",[id]),"Sent");
 });
+
+test("Settings profile is Owner-only, ToolTag-only, and partial saves preserve other tabs and policy text",async()=>{
+ const before=await value<Record<string,unknown>>("select to_jsonb(s) from public.unit_settings s where unit_id=$1",[unit]);
+ const policyBefore=await value<string>("select string_agg(content,'|' order by id) from public.policies where unit_id=$1",[unit]);
+ await rpc("save_workspace_profile",{unit_id:unit,business_display_name:"TEST-ToolTag",business_contact_email:" HELLO@EXAMPLE.TEST ",business_contact_phone:"+13852142163"});
+ await rpc("save_workspace_profile",{unit_id:unit,route_departure_address:"TEST-Departure · 101 Shop Way, Draper, UT"});
+ const current=await value<Record<string,unknown>>("select to_jsonb(s) from public.unit_settings s where unit_id=$1",[unit]);
+ assert.equal(current.business_display_name,"TEST-ToolTag");assert.equal(current.business_contact_email,"hello@example.test");assert.equal(current.business_contact_phone,"+13852142163");assert.match(String(current.route_departure_address),/TEST-Departure/);
+ for(const key of ['timezone','pickup_route_iso_weekdays','return_route_iso_weekdays','max_pickup_stops_per_saturday','max_delivery_stops_per_sunday','second_delivery_attempt_fee','zelle_email','venmo_handle'])assert.deepEqual(current[key],before[key]);
+ assert.equal(await value("select string_agg(content,'|' order by id) from public.policies where unit_id=$1",[unit]),policyBefore);
+ const employee=await addStaff(['Employee'],'settings-profile-denied');
+ await staffAs(employee,async()=>{await assert.rejects(rpc("save_workspace_profile",{business_display_name:"Unauthorized"}),/Owner access/);});
+ const role=await value<string>("select public.rbac_save_role(null,'TEST Settings Only',array['settings.manage'])");
+ const user=await value<string>("insert into auth.users(id,email) values(gen_random_uuid(),'settings-only-c@example.test') returning id");
+ await value("select public.rbac_save_user($1,'Settings-only staff',true,array[$2]::uuid[])",[user,role]);
+ await staffAs(user,async()=>{await assert.rejects(rpc("save_workspace_profile",{business_display_name:"Not Owner"}),/Owner access/);});
+ await assert.rejects(rpc("save_workspace_profile",{unit_id:"10000000-0000-0000-0000-000000000001",business_display_name:"Do not touch BOFT"}),/ToolTag workspace only/);
+ assert.equal(await value("select has_function_privilege('anon','public.save_workspace_profile(jsonb)','execute')"),false);
+});
+test("Settings profile validates email and limits, supports clearing optional values, and existing settings cannot overwrite it",async()=>{
+ await assert.rejects(rpc("save_workspace_profile",{business_contact_email:"bad email"}),/valid business email/);
+ await assert.rejects(rpc("save_workspace_profile",{business_display_name:"X".repeat(161)}),/check constraint/);
+ await assert.rejects(rpc("save_workspace_profile",{route_departure_address:{nested:"invalid"}}),/Invalid workspace field/);
+ const departure=await value("select route_departure_address from public.unit_settings where unit_id=$1",[unit]);
+ await rpc("save_settings",{unit_id:unit,zelle_email:"payments@example.test"});
+ assert.equal(await value("select route_departure_address from public.unit_settings where unit_id=$1",[unit]),departure);
+ await rpc("save_workspace_profile",{business_contact_phone:" ",business_contact_email:""});
+ assert.equal(await value("select business_contact_phone from public.unit_settings where unit_id=$1",[unit]),null);
+ assert.equal(await value("select business_contact_email from public.unit_settings where unit_id=$1",[unit]),null);
+});
