@@ -1,3 +1,4 @@
+import {TaxBreakdown} from "@/components/tax-breakdown";
 import { SmsPreferences } from "@/components/sms-consent";
 export const maxDuration = 300;
 import Link from "next/link";
@@ -84,7 +85,7 @@ export default async function Review({
 
           <Panel title="Complete quote">
             <QuoteScope items={q.items} />
-            <h2>Total: {money(q.total)}</h2>
+            <TaxBreakdown pricing={q} subtotal={String(q.total)} rate="0" />
             {q.notes && <p>{q.notes}</p>}
           </Panel>
 
@@ -126,7 +127,8 @@ export default async function Review({
         <ReviewAcceptanceFlow
           token={token}
           items={q.items}
-          baseTotal={q.total}
+          baseTotal={q.subtotal ?? q.total}
+          taxRate={String(q.tax_rate ?? 0)}
           notes={q.notes}
           policy={q.policy}
           logistics={q.logistics}

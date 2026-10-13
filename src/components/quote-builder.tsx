@@ -5,6 +5,7 @@ import { useState, useActionState, useRef } from "react";
 import { QuoteImageInput } from "@/components/quote-image-input";
 import { QuoteScope } from "@/components/quote-scope";
 import { mutate } from "@/app/actions";
+import { TaxBreakdown } from "./tax-breakdown";
 import { quoteTotal, money } from "@/lib/domain/money";
 import {
   blankItem,
@@ -23,6 +24,7 @@ export function QuoteBuilder({
   notes,
   extensionId,
   getTaggedQuoteId,
+  taxRate="7.45",
 }: {
   customers: { id: string; name: string }[];
   customer?: string;
@@ -31,6 +33,7 @@ export function QuoteBuilder({
   notes?: string;
   extensionId?: string;
   getTaggedQuoteId?: string;
+  taxRate?: string;
 }) {
   const access = useAccess();
   const [items, setItems] = useState<QuoteItem[]>(
@@ -166,7 +169,7 @@ export function QuoteBuilder({
         )}
         {paintedQuantity(items) > 0 && <p>Paint Fill: {paintedQuantity(items)} piece(s) × $2 = {money(String(paintedQuantity(items) * 2))}. Charged once per piece, even when the piece has multiple colored engravings.</p>}
         {additionalEngravings(items)>0 && <p>Additional Engravings: {additionalEngravings(items)} × $5 = {money(String(additionalEngravings(items)*5))}</p>}
-        <h3>Total: {money(total)}</h3>
+        <TaxBreakdown subtotal={total} rate={taxRate} />
         <label style={{ margin: "20px 0" }}>
           General Notes
           <textarea name="notes" defaultValue={notes} />

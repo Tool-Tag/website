@@ -26,7 +26,7 @@ export async function Settings({ tab }: { tab?: string }) {
     if (error || !data) throw new Error("Could not load users and roles.");
     return <>{heading}<RolesSettings directory={data} /></>;
   }
-  const settings = active === "notifications" ? [] : await rows("unit_settings");
+  const settings = await rows("unit_settings");
   const s = settings[0];
   if (active === "general") {
     const [policies, categories] = await Promise.all([rows("policies", { order: "version" }), rows("categories")]);
@@ -154,9 +154,11 @@ export async function Settings({ tab }: { tab?: string }) {
   }
   if (active === "notifications") {
     const [mailResult, sms, notifications] = await Promise.all([owner.db.rpc("customer_mail_status"), owner.db.rpc("sms_settings_status"), rows("notifications", { order: "created_at", limit: 30 })]);
+    const accounts=await rows("accounts");
     const mail = mailResult.data;
     return <>{heading}
       <SmsSettings info={sms.data ?? {}} mode={process.env.TOOLTAG_SMS_MODE || "preview"} envConfigured={Boolean(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY)} envRegion={process.env.AWS_REGION || ""} envOrigin={process.env.TOOLTAG_SMS_ORIGINATION_NUMBER || ""} envTestPhone={process.env.TOOLTAG_SMS_TEST_PHONE || ""} encryptionReady={Boolean(process.env.TOOLTAG_SMS_SETTINGS_ENCRYPTION_KEY)} />
+<Panel title="SMS cost accounting"><Form operation="sms-cost-settings" fields={[{name:"sms_unit_cost",label:"Cost per AWS-accepted SMS (USD)",type:"number",step:"0.00000001",required:true,value:String(s?.sms_unit_cost??0.00645),help:"Each AWS-accepted send keeps its rate, including later delivery failures. Rejected/unsent requests have no accepted-send cost."},{name:"sms_expense_account_id",label:"SMS expense account",required:true,value:s?.sms_expense_account_id??"",options:accounts.filter(a=>a.active).map(a=>({value:a.id,label:a.name}))}]} back="/app/settings?tab=notifications" button="Save SMS Cost"/><p>Costs follow the Quote into its Job. They post under SMS when the Job completes or an unconverted Quote expires/is deleted. Amounts round once on the cumulative cost.</p><Link href="/app/finance/sms">View SMS costs</Link></Panel>
 <Panel title="Production Email">
         <p>Server mode: {process.env.TOOLTAG_MAIL_MODE || "preview"}</p>
         <p>Eligible notifications start: {denverDateTime(mail?.activated_at)}</p>
@@ -204,14 +206,15 @@ export async function Settings({ tab }: { tab?: string }) {
   </>;
   return <>{heading}
     <Panel title="Engraving Pricing"><p>Base service price is reviewed manually for each quote item.</p><p>The first engraving is included; each additional engraving costs $5 per physical piece.</p><p>Paint fill costs $2 per colored physical piece, once per piece.</p><p>Falcon image/logo preparation costs $3 per unique image/logo, once per quote.</p><p className="muted">These are the existing pricing rules. This page does not change accepted quote snapshots or pricing calculations.</p></Panel>
+    <Panel title="Utah Sales Tax"><Form operation="sales-tax-settings" fields={[{name:"sales_tax_rate",label:"Sales Tax Rate (%)",type:"number",step:"0.001",required:true,value:String(s?.sales_tax_rate ?? 7.45),help:"Applied to the service subtotal, including logistics fees. Existing sent and accepted quotes retain their stored rate."}]} back="/app/settings?tab=prices" button="Save Tax Rate" /></Panel>
     <Panel title="Logistics Fees"><Table headers={["Service", "Fee"]}>{LOGISTICS_OPTIONS.map(option => <tr key={option.code}><td>{option.name}</td><td>{money(option.fee.toFixed(2))}</td></tr>)}</Table></Panel>
     <Panel title="Payment Accounts and Return Retry">
-      <p className="muted">Identifiers belong to ToolTag. Venmo remains configurable until the real account is finalized.</p>
+      <p className="muted">Identifiers belong to ToolTag. Confirmed Venmo: @boftbuild — Bandits of the Framing.</p>
       <p>Card provider: <strong>{process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET ? "Stripe configured" : "Stripe not configured"}</strong></p>
       <p>Final in-person payments: Cash, Zelle, Venmo. Review logistics fees: Card, Zelle or Venmo only · no cash.</p>
       <Form operation="settings" fields={[
         { name: "zelle_email", label: "ToolTag Zelle identifier", value: s?.zelle_email ?? "", help: "Use the confirmed ToolTag payment account, never a customer account." },
-        { name: "venmo_handle", label: "ToolTag Venmo handle", value: s?.venmo_handle ?? "", help: "Pending account — leave blank until finalized." },
+        { name: "venmo_handle", label: "ToolTag Venmo handle", value: s?.venmo_handle ?? "", help: "Confirmed account: @boftbuild (Bandits of the Framing)." },
         { name: "second_delivery_attempt_fee", label: "Second Delivery Attempt Fee (USD)", type: "number", value: String(s?.second_delivery_attempt_fee ?? 10) },
       ]} back="/app/settings?tab=prices" button="Save Payment Settings" />
     </Panel>

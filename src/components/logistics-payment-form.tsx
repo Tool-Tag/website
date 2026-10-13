@@ -1,4 +1,7 @@
 "use client";
+import {ManualPaymentPayee,VenmoPaymentLink} from "./manual-payment-payee";
+import {TaxBreakdown} from "./tax-breakdown";
+import type {TaxBreakdown as TaxPricing} from "@/lib/domain/sales-tax";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { customerAction, type ActionState } from "@/app/actions";
@@ -9,6 +12,7 @@ type LogisticsPayment = {
   job_code: string;
   customer_name: string;
   fee_amount: number | string;
+  pricing?:TaxPricing; fee_pricing?:TaxPricing;
   balance_due: number | string;
   payment_status: string;
   payment_scope?: "full" | "fee_only" | null;
@@ -76,6 +80,7 @@ export function LogisticsPaymentForm({
     if (/^https?:\/\//.test(state.link)) window.location.assign(state.link);
   }, [state.link]);
 
+  const taxPricing=scope === "full" ? payment.pricing : payment.fee_pricing;
   const amount = useMemo(
     () =>
       scope === "full"
@@ -86,7 +91,8 @@ export function LogisticsPaymentForm({
 
   if (payment.payment_status === "paid_confirmed") {
     return (
-      <section className="panel">
+      <section className="panel"><ManualPaymentPayee/>
+        {taxPricing && <TaxBreakdown pricing={taxPricing} />}
         <h2>Payment confirmed</h2>
         <p className="notice success">
           Your logistics payment is confirmed. ToolTag can continue with the
@@ -98,7 +104,8 @@ export function LogisticsPaymentForm({
 
   if (payment.payment_status === "pending_verification") {
     return (
-      <section className="panel">
+      <section className="panel"><ManualPaymentPayee/>
+        {taxPricing && <TaxBreakdown pricing={taxPricing} />}
         <h2>Payment pending verification</h2>
         <p>
           <strong>Memo:</strong> {payment.memo}
@@ -111,7 +118,8 @@ export function LogisticsPaymentForm({
   }
 
   return (
-    <section className="panel">
+    <section className="panel"><ManualPaymentPayee/>
+        {taxPricing && <TaxBreakdown pricing={taxPricing} />}
       <h2>Pay logistics fee</h2>
       <p>
         Logistics fee: {money(payment.fee_amount)}. Card, Zelle, or Venmo. This
@@ -231,7 +239,7 @@ export function LogisticsPaymentForm({
 
         {method === "Venmo" && venmo && (
           <div className="payment-method-panel">
-            <CopyValue label="ToolTag Venmo" value={venmo} />
+            <CopyValue label="ToolTag Venmo" value={venmo} /><VenmoPaymentLink handle={venmo} />
             <CopyValue label="Memo" value={payment.memo} />
             <p>
               In the Zelle/Venmo description or memo, write:{" "}

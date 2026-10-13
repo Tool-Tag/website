@@ -1,4 +1,5 @@
 "use client";
+import {ManualPaymentPayee,VenmoPaymentLink} from "./manual-payment-payee";
 
 import { useActionState, useState } from "react";
 import { customerAction } from "@/app/actions";
@@ -50,7 +51,7 @@ export function PickupFeeForm({
   const venmoReady = Boolean(venmoHandle);
 
   return (
-    <section className="panel">
+    <section className="panel"><ManualPaymentPayee/>
       <h2>Pickup Service Fee</h2>
       <p>
         Amount due before Pickup scheduling: <strong>{money(amount)}</strong>
@@ -101,7 +102,7 @@ export function PickupFeeForm({
 
           {method === "Venmo" && venmoHandle && (
             <>
-              <CopyValue value={venmoHandle} label="Venmo" />
+              <CopyValue value={venmoHandle} label="Venmo" /><VenmoPaymentLink handle={venmoHandle} />
               <label>
                 Recommend Upload Proof · Payment screenshot (optional)
                 <PaymentProofInput />

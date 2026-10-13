@@ -1,4 +1,5 @@
 "use client";
+import {ManualPaymentPayee,VenmoPaymentLink} from "./manual-payment-payee";
 
 import { useActionState, useState } from "react";
 import { customerAction } from "@/app/actions";
@@ -49,7 +50,7 @@ export function CancellationBalanceForm({
   );
 
   return (
-    <section className="panel">
+    <section className="panel"><ManualPaymentPayee/>
       <p className="status-kicker">Cancellation balance</p>
       <h2>{money(amount)} due</h2>
       <p className="muted">
@@ -131,7 +132,7 @@ export function CancellationBalanceForm({
 
           {method === "Venmo" && venmoHandle && (
             <>
-              <CopyValue value={venmoHandle} label="Venmo" />
+              <CopyValue value={venmoHandle} label="Venmo" /><VenmoPaymentLink handle={venmoHandle} />
               <label>
                 Payment screenshot
                 <PaymentProofInput required />

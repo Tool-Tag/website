@@ -1,3 +1,6 @@
+import {can} from "@/lib/auth/permissions";
+import {SmsCosts} from "@/features/sms-costs";
+import { TaxBreakdown } from "@/components/tax-breakdown";
 import { PermissionGate } from "@/components/permission-provider";
 import { requirePermission } from "@/lib/domain/context";
 import { AcceptedDocuments } from "@/components/accepted-documents";
@@ -8,7 +11,7 @@ import { SendQuote } from "@/components/send-quote";
 import { QuoteScope } from "@/components/quote-scope";
 import { QuoteBuilder } from "@/components/quote-builder";
 import { QuoteTabs } from "@/components/quote-tabs";
-import { money, quoteTotal } from "@/lib/domain/money";
+import { quoteTotal } from "@/lib/domain/money";
 import { quoteStatusLabel } from "@/lib/domain/status-labels";
 export async function Quotes({
   id,
@@ -19,6 +22,8 @@ export async function Quotes({
   customer?: string;
   revise?: string;
 }) {
+  const {db:taxDb}=await context();
+  const {data:currentTaxRate}=await taxDb.rpc("sales_tax_rate");
   if (id === "new") {
     await requirePermission("quotes.manage");
     const customers = await rows("customers");
@@ -37,7 +42,7 @@ export async function Quotes({
         />
         <Panel>
           {customers.length ? (
-            <QuoteBuilder
+            <QuoteBuilder taxRate={String(currentTaxRate ?? 7.45)}
               customers={customers.map((c) => ({ id: c.id, name: c.name }))}
               customer={originalFlow?.customer_id ?? customer}
               revises={revise}
@@ -76,12 +81,14 @@ export async function Quotes({
     if (!q) return <Empty>Quote not found.</Empty>;
     const flow = (await rows("commercial_flows", { id: q.flow_id }))[0];
     const contact = flow ? (await rows("customers", { id: flow.customer_id }))[0] : null;
-    const {db}=await context();
+    const {db,access}=await context();
     const delivery=q.sent_at ? (await db.rpc("quote_delivery",{p_id:id})).data : null;
     const quoteMail = await db.from("notifications").select("created_at,mail_attempted_at,status").eq("entity_id",id).eq("event","Quote Sent").order("created_at",{ascending:false}).limit(1);
     const latestMail = quoteMail.data?.[0];
     const items = await rows("quote_items", { field: "quote_id", value: id });
     const jobs = await rows("jobs", { field: "flow_id", value: q.flow_id });
+    const agreement=(await rows("agreements",{field:"quote_id",value:id}))[0];
+    const displayedSnapshot=agreement?.commercial_snapshot ?? q.review_snapshot;
     const needsIntakeReview =
       q.source === "public_get_tagged" &&
       q.status === "Draft" &&
@@ -137,7 +144,7 @@ export async function Quotes({
 
             {contact ? (
               <Panel title="Price & Review">
-                <QuoteBuilder
+                <QuoteBuilder taxRate={String(q.tax_rate ?? currentTaxRate ?? 7.45)}
                   customers={[{ id: contact.id, name: contact.name }]}
                   customer={contact.id}
                   getTaggedQuoteId={id}
@@ -173,18 +180,8 @@ export async function Quotes({
           </>
         ) : (
           <Panel title="Quote Scope">
-            <QuoteScope items={items} />
-            <h2 style={{ marginTop: 20 }}>
-              Total:{" "}
-              {money(
-                quoteTotal(
-                  items.map((i) => ({
-                    quantity: i.quantity,
-                    unit_price: String(i.unit_price),
-                  })),
-                ),
-              )}
-            </h2>
+            <QuoteScope items={displayedSnapshot?.items ?? items} />
+            <TaxBreakdown pricing={displayedSnapshot?.subtotal!==undefined ? displayedSnapshot : undefined} subtotal={quoteTotal(items.map(i=>({quantity:i.quantity,unit_price:String(i.unit_price)})))} rate={String(q.tax_rate ?? 0)} />
             <p>{q.notes}</p>
           </Panel>
         )}
@@ -199,6 +196,7 @@ export async function Quotes({
             <SendQuote id={id} sent={Boolean(q.sent_at)} lastRequestedAt={latestMail?.mail_attempted_at || latestMail?.created_at || q.sent_at} email={delivery?.recipient || contact?.email} companyEmail={delivery?.recipient ? undefined : contact?.company_email} />
           </Panel>
         )}
+        {can(access,"payments.view")&&<SmsCosts quoteId={id}/>}
         <AcceptedDocuments quoteId={id} />
         {q.status === "Accepted" && (
           <p>

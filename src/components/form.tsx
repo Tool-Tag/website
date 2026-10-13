@@ -7,6 +7,7 @@ export type Field = {
   name: string;
   label: string;
   type?: string;
+  step?: string;
   required?: boolean;
   value?: string;
   options?: { value: string; label: string }[];
@@ -79,7 +80,7 @@ export function Form({
                 type={f.type ?? "text"}
                 required={f.required}
                 defaultValue={f.value}
-                step={f.type === "number" ? "0.01" : undefined}
+                step={f.step ?? (f.type === "number" ? "0.01" : undefined)}
               />
               {f.suggestions && (
                 <datalist id={`suggest-${f.name}`}>

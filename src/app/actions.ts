@@ -279,6 +279,10 @@ export async function mutate(
         name = "close_month";
         args = { p_unit: unit, p_month: p.month };
         break;
+      case "sms-cost-settings":
+        name="save_sms_cost_settings"; args={p_rate:p.sms_unit_cost,p_account:p.sms_expense_account_id}; break;
+      case "sales-tax-settings":
+        name="save_sales_tax_rate"; args={p_rate:p.sales_tax_rate}; break;
       case "workspace-profile":
         name = "save_workspace_profile";
         break;

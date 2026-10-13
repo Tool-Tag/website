@@ -1,3 +1,5 @@
+import {SmsCosts} from "@/features/sms-costs";
+import {RefundsPanel} from "@/features/refunds";
 import { can } from "@/lib/auth/permissions";
 import {ShopItemVerification} from "@/components/shop-item-verification";
 import {denverDateTime} from "@/lib/domain/time";
@@ -687,7 +689,8 @@ export async function Jobs({ id }: { id?: string }) {
         tabs={[
           { id: "work", label: "Work", content: workTab },
           { id: "details", label: "Details", content: detailsTab },
-          { id: "commercial", label: "Commercial", content: commercialTab },
+          { id: "commercial", label: "Commercial", content: <>{commercialTab}{can(access,"payments.view")&&<SmsCosts jobId={j.id}/>}</> },
+          ...((can(access,"payments.refund")||can(access,"payments.view"))?[{id:"refunds",label:"Refunds",content:<RefundsPanel jobId={j.id}/>}]:[]),
           { id: "evidence", label: "Evidence", content: evidenceTab },
           { id: "delivery", label: "Delivery", content: deliveryTab },
           { id: "activity", label: "Activity", content: activityTab },

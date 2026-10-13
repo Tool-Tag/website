@@ -1,3 +1,4 @@
+import {TaxBreakdown} from "@/components/tax-breakdown";
 import {cardPaymentsConfigured} from "@/lib/payments";
 import Link from "next/link";
 import { PaymentForm } from "@/components/payment-form";
@@ -26,6 +27,7 @@ export default async function PaymentPage({
     );
   }
 
+  const {data:taxPricing}=await db.rpc("public_payment_tax",{p_token:token,p_scope:"completion"});
   const payment = j.payment;
   const request = payment?.request;
 
@@ -34,6 +36,7 @@ export default async function PaymentPage({
       <main className="public">
         <p className="eyebrow">ToolTag · Payment</p>
         <h1>{j.code}</h1>
+        {taxPricing && <TaxBreakdown pricing={taxPricing} />}
         <section className="panel">
           <h2>Payment</h2>
           <p>
@@ -54,6 +57,7 @@ export default async function PaymentPage({
       <p className="muted">
         Delivery has been accepted. Choose how you would like to pay.
       </p>
+      {taxPricing && <TaxBreakdown pricing={taxPricing} />}
       <PaymentForm
         cardConfigured={cardPaymentsConfigured()}
         token={token}
