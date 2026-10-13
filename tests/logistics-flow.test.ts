@@ -256,11 +256,25 @@ before(async () => {
   );
 
   for (const file of (await readdir("supabase/migrations")).filter(file => file.endsWith(".sql") && !file.includes("_baseline_")).sort()) {
-    await db.exec(await readFile(`supabase/migrations/${file}`, "utf8"));
+    if(file==='20261013003000_manual_job_refunds.sql'){
+      await value("select public.publish_policy($1,$2,$3)",[unit,'TEST BACKFILL POLICY','Test-only backfill fixture.']);
+      const f=await driverReturnFixture('refund-backfill');
+      const due=await value<number>('select balance_due from public.job_commercial_totals where id=$1',[f.job]);
+      const payment=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',$3,'Final Balance') returning id",[unit,f.job,due]);await value('select public.confirm_payment_request($1)',[payment]);
+      const route=await value<string>('select route_id from public.pick_return_stops where id=$1',[f.stop]);
+      const incident=await value<string>('select public.report_driver_incident($1)',[route]);await value("select public.resolve_driver_incident($1,'Continued')",[incident]);
+      const comp=await value<string>('select id from public.route_compensations where incident_id=$1 and job_id=$2',[incident,f.job]);await value("select public.confirm_route_refund($1,'HISTORICAL-REFUND-TEST')",[comp]);
+      const notifications=await value<number>('select count(*) from public.notifications');const transactions=await value<number>('select count(*) from public.transactions');
+      await db.exec(await readFile(`supabase/migrations/${file}`, "utf8"));
+      assert.equal(Number(await value('select count(*) from public.notifications')),Number(notifications));assert.equal(Number(await value('select count(*) from public.transactions')),Number(transactions));
+      assert.equal(await value("select status from public.refund_requests where source_id=$1 and source_kind='Route'",[comp]),'Completed');
+      assert.equal(Number(await value("select processed_amount from public.refund_requests where source_id=$1 and source_kind='Route'",[comp])),5);
+    }else await db.exec(await readFile(`supabase/migrations/${file}`, "utf8"));
   }
 
 
 
+  await db.query("update public.unit_settings set sales_tax_rate=0 where unit_id=$1",[unit]);
   await value("select public.publish_policy($1,$2,$3)", [
     unit,
     "TEST AGREEMENT V1",
@@ -1235,50 +1249,51 @@ test('Replacement continues with $5 compensation; customer may reschedule and up
  assert.equal(Number(await value('select count(*) from public.route_compensations where incident_id=$1 and job_id=$2',[f.incident,f.job])),1);
 });
 
-test('Manual-method compensation requires actual refund proof and records one original-method financial refund',async()=>{
+async function manualRefundProof(job:string,request:string){
+ return value<string>("insert into public.documents(unit_id,job_id,refund_request_id,type,file_name,status,storage_status,uploaded_by) values($1,$2,$3,'Refund Review Evidence','test-proof.png','Available','stored',$4) returning id",[unit,job,request,admin]);
+}
+async function confirmRefundWindow(id:string){
+ await rpc('refund_request_action',{id,action:'confirm',reviewed:true});
+ // Advance the fixture's confirmed dates rather than changing the system clock.
+ await db.query("update public.refund_requests set confirmed_at=now()-interval '10 days',process_not_before=current_date-2,process_due=current_date where id=$1",[id]);
+}
+test('Manual route refunds require proof/reference, never use Cash and complete idempotently',async()=>{
  const f=await driverReturnFixture('incident-manual-refund');
  const due=await value<number>('select balance_due from public.job_commercial_totals where id=$1',[f.job]);
  const payment=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',$3,'Final Balance') returning id",[unit,f.job,due]);
  await value('select public.confirm_payment_request($1)',[payment]);
- const route=await freshIncidentRoute(f,'Return');
- const incident=await value<string>('select public.report_driver_incident($1)',[route]);
- await value('select public.resolve_driver_incident($1,$2)',[incident,'Continued']);
- const id=await value<string>('select id from public.route_compensations where incident_id=$1 and job_id=$2',[incident,f.job]);
- assert.equal(await value('select status from public.route_compensations where id=$1',[id]),'ManualRequired');
- await assert.rejects(value('select public.confirm_route_refund($1,$2)',[id,'']),/proof/);
- await value('select public.confirm_route_refund($1,$2)',[id,'ZELLE-REFUND-TEST']);
- await value('select public.confirm_route_refund($1,$2)',[id,'ZELLE-REFUND-TEST']);
- assert.equal(Number(await value('select paid_amount from public.route_compensations where id=$1',[id])),5);
- assert.equal(Number(await value("select count(*) from public.transactions where reference='ZELLE-REFUND-TEST' and type='REFUND'")),1);
-});
-test('Card refund pending is never recorded paid; retry and later $10 upgrade issue only the remaining amount',async()=>{
- const f=await driverReturnFixture('incident-card-refund');
- const due=await value<number>('select balance_due from public.job_commercial_totals where id=$1',[f.job]);
- const payment=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',$3,'Final Balance') returning id",[unit,f.job,due]);
- await value('select public.confirm_payment_request($1)',[payment]);
- await db.query("update public.transactions set payment_method='Card',reference='STRIPE:cs_refund_test' where id in (select c.transaction_id from public.collections c join public.sales s on s.transaction_id=c.sale_id where s.job_id=$1)",[f.job]);
  const route=await freshIncidentRoute(f,'Return');const incident=await value<string>('select public.report_driver_incident($1)',[route]);
  await value('select public.resolve_driver_incident($1,$2)',[incident,'Continued']);
- const id=await value<string>('select id from public.route_compensations where incident_id=$1 and job_id=$2',[incident,f.job]);
- await db.query("select set_config('request.jwt.claim.role','service_role',false)");
- let claimed=(await value<{id:string;claim:string;amount:number}[]>('select public.claim_route_refunds()')).find(x=>x.id===id)!;
- assert.equal(Number(claimed.amount),5);
- await value('select public.finish_route_refund($1,$2,$3,$4)',[id,claimed.claim,'re_test_pending','pending']);
- assert.equal(Number(await value('select paid_amount from public.route_compensations where id=$1',[id])),0);
- await db.query("select set_config('request.jwt.claim.role','authenticated',false)");
+ const id=await value<string>("select id from public.refund_requests where job_id=$1 and source_kind='Route'",[f.job]);
+ assert.equal(Number(await value('select amount from public.refund_requests where id=$1',[id])),5);
+ await assert.rejects(value('select public.confirm_route_refund($1,$2)',[await value('select source_id from public.refund_requests where id=$1',[id]),'REF']),/Finance/);
+ await rpc('refund_request_action',{id,action:'confirm',reviewed:true});
+ await assert.rejects(rpc('refund_request_action',{id,action:'complete',method:'Zelle',reference:'REF'}),/business days/);
+ await confirmRefundWindow(id);
+ await assert.rejects(rpc('refund_request_action',{id,action:'complete',method:'Cash',reference:'REF'}),/Cash/);
+ const account=await value<string>('select t.account_id from public.transactions t join public.collections c on c.transaction_id=t.id join public.sales s on s.transaction_id=c.sale_id where s.job_id=$1 limit 1',[f.job]);
+ await assert.rejects(rpc('refund_request_action',{id,action:'complete',method:'Zelle',account_id:account,reference:'REF'}),/proof/);
+ const proof=await manualRefundProof(f.job,id);
+ await assert.rejects(rpc('refund_request_action',{id,action:'complete',method:'Zelle',account_id:account,proof_id:proof}),/reference/);
+ const payload={id,action:'complete',account_id:await value('select t.account_id from public.transactions t join public.collections c on c.transaction_id=t.id join public.sales s on s.transaction_id=c.sale_id where s.job_id=$1 limit 1',[f.job]),method:'Zelle',proof_id:proof,reference:'ZELLE-REFUND-TEST'};
+ await rpc('refund_request_action',payload);await rpc('refund_request_action',payload);
+ assert.equal(Number(await value("select count(*) from public.transactions where reference='ZELLE-REFUND-TEST' and type='REFUND'")),1);
+ assert.equal(await value('select status from public.refund_requests where id=$1',[id]),'Completed');
+ const snapshot=await value<{job_code:string;method:string;amount:number}>('select confirmation_snapshot from public.refund_requests where id=$1',[id]);assert.equal(Number(snapshot.amount),5);assert.equal(snapshot.method,'Zelle');assert.ok(snapshot.job_code);
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key like $1",['manual-refund-completed:'+id+':%'])),1);
+});
+test('Card driver-down creates pending obligations immediately; worker transfers nothing and upgrade remains single',async()=>{
+ const f=await driverReturnFixture('incident-card-refund');
+ const due=await value<number>('select balance_due from public.job_commercial_totals where id=$1',[f.job]);
+ const payment=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',$3,'Final Balance') returning id",[unit,f.job,due]);await value('select public.confirm_payment_request($1)',[payment]);
+ await db.query("update public.transactions set payment_method='Card',reference='STRIPE:cs_refund_test' where id in (select c.transaction_id from public.collections c join public.sales s on s.transaction_id=c.sale_id where s.job_id=$1)",[f.job]);
+ const route=await freshIncidentRoute(f,'Return');await value('select public.report_driver_incident($1)',[route]);
+ await value('select public.driver_incident_choice($1,$2,$3)',[f.job,f.token,'Wait']);
+ const id=await value<string>("select id from public.refund_requests where job_id=$1 and source_kind='Route'",[f.job]);assert.equal(Number(await value('select amount from public.refund_requests where id=$1',[id])),5);
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");try{assert.deepEqual(await value('select public.claim_route_refunds()'),[]);}finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
  await value('select public.driver_incident_choice($1,$2,$3)',[f.job,f.token,'Reschedule']);
- await db.query("update public.route_compensations set claim_until=now()-interval '1 second' where id=$1",[id]);
- await db.query("select set_config('request.jwt.claim.role','service_role',false)");
- try{
- claimed=(await value<{id:string;claim:string;amount:number}[]>('select public.claim_route_refunds()')).find(x=>x.id===id)!;
- assert.equal(Number(claimed.amount),5);
- await value('select public.finish_route_refund($1,$2,$3,$4)',[id,claimed.claim,'re_test_pending','succeeded']);
- await assert.rejects(value('select public.finish_route_refund($1,$2,$3,$4)',[id,claimed.claim,'re_test_pending','succeeded']),/claim/);
- const second=(await value<{id:string;claim:string;amount:number}[]>('select public.claim_route_refunds()')).find(x=>x.id===id)!;
- assert.equal(Number(second.amount),5);await value('select public.finish_route_refund($1,$2,$3,$4)',[id,second.claim,'re_test_second','succeeded']);
- assert.equal(Number(await value('select paid_amount from public.route_compensations where id=$1',[id])),10);
- assert.equal(await value('select status from public.route_compensations where id=$1',[id]),'Completed');
- }finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
+ assert.equal(Number(await value('select amount from public.refund_requests where id=$1',[id])),10);assert.equal(Number(await value('select processed_amount from public.refund_requests where id=$1',[id])),0);
+ assert.equal(Number(await value("select count(*) from public.refund_requests where job_id=$1 and source_kind='Route'",[f.job])),1);
 });
 
 
@@ -1888,4 +1903,171 @@ test("Public intake accepts an omitted phone without matching other blank-phone 
  assert.equal(await value("select matching from private.get_tagged_receipts where id=$1",[key]),"new");
  assert.equal(Number(await value("select cardinality(candidates) from private.get_tagged_receipts where id=$1",[key])),0);
  });
+});
+
+test("Utah tax pins Quote rate and charges the taxed service and logistics amounts",async()=>{
+ await value("select public.save_sales_tax_rate(7.45)");
+ try {
+ const customer=await createCustomer("Utah Tax Customer","utah-tax");const quote=await createQuote(customer.id,"40.00");
+ const token=await value<string>("select public.send_quote($1)",[quote]);
+ let preview=await value<{subtotal:number;tax_rate:number;tax_amount:number;total:number}>("select public.public_quote($1)",[token]);
+ assert.equal(preview.subtotal,40);assert.equal(preview.tax_amount,2.98);assert.equal(preview.total,42.98);
+ await value("select public.save_sales_tax_rate(8)");
+ preview=await value("select public.public_quote($1)",[token]);assert.equal(preview.tax_rate,7.45);
+ const accepted=await acceptWithLogistics(token,{option_code:"pickup_delivery",pickup_address:"101 Tax Way, Draper, UT",delivery_address:"101 Tax Way, Draper, UT",saturday_date:futureSaturday()});
+ const snapshot=await value<{subtotal:number;tax_rate:number;tax_amount:number;total:number}>("select commercial_snapshot from public.agreements where quote_id=$1",[quote]);
+ assert.equal(snapshot.subtotal,59.99);assert.equal(snapshot.tax_amount,4.47);assert.equal(snapshot.total,64.46);
+ assert.equal(Number(await value("select f.revenue from public.financial_effects f join public.sales s on s.transaction_id=f.id where s.quote_id=$1",[quote])),59.99);
+ assert.equal(Number(await value("select grand_total from public.job_commercial_totals where id=$1",[accepted.job_id])),64.46);
+ assert.equal(Number(await value("select fee_amount from public.pick_return_orders where job_id=$1",[accepted.job_id])),21.48);
+ const full=await value<{amount:number}>("select public.prepare_logistics_payment($1,'full','Card',gen_random_uuid())",[token]);assert.equal(full.amount,64.46);
+ const fee=await value<{amount:number}>("select public.prepare_logistics_payment($1,'fee_only','Card',gen_random_uuid())",[token]);assert.equal(fee.amount,21.48);
+ const payment=await value<{subtotal:number;tax_amount:number;total:number}>("select public.public_payment_tax($1,'review')",[token]);assert.equal(payment.total,64.46);assert.equal(payment.tax_amount,4.47);
+ await value("select public.save_sales_tax_rate(9)");
+ assert.deepEqual(await value("select commercial_snapshot from public.agreements where quote_id=$1",[quote]),snapshot);
+ await assert.rejects(value("select public.public_payment_tax('wrong','review')"),/invalid|expired/i);
+ await assert.rejects(value("select public.save_sales_tax_rate(101)"),/Tax rate/);
+ }finally{await value("select public.save_sales_tax_rate(0)");}
+});
+
+test("Extension proposals and second Return fees preserve their taxable totals",async()=>{
+ await value("select public.save_sales_tax_rate(7.45)");
+ try {
+ const {job,token}=await readyReturn("tax-extension-return");
+ const extension=await value<string>("select public.request_job_extension($1,'Extra engraving',gen_random_uuid())",[job]);
+ await rpc("save_job_extension",{id:extension,notes:"Extra engraving",items:[{article:"Battery",quantity:1,unit_price:"20.00",engraving_type:"Text",engraving_text:"TEST",marks:[{type:"Text",text:"TEST",location:"Left",paint_fill:false}],paint_fill:false,colors:0}]});
+ assert.equal(Number(await value("select total from public.job_extensions where id=$1",[extension])),21.49);
+ const extToken=await value<string>("select public.send_job_extension($1)",[extension]);
+ const proposal=await value<{subtotal:number;tax_amount:number;total:number}>("select public.public_extension($1)",[extToken]);assert.equal(proposal.subtotal,20);assert.equal(proposal.tax_amount,1.49);assert.equal(proposal.total,21.49);
+ await value("select public.save_sales_tax_rate(8)");assert.equal(Number(await value("select total from public.job_extensions where id=$1",[extension])),21.49);
+ await db.query("update public.job_extensions set status='Cancelled' where id=$1",[extension]);
+ const stop=await value<string>("select s.id from public.pick_return_stops s join public.pick_return_routes r on r.id=s.route_id where s.job_id=$1 and r.leg='Return' and s.status='Scheduled'",[job]);
+ await db.query("update public.pick_return_stops set status='Arrived' where id=$1",[stop]);await value("select public.advance_pick_return_stop($1,'not-home')",[stop]);
+ await value("select public.choose_second_return($1,$2)",[job,token]);
+ assert.equal(Number(await value("select amount from public.delivery_attempt_fees where job_id=$1",[job])),10.75);
+ const retrySnapshot=await value<{subtotal:number;tax_amount:number}>("select s.tax_snapshot from public.sales s join public.delivery_attempt_fees f on f.sale_id=s.transaction_id where f.job_id=$1",[job]);assert.equal(retrySnapshot.subtotal,10);assert.equal(retrySnapshot.tax_amount,.75);
+ }finally{await value("select public.save_sales_tax_rate(0)");}
+});
+
+test('Refunds reserve paid amounts, enforce 14 calendar days, business-day windows and reject proof from another request',async()=>{
+ const c=await createCustomer('Refund policy test','refund-policy');const q=await createQuote(c.id,'40.00');const token=await value<string>('select public.send_quote($1)',[q]);const accepted=await acceptWithLogistics(token,{option_code:'dropoff_pickup'});const job=accepted.job_id;
+ const payment=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',40,'Final Balance') returning id",[unit,job]);await value('select public.confirm_payment_request($1)',[payment]);
+ const date=await value<string>("select (now()-interval '14 days')::text");const now=await value<string>('select now()::text');
+ const key=await value<string>('select gen_random_uuid()');const payload={job_id:job,amount:'10.00',reason:'Damage',issue_event:'Pickup',issue_event_at:date,reported_at:now,request_key:key};
+ const id=await rpc('create_refund_request',payload);assert.equal(await rpc('create_refund_request',payload),id);
+ assert.equal(Number(await value('select count(*) from public.refund_requests where request_key=$1',[key])),1);
+ await assert.rejects(rpc('create_refund_request',{...payload,amount:'11.00'}),/different refund information/);
+ await assert.rejects(rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),issue_event_at:await value("select (now()-interval '15 days')::text")}),/14 days/);
+ await assert.rejects(rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),amount:'31.00'}),/actually paid/);
+ await assert.rejects(rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),method:'Cash'}),/check constraint/);
+ assert.equal(await value("select private.refund_business_date('2026-10-09',5)::text"),'2026-10-16');assert.equal(await value("select private.refund_business_date('2026-10-09',7)::text"),'2026-10-20');
+ const account=await value<string>('select t.account_id from public.transactions t join public.collections c on c.transaction_id=t.id join public.sales s on s.transaction_id=c.sale_id where s.job_id=$1 limit 1',[job]);
+ const second=await rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),amount:'5.00'});const wrongProof=await manualRefundProof(job,second);await confirmRefundWindow(id);
+ await assert.rejects(rpc('refund_request_action',{id,action:'complete',method:'Zelle',account_id:account,reference:'wrongproof',proof_id:wrongProof}),/proof belonging/);
+ await rpc('refund_request_action',{id:second,action:'cancel',notes:'Duplicate report'});assert.equal(await value('select status from public.refund_requests where id=$1',[second]),'Cancelled');
+ const proof=await manualRefundProof(job,id);await rpc('refund_request_action',{id,action:'complete',method:'Check',account_id:account,reference:'CHECK-101',proof_id:proof});
+ assert.equal(await value('select processed_by from public.refund_requests where id=$1',[id]),admin);
+ const choice=(await value<{id:string;available:number}[]>('select public.refund_job_choices()')).find(x=>x.id===job)!;assert.equal(Number(choice.available),30);
+ await db.query("update public.jobs set completion_email_sent_at=now()-interval '15 days' where id=$1",[job]);
+ await assert.rejects(rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),issue_event:'Completion notice',issue_event_at:now}),/14 days/);
+});
+
+test('Refund-only staff can use Job selector, upload scoped proof and manage refunds; read-only staff cannot mutate',async()=>{
+ const c=await createCustomer('Refund access test','refund-access');const q=await createQuote(c.id);const token=await value<string>('select public.send_quote($1)',[q]);const accepted=await acceptWithLogistics(token,{option_code:'dropoff_pickup'});
+ const payment=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',40,'Final Balance') returning id",[unit,accepted.job_id]);await value('select public.confirm_payment_request($1)',[payment]);
+ const staff=await addStaff([],'refund-only');const role=await value<string>("select public.rbac_save_role(null,'Refund specialist',array['payments.refund'])");await value("select public.rbac_save_user($1,'Refund specialist',true,array[$2::uuid])",[staff,role]);
+ let request='',proof='';
+ await staffAs(staff,async()=>{
+ assert.ok((await value<{id:string}[]>('select public.refund_job_choices()')).some(j=>j.id===accepted.job_id));
+ const now=new Date().toISOString();request=await rpc('create_refund_request',{request_key:await value('select gen_random_uuid()'),job_id:accepted.job_id,amount:'5.00',reason:'ToolTag error',issue_event:'Completion notice',issue_event_at:now,reported_at:now});
+ proof=await rpc('register_document_metadata',{unit_id:unit,job_id:accepted.job_id,refund_request_id:request,type:'Refund Review Evidence',file_name:'refund-proof.png',mime_type:'image/png',file_size:100,sha256:'d'.repeat(64),visibility:'internal'});
+ assert.equal(await value('select refund_request_id from public.documents where id=$1',[proof]),request);
+ await assert.rejects(rpc('register_document_metadata',{unit_id:unit,job_id:accepted.job_id,refund_request_id:request,type:'Receiving Evidence',file_name:'wrong.png',file_size:100,sha256:'e'.repeat(64)}),/Invalid refund proof/);
+ await rpc('refund_request_action',{id:request,action:'confirm'});
+ });
+ const viewer=await addStaff([],'refund-readonly');const viewRole=await value<string>("select public.rbac_save_role(null,'Refund viewer',array['payments.view'])");await value("select public.rbac_save_user($1,'Refund viewer',true,array[$2::uuid])",[viewer,viewRole]);
+ await staffAs(viewer,async()=>{assert.equal(Number(await value('select count(*) from public.refund_requests where id=$1',[request])),1);assert.equal(Number(await value('select count(*) from public.documents where id=$1',[proof])),1);await assert.rejects(rpc('refund_request_action',{id:request,action:'cancel'}),/permission/);});
+ const driver=await addStaff(['Driver'],'refund-driver');await staffAs(driver,async()=>{assert.equal(Number(await value('select count(*) from public.refund_requests')),0);await assert.rejects(value('select public.refund_job_choices()'),/access required/);});
+});
+
+test('Original Cash payments require an electronic or Check refund and retain the actual disbursement account',async()=>{
+ const c=await createCustomer('Cash refund test','refund-cash');const q=await createQuote(c.id);const token=await value<string>('select public.send_quote($1)',[q]);const accepted=await acceptWithLogistics(token,{option_code:'dropoff_pickup'});
+ const payment=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',40,'Final Balance') returning id",[unit,accepted.job_id]);await value('select public.confirm_payment_request($1)',[payment]);
+ await db.query("update public.transactions set payment_method='Cash' where id in(select c.transaction_id from public.collections c join public.sales s on s.transaction_id=c.sale_id where s.job_id=$1)",[accepted.job_id]);
+ const now=new Date().toISOString();const id=await rpc('create_refund_request',{request_key:await value('select gen_random_uuid()'),job_id:accepted.job_id,amount:'5.00',reason:'Other',issue_event:'Pickup',issue_event_at:now,reported_at:now});
+ assert.equal(await value('select original_method from public.refund_requests where id=$1',[id]),'Cash');assert.equal(await value('select method from public.refund_requests where id=$1',[id]),null);
+ await confirmRefundWindow(id);const proof=await manualRefundProof(accepted.job_id,id);
+ await assert.rejects(rpc('refund_request_action',{id,action:'complete',method:'Cash',proof_id:proof,reference:'NO-CASH'}),/Cash/);
+ await assert.rejects(rpc('refund_request_action',{id,action:'complete',method:'Zelle',proof_id:proof,reference:'REF-ZELLE'}),/account/);
+ const account=await value<string>('select id from public.accounts where unit_id=$1 and active limit 1',[unit]);
+ await rpc('refund_request_action',{id,action:'complete',method:'Zelle',account_id:account,proof_id:proof,reference:'REF-ZELLE'});
+ assert.equal(await value("select account_id from public.transactions where type='REFUND' and reference='REF-ZELLE'"),account);
+ assert.equal(await value('select method from public.refund_requests where id=$1',[id]),'Zelle');
+});
+
+let smsCostSequence=0;
+async function smsCostFixtureSend(quote:string,status='Sent',provider?:string){
+ const id=await value<string>("insert into public.notifications(unit_id,event,entity_id,dedupe_key) values($1,'Quote Sent',$2,$3) returning id",[unit,quote,'sms-cost-test:'+ ++smsCostSequence]);
+ const claim=await value<string>("update private.sms_deliveries set status='Sending',claim=gen_random_uuid(),claimed_at=now() where notification_id=$1 returning claim",[id]);
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+ try{await value('select public.finish_sms($1,$2,$3,$4,null)',[id,claim,status,provider??(status==='Sent'?'aws-cost-test-'+smsCostSequence:null)]);}finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
+ return {id,claim};
+}
+async function reconcileSmsCosts(){await db.query("select set_config('request.jwt.claim.role','service_role',false)");try{await value('select public.reconcile_sms_costs()');}finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}}
+test('SMS costs count AWS-accepted sends once, preserve precision and post an expired Quote expense only once',async()=>{
+ const c=await createCustomer('SMS quote costs','sms-quote-costs');const q=await createQuote(c.id);const flow=await value<string>('select flow_id from public.quotes where id=$1',[q]);
+ const first=await smsCostFixtureSend(q);
+ await smsCostFixtureSend(q,'Failed');await smsCostFixtureSend(q,'Unknown');await smsCostFixtureSend(q,'Skipped');
+ for(let i=1;i<10;i++)await smsCostFixtureSend(q);
+ assert.equal(Number(await value('select sms_count from public.sms_cost_totals where flow_id=$1',[flow])),10);
+ assert.equal(Number(await value('select exact_cost from public.sms_cost_totals where flow_id=$1',[flow])),0.0645);
+ assert.equal(Number(await value('select posted_amount from public.sms_cost_totals where flow_id=$1',[flow])),0);
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");try{assert.equal(await value("select public.finish_sms($1,$2,'Sent','duplicate',null)",[first.id,first.claim]),false);}finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
+ await db.query("update public.quotes set status='Expired' where id=$1",[q]);await reconcileSmsCosts();await reconcileSmsCosts();
+ const total=await value<string>('select id from public.sms_cost_totals where flow_id=$1',[flow]);
+ assert.equal(Number(await value('select posted_amount from public.sms_cost_totals where id=$1',[total])),0.06);
+ assert.equal(Number(await value('select count(*) from public.expenses where sms_cost_total_id=$1',[total])),1);
+ const expense=await value<{reference:string;name:string;amount:number}>("select jsonb_build_object('reference',t.reference,'name',cat.name,'amount',t.amount) from public.expenses e join public.transactions t on t.id=e.transaction_id join public.categories cat on cat.id=t.category_id where e.sms_cost_total_id=$1",[total]);assert.equal(expense.name,'SMS');assert.equal(Number(expense.amount),0.06);assert.match(expense.reference,/^SMS-Quote-/);
+});
+test('SMS costing transfers the Quote total to its Job, pins send rates and adds only the rounded late-send delta',async()=>{
+ const c=await createCustomer('SMS job costs','sms-job-costs');const q=await createQuote(c.id);await smsCostFixtureSend(q);const token=await value<string>('select public.send_quote($1)',[q]);const accepted=await acceptWithLogistics(token,{option_code:'dropoff_pickup'});const job=accepted.job_id;
+ assert.equal(Number(await value('select sms_count from public.sms_cost_totals where job_id=$1',[job])),1);
+ const account=await value<string>('select sms_expense_account_id from public.unit_settings where unit_id=$1',[unit]);await value('select public.save_sms_cost_settings(0.01,$1)',[account]);
+ try{
+ await smsCostFixtureSend(q);
+ assert.equal(Number(await value('select exact_cost from public.sms_cost_totals where job_id=$1',[job])),0.01645);
+ await db.query("update public.jobs set status='Completed' where id=$1",[job]);
+ assert.equal(Number(await value('select posted_amount from public.sms_cost_totals where job_id=$1',[job])),0.02);
+ await smsCostFixtureSend(q);
+ assert.equal(Number(await value('select posted_amount from public.sms_cost_totals where job_id=$1',[job])),0.03);
+ await reconcileSmsCosts();assert.equal(Number(await value('select count(*) from public.expenses e join public.sms_cost_totals a on a.id=e.sms_cost_total_id where a.job_id=$1',[job])),2);
+ assert.equal(Number(await value('select sum(t.amount) from public.expenses e join public.transactions t on t.id=e.transaction_id join public.sms_cost_totals a on a.id=e.sms_cost_total_id where a.job_id=$1',[job])),0.03);
+ const snap=await value<{job_id:string;quote_id:string;sms_count:number;rates:unknown[]}>('select e.sms_cost_snapshot from public.expenses e join public.sms_cost_totals a on a.id=e.sms_cost_total_id where a.job_id=$1 order by e.transaction_id limit 1',[job]);assert.equal(snap.job_id,job);assert.equal(snap.quote_id,q);assert.equal(snap.rates.length,2);
+ }finally{await value('select public.save_sms_cost_settings(0.00645,$1)',[account]);}
+});
+test('Deleted Quotes retain SMS cost origin and accounting failure never loses a sent SMS',async()=>{
+ const c=await createCustomer('SMS deletion costs','sms-delete-costs');const q=await createQuote(c.id);await smsCostFixtureSend(q);const code=await value<string>('select code from public.quotes where id=$1',[q]);const total=await value<string>('select id from public.sms_cost_totals where quote_id=$1',[q]);
+ await db.query('delete from public.quote_items where quote_id=$1',[q]);await db.query('delete from public.quotes where id=$1',[q]);assert.equal(await value('select quote_id from public.sms_cost_totals where id=$1',[total]),null);assert.equal(await value('select quote_code from public.sms_cost_totals where id=$1',[total]),code);assert.equal(Number(await value('select posted_amount from public.sms_cost_totals where id=$1',[total])),0.01);
+ const q2=await createQuote(c.id);const account=await value<string>('select sms_expense_account_id from public.unit_settings where unit_id=$1',[unit]);await db.query('update public.unit_settings set sms_expense_account_id=null where unit_id=$1',[unit]);
+ try{
+ await db.query("update public.quotes set status='Expired' where id=$1",[q2]);await smsCostFixtureSend(q2);
+ assert.equal(Number(await value('select sms_count from public.sms_cost_totals where quote_id=$1',[q2])),1);assert.equal(Number(await value('select posted_amount from public.sms_cost_totals where quote_id=$1',[q2])),0);assert.match(await value<string>('select posting_error from public.sms_cost_totals where quote_id=$1',[q2]),/account/);
+ }finally{await value('select public.save_sms_cost_settings(0.00645,$1)',[account]);}
+ await reconcileSmsCosts();await reconcileSmsCosts();assert.equal(Number(await value('select posted_amount from public.sms_cost_totals where quote_id=$1',[q2])),0.01);
+});
+test('SMS cost settings and trace data enforce Owner/Finance permissions and provider IDs cannot be counted twice',async()=>{
+ const c=await createCustomer('SMS permissions','sms-cost-permissions');const q=await createQuote(c.id);await smsCostFixtureSend(q,'Sent','aws-duplicate-cost');await smsCostFixtureSend(q,'Sent','aws-duplicate-cost');assert.equal(Number(await value('select sms_count from public.sms_cost_totals where quote_id=$1',[q])),1);
+ const account=await value<string>('select sms_expense_account_id from public.unit_settings where unit_id=$1',[unit]);await assert.rejects(value('select public.save_sms_cost_settings(-1,$1)',[account]),/nonnegative/);
+ const employee=await addStaff(['Employee'],'sms-cost-employee');await staffAs(employee,async()=>{assert.equal(Number(await value('select count(*) from public.sms_cost_totals')),0);await assert.rejects(value('select public.save_sms_cost_settings(1,$1)',[account]),/Owner/);await assert.rejects(value('select public.reconcile_sms_costs()'),/credentials|permission denied/);});
+});
+
+test('AWS acceptance is chargeable even if delivery fails; delivery metadata never reverses or doubles the cost',async()=>{
+ const c=await createCustomer('SNS acceptance accounting','sms-accepted-not-delivered');const q=await createQuote(c.id);await smsCostFixtureSend(q,'Failed','aws-accepted-failed');await smsCostFixtureSend(q,'Sent','aws-accepted-delivered');await smsCostFixtureSend(q,'Failed');await smsCostFixtureSend(q,'Unknown');
+ assert.equal(Number(await value('select sms_count from public.sms_cost_totals where quote_id=$1',[q])),2);assert.equal(Number(await value('select exact_cost from public.sms_cost_totals where quote_id=$1',[q])),0.0129);
+ assert.equal(Number(await value('select delivery_failed_count from public.sms_cost_totals where quote_id=$1',[q])),0);assert.equal(Number(await value('select delivery_unknown_count from public.sms_cost_totals where quote_id=$1',[q])),2);assert.equal(Number(await value('select acceptance_unknown_count from public.sms_cost_totals where quote_id=$1',[q])),1);
+ await db.query("update public.quotes set status='Expired' where id=$1",[q]);
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");try{
+ await value("select public.record_sms_delivery_outcome('aws-accepted-delivered','Delivered',null,now())");await value("select public.record_sms_delivery_outcome('aws-accepted-failed','Failed','Carrier unavailable',now())");await value("select public.record_sms_delivery_outcome('aws-accepted-failed','Failed','Carrier unavailable',now())");
+ }finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
+ assert.equal(Number(await value('select delivered_count from public.sms_cost_totals where quote_id=$1',[q])),1);assert.equal(Number(await value('select delivery_failed_count from public.sms_cost_totals where quote_id=$1',[q])),1);assert.equal(Number(await value('select sms_count from public.sms_cost_totals where quote_id=$1',[q])),2);assert.equal(Number(await value('select posted_amount from public.sms_cost_totals where quote_id=$1',[q])),0.01);
 });

@@ -30,7 +30,7 @@ export async function dispatchSms(db: SupabaseClient) {
         reason = failure instanceof SmsFailure ? failure.code : "SMS_RENDER_FAILED";
       }
       const result = await db.rpc("finish_sms", { p_id: event.id, p_claim: event.claim, p_status: status, p_provider: provider, p_reason: reason });
-      console.info("SMS_DELIVERY", { id: event.id, event: event.event, status, reason });
+      console.info("SMS_SUBMISSION", { id: event.id, event: event.event, status, reason, awsAccepted: Boolean(provider), deliveryStatus: "Unknown" });
       if (result.error || !result.data) { console.error("SMS_RESULT_NOT_RECORDED", { id: event.id, provider }); break; }
       if (status === "Sent") summary.sent++; else if (status === "Skipped") summary.skipped++; else summary.failed++;
     }

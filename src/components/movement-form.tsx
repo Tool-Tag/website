@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { Form, type Field } from "./form";
 type Option = { value: string; label: string };
@@ -8,7 +9,7 @@ export function MovementForm({
   categories,
   sales,
   expenses,
-  collections,
+
   destinationAccounts,
   defaultType = "EXPENSE",
   saleId,
@@ -90,9 +91,9 @@ export function MovementForm({
   if (type === "REFUND")
     fields.push({
       name: "original_id",
-      label: "Original Collection or Expense",
+      label: "Original Expense (vendor refund)",
       required: true,
-      options: [...collections, ...expenses],
+      options: expenses,
     });
   if (type === "INTER_UNIT_TRANSFER")
     fields.push({
@@ -154,6 +155,7 @@ export function MovementForm({
           </label>
         )}
       </div>
+      {type === "REFUND" && <p className="notice">Customer refunds must be linked to a Job. <Link href="/app/finance/refunds">Open Finance Refunds</Link></p>}
       <Form
         key={`${type}:${subtype}:${paidBy}`}
         operation="movement"

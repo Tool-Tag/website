@@ -8,7 +8,7 @@ export type AcceptedSnapshot = {
   quote_code: string; quote_revision: number; job_code: string; sale_code?: string;
   quote_id: string; job_id: string; sale_id?: string; quote_accepted_at: string;
   agreement_accepted_at: string; agreement: { title: string; version: number; text: string };
-  items: QuoteItem[]; total: string; notes?: string;
+  items: QuoteItem[]; total: string; subtotal?:string; tax_rate?:string; tax_amount?:string; notes?: string;
   confirmations: { quote: boolean; agreement: boolean };
   identity: { brand: string; legal: string };
   quote_recipient_selection: { email: string; kind: string };
@@ -73,6 +73,7 @@ export async function generateAcceptedPdf(document: AcceptedDocument) {
     paragraph(`${item.quantity} piece(s) x ${money(String(item.unit_price))} = ${itemSubtotal(item)}`);
     paragraph(itemDetails(item).join("\n"));
   }
+  if(s.subtotal!==undefined){paragraph(`Subtotal: ${money(String(s.subtotal))}`);paragraph(`Utah Sales Tax (${Number(s.tax_rate ?? 0)}%): ${money(String(s.tax_amount ?? 0))}`);paragraph("Price subject to taxes — final total includes Utah sales tax.");}
   paragraph(`Agreed total: ${money(String(s.total))}`, 13, bold);
   if (s.notes) paragraph(`Quote notes: ${s.notes}`);
   section("CUSTOMER AGREEMENT & CUSTOM ENGRAVING TERMS");

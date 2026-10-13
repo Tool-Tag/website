@@ -1,4 +1,5 @@
 "use client";
+import {ManualPaymentPayee,VenmoPaymentLink} from "./manual-payment-payee";
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -73,7 +74,7 @@ export function PaymentForm({
   const venmoReady = Boolean(venmoHandle);
 
   return (
-    <section className="panel">
+    <section className="panel"><ManualPaymentPayee/>
       <h2>Payment</h2>
       <p>
         Balance due: <strong>{money(balanceDue)}</strong>
@@ -159,7 +160,7 @@ export function PaymentForm({
 
           {method === "Venmo" && venmoHandle && (
             <>
-              <CopyValue value={venmoHandle} label="Venmo" />
+              <CopyValue value={venmoHandle} label="Venmo" /><VenmoPaymentLink handle={venmoHandle} />
               <p className="muted">
                 Copy the Venmo account above before sending your payment.
               </p>

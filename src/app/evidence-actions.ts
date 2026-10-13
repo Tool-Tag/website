@@ -33,6 +33,7 @@ export type EvidenceRegistration = {
   jobExtensionId?: string;
   paymentRequestId?: string;
   cancellationRequestId?: string;
+  refundRequestId?: string;
   defaultVisibility?: "internal" | "customer";
   back?: string;
   photoOnly?: boolean;
@@ -87,6 +88,7 @@ export async function registerEvidenceAction(
         job_extension_id: config.jobExtensionId ?? null,
         payment_request_id: config.paymentRequestId ?? null,
         cancellation_request_id: config.cancellationRequestId ?? null,
+        refund_request_id: config.refundRequestId ?? null,
         file_name: original,
         original_file_name: original,
         mime_type: file.type || "application/octet-stream",

@@ -1,4 +1,6 @@
 "use client";
+import {salesTax} from "@/lib/domain/sales-tax";
+import {TaxBreakdown} from "./tax-breakdown";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -121,10 +123,12 @@ export function ReviewAcceptanceFlow({
   policy,
   logistics,
   smsConsent,
+  taxRate="0",
 }: {
   token: string;
   items: QuoteItem[];
   baseTotal: number | string;
+  taxRate?: string;
   notes?: string | null;
   policy: { title: string; version: number | string; content: string };
   logistics: ReviewLogisticsContext;
@@ -206,7 +210,7 @@ export function ReviewAcceptanceFlow({
             <strong>{selected.fee ? money(selected.fee) : "Free"}</strong>
           </div>
         )}
-        <h2>Total: {money(total.toFixed(2))}</h2>
+        <TaxBreakdown pricing={salesTax(total.toFixed(2),taxRate)} />
         {notes && <p>{notes}</p>}
       </Panel>
 

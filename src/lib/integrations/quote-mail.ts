@@ -1,3 +1,4 @@
+import {TAX_PRICE_NOTICE} from "@/lib/domain/sales-tax";
 import { mailSender } from "./mail-routing";
 import { itemDetails, itemSubtotal } from "@/lib/domain/quote-summary";
 import type { QuoteItem } from "@/lib/domain/quote-items";
@@ -9,6 +10,7 @@ export type CommercialSnapshot = {
   customer_email: string;
   customer_phone: string;
   total: string;
+  subtotal?:string; tax_rate?:string; tax_amount?:string;
   expires_at: string;
   items: QuoteItem[];
   policy: { title: string; version: number; content: string };
@@ -63,8 +65,8 @@ export function renderQuoteMail(
   const guidance = confirmation
     ? "Your approved work details and Agreement are available through the secure record below. We’ll use this Job Number for communication related to this work."
     : "Please review the complete quote, work details and ToolTag Customer Agreement using the secure link below. Please review spelling, design details, engraving locations, quantities, colors and other information carefully before accepting. If anything needs to be changed, contact ToolTag before accepting the quote.";
-  const text = `Hi ${snapshot.customer_name.split(" ")[0]},\n\n${intro}\n\nQUOTE SUMMARY\n${summary}\n\nQuote Total: ${money(snapshot.total)}\n${confirmation ? "" : `Valid Until: ${expiry}\n`}\n${guidance}\n\n${confirmation ? "View accepted record" : "Review & Accept Quote"}: ${url}\n\nToolTag\nQuote: ${snapshot.code} · Version ${snapshot.revision}`;
-  const html = `<!doctype html><html lang="en"><body style="font-family:Arial,sans-serif;background:#080b10;color:#f5f6fa;padding:24px"><main style="max-width:640px;margin:auto"><h1 style="color:#e7b84b">ToolTag</h1><p>Hi ${escape(snapshot.customer_name.split(" ")[0])},</p><p style="white-space:pre-line">${escape(intro)}</p><h2>Quote summary</h2><div style="white-space:pre-line">${escape(summary)}</div><p><strong>Quote Total: ${escape(money(snapshot.total))}</strong></p>${confirmation ? "" : `<p>Valid Until: ${escape(expiry)}</p>`}<p>${escape(guidance)}</p><p><a style="display:inline-block;background:#3975ff;color:white;padding:14px 20px;border-radius:8px" href="${escape(url)}">${confirmation ? "View accepted record" : "Review &amp; Accept Quote"}</a></p><footer>ToolTag · ${escape(snapshot.code)} · Version ${snapshot.revision}</footer></main></body></html>`;
+  const text = `Hi ${snapshot.customer_name.split(" ")[0]},\n\n${intro}\n\nQUOTE SUMMARY\n${summary}\n\nSubtotal: ${money(snapshot.subtotal ?? snapshot.total)}\nUtah Sales Tax (${Number(snapshot.tax_rate ?? 0)}%): ${money(snapshot.tax_amount ?? 0)}\nTotal: ${money(snapshot.total)}\n${TAX_PRICE_NOTICE}\n${confirmation ? "" : `Valid Until: ${expiry}\n`}\n${guidance}\n\n${confirmation ? "View accepted record" : "Review & Accept Quote"}: ${url}\n\nToolTag\nQuote: ${snapshot.code} · Version ${snapshot.revision}`;
+  const html = `<!doctype html><html lang="en"><body style="font-family:Arial,sans-serif;background:#080b10;color:#f5f6fa;padding:24px"><main style="max-width:640px;margin:auto"><h1 style="color:#e7b84b">ToolTag</h1><p>Hi ${escape(snapshot.customer_name.split(" ")[0])},</p><p style="white-space:pre-line">${escape(intro)}</p><h2>Quote summary</h2><div style="white-space:pre-line">${escape(summary)}</div><p>Subtotal: ${escape(money(snapshot.subtotal ?? snapshot.total))}</p><p>Utah Sales Tax (${Number(snapshot.tax_rate ?? 0)}%): ${escape(money(snapshot.tax_amount ?? 0))}</p><p><strong>Total: ${escape(money(snapshot.total))}</strong></p><p>${escape(TAX_PRICE_NOTICE)}</p>${confirmation ? "" : `<p>Valid Until: ${escape(expiry)}</p>`}<p>${escape(guidance)}</p><p><a style="display:inline-block;background:#3975ff;color:white;padding:14px 20px;border-radius:8px" href="${escape(url)}">${confirmation ? "View accepted record" : "Review &amp; Accept Quote"}</a></p><footer>ToolTag · ${escape(snapshot.code)} · Version ${snapshot.revision}</footer></main></body></html>`;
   return {
     ...mailSender(confirmation ? "AGREEMENT_ACCEPTED" : "QUOTE_SENT"),
     to: snapshot.customer_email,

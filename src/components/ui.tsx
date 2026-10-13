@@ -85,7 +85,7 @@ export function Table({
     </div>
   );
 }
-export function FinanceTabs() {
+export function FinanceTabs({includeGeneral=true}:{includeGeneral?:boolean}={}) {
   return (
     <nav className="tabs">
       {[
@@ -93,11 +93,13 @@ export function FinanceTabs() {
         ["transactions", "Transactions"],
         ["sales", "Sales"],
         ["expenses", "Expenses"],
+        ["refunds", "Refunds"],
+        ["sms", "SMS Costs"],
         ["equipment", "Equipment"],
         ["reports", "Monthly Closes"],
         ["review", "Review"],
         ["about", "About"],
-      ].map(([p, n]) => (
+      ].filter(([p])=>includeGeneral||p==="refunds").map(([p, n]) => (
         <Link key={p} href={`/app/finance${p ? "/" + p : ""}`}>
           {n}
         </Link>

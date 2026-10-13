@@ -1,3 +1,4 @@
+import {TaxBreakdown} from "@/components/tax-breakdown";
 import { PickupFeeForm } from "@/components/pickup-fee-form";
 import { money } from "@/lib/domain/money";
 import { supabase } from "@/lib/supabase/server";
@@ -22,6 +23,7 @@ export default async function PickupFeePage({
     );
   }
 
+  const {data:taxPricing}=await db.rpc("public_payment_tax",{p_token:token,p_scope:"pickup"});
   const status = String(data.fee_status ?? "Required");
 
   return (
@@ -32,6 +34,7 @@ export default async function PickupFeePage({
         Pickup scheduling is unlocked only after the Pickup Service Fee is confirmed.
       </p>
 
+      {taxPricing && <TaxBreakdown pricing={taxPricing} />}
       {status === "Confirmed" ? (
         <section className="panel">
           <h2>Pickup Fee Confirmed</h2>

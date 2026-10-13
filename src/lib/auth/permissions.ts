@@ -48,7 +48,7 @@ export const ACTION_PERMISSIONS: Record<string, readonly Permission[]> = {
 /** Unknown operations remain Owner-only; the fallback never grants a new capability. */
 export function canMutate(access: Access, operation: string) {
   if (access.owner) return true;
-  if (["settings","publish-policy","activate-live-mail","retry-notification"].includes(operation)) return false;
+  if (["settings","sms-cost-settings","publish-policy","activate-live-mail","retry-notification"].includes(operation)) return false;
   return canAny(access, ACTION_PERMISSIONS[operation] ?? []);
 }
 export function sectionPermissions(section: string): readonly Permission[] {
@@ -59,7 +59,7 @@ export function sectionPermissions(section: string): readonly Permission[] {
     case "customers": return ["customers.view"];
     case "pick-return": return ["pr.routes.plan", "pr.routes.live", "pr.receiving", "pr.returns", "pr.reschedule"];
     case "finance": case "finance-hub": case "job-receipts": case "proofpayment": return ["payments.view"];
-    case "refunds": return ["payments.refund"];
+    case "refunds": return ["payments.refund","payments.view"];
     case "equipment": return ["settings.manage"];
     case "settings": return []; // Owner-only even when a custom role includes settings.manage.
     default: return ["jobs.view", "quotes.view", "customers.view"];
@@ -68,7 +68,8 @@ export function sectionPermissions(section: string): readonly Permission[] {
 export function evidencePermissions(type: string, routeStop = false): readonly string[] {
   if (type === "Receiving Evidence") return ["pr.receiving", ...(routeStop ? ["driver.routes","pr.routes.live"] : [])];
   if (type === "Delivery Evidence") return ["pr.returns", ...(routeStop ? ["driver.routes","pr.routes.live"] : [])];
-  if (["Issue / Review Evidence","Cancellation Evidence","Refund Review Evidence"].includes(type)) return ["jobs.manage"];
+  if (type === "Refund Review Evidence") return ["jobs.manage","payments.refund"];
+  if (["Issue / Review Evidence","Cancellation Evidence"].includes(type)) return ["jobs.manage"];
   if (["Preparation Evidence","Production Evidence","Completed Evidence","Finished Evidence"].includes(type)) return ["production.work"];
   if (type === "Payment screenshot") return ["payments.record"];
   return []; // Unclassified file types require Owner.

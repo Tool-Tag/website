@@ -25,6 +25,7 @@ export default async function LogisticsPaymentPage({
     );
   }
 
+  const [{data:pricing},{data:feePricing}]=await Promise.all([db.rpc("public_payment_tax",{p_token:token,p_scope:"review"}),db.rpc("public_payment_tax",{p_token:token,p_scope:"review-fee"})]);
   return (
     <main className="public" lang="en">
       <p className="eyebrow">ToolTag · Logistics Payment</p>
@@ -32,7 +33,7 @@ export default async function LogisticsPaymentPage({
       <p className="muted">For {data.customer_name}</p>
       <LogisticsPaymentForm
         token={token}
-        payment={data}
+        payment={{...data,pricing,fee_pricing:feePricing}}
         cardConfigured={cardPaymentsConfigured()}
       />
       <footer className="footer">

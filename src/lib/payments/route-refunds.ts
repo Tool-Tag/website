@@ -1,4 +1,3 @@
-import type {SupabaseClient} from "@supabase/supabase-js";
 type Env=Record<string,string|undefined>;
 export class StripeRouteRefundTransport{
  constructor(private readonly request:typeof fetch=fetch,private readonly env:Env=process.env){}
@@ -26,12 +25,5 @@ export class StripeRouteRefundTransport{
  return validated(result);
  }
 }
-export async function processRouteRefunds(db:SupabaseClient,transport=new StripeRouteRefundTransport()){
- if(!transport.configured())return {enabled:false,processed:0};
- const queue=await db.rpc('claim_route_refunds');if(queue.error)throw Error('Could not claim route refunds');let processed=0;
- for(const item of queue.data??[]){
- try{const result=await transport.refund({id:item.id,offset:Number(item.offset),amount:Number(item.amount),session:item.session});const saved=await db.rpc('finish_route_refund',{p_id:item.id,p_claim:item.claim,p_provider_id:result.id,p_state:result.status});if(saved.error)throw Error('Could not record refund result');processed++;}
- catch{/* Keep the leased part pending; the same durable key is retried safely, never claimed paid. */}
- }
- return {enabled:true,processed};
-}
+// Kept for compatibility: this worker is intentionally inert, even with provider keys.
+export async function processRouteRefunds(){return {enabled:false,processed:0};}

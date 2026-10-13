@@ -1,3 +1,4 @@
+import {SmsExpenseTrace} from "@/components/sms-expense-trace";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { rows, context } from "@/lib/domain/context";
@@ -142,6 +143,7 @@ export async function Finance({
   if (section === "transactions" && id) {
     const t = (await rows("transactions", { id }))[0];
     if (!t) return <Empty />;
+    const smsExpense = t.type==="EXPENSE"?(await rows("expenses",{field:"transaction_id",value:id}))[0]:null;
     const docs = await rows("documents", {
       field: "transaction_id",
       value: id,
@@ -149,6 +151,7 @@ export async function Finance({
     return (
       <>
         {heading}
+        {smsExpense?.sms_cost_snapshot&&<SmsExpenseTrace snapshot={smsExpense.sms_cost_snapshot}/> }
         <Panel title={t.description}>
           <p>
             {t.type} · {t.transaction_date} · {money(t.amount)} · {t.status}

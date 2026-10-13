@@ -1,3 +1,4 @@
+import {TaxBreakdown} from "@/components/tax-breakdown";
 import { StatusSmsOptIn } from "@/components/sms-consent";
 import {CustomerArrivalBanner,CustomerDeliveryAcknowledgment} from "@/components/customer-arrival-banner";
 import {CustomerRouteTimeline} from "@/components/customer-route-timeline";
@@ -141,6 +142,7 @@ export default async function JobStatusPage({
   const itemsCompleted = Number(data.items_completed ?? 0);
   const itemsStarted = Number(data.items_started ?? 0);
 
+  const {data:taxPricing}=await db.rpc("public_payment_tax",{p_token:token,p_scope:"status"});
   const {data: smsConsent} = await db.rpc("sms_consent_state", {p_token:token,p_scope:"status"});
   return (
     <main className="public"><StatusRefresh channels={liveChannel?[liveChannel]:[]} />
@@ -218,7 +220,7 @@ export default async function JobStatusPage({
       {driverIncident && <DriverIncidentChoice job={data.id} token={token} data={driverIncident} />}
       {pickupMissed && !data.cancelled && <PickupMissChoice job={data.id} token={token} />}
       {pickup?.delivery_attempts === 1 && pickup.delivery_payment_status !== "Shop Pickup" && pickup.return_reservation_stop_id && <ReturnChoice token={token} job={data.id} fee={Number(data.second_return_fee)} chosen={Boolean(data.second_return_chosen)} />}
-      {pickup?.production_ready_at && !pickup.returned_at && Number(data.payment?.balance_due || 0)>0 && <PaymentForm token={token} balanceDue={data.payment.balance_due} zelleEmail={data.payment.methods?.zelle_email} venmoHandle={data.payment.methods?.venmo_handle} cardConfigured={cardPaymentsConfigured()} routePayment />}
+      {pickup?.production_ready_at && !pickup.returned_at && Number(data.payment?.balance_due || 0)>0 && <><TaxBreakdown pricing={taxPricing}/><PaymentForm token={token} balanceDue={data.payment.balance_due} zelleEmail={data.payment.methods?.zelle_email} venmoHandle={data.payment.methods?.venmo_handle} cardConfigured={cardPaymentsConfigured()} routePayment /></>}
       {Array.isArray(data.payment_proofs) && data.payment_proofs.length>0 && <section className="panel"><h2>Payment proofs</h2>{data.payment_proofs.map((proof:{id:string;submitted_at:string})=><form key={proof.id} method="post" action={`/app/proofpayment/${encodeURIComponent(data.code)}`}><input type="hidden" name="token" value={token}/><input type="hidden" name="payment" value={proof.id}/><button>View payment proof · {denverDateTime(proof.submitted_at)}</button></form>)}</section>}
       <section className="panel status-help-panel">
         <p className="status-kicker">Help With</p>

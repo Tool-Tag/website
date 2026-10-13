@@ -480,3 +480,24 @@ test("SMS policy links require approved HTTPS URLs and intake consent defaults t
  const parsed=getTaggedRequestSchema.parse(request);assert.equal(parsed.contact.phone,"");assert.equal(parsed.sms_opt_in,false);assert.equal(parsed.sms_policy_accepted,false);
  assert.match(renderSms("SMS_WELCOME",{},"https://tooltag.example"),/^ToolTag: Welcome!.*HELP.*STOP/);
  });
+
+import {salesTax} from "../src/lib/domain/sales-tax";
+test("Sales tax uses exact cents, includes fees and rounds half-up",()=>{
+ assert.deepEqual(salesTax("59.99","7.45"),{subtotal:"59.99",tax_rate:"7.45",tax_amount:"4.47",total:"64.46"});
+ assert.equal(salesTax("19.99","7.45").total,"21.48");assert.equal(salesTax("0.10","5").tax_amount,"0.01");
+ assert.equal(salesTax("100.00","0").total,"100.00");assert.equal(salesTax("100.00","8.125").total,"108.13");
+ assert.throws(()=>salesTax("100.00","101"));assert.throws(()=>salesTax("100.00","7.4511"));
+});
+
+import {venmoPaymentUrl,PAYMENT_PAYEE_DISCLAIMER} from "../src/lib/payments/venmo";
+test("Venmo payee link uses the configured handle and cannot escape its origin",()=>{
+ assert.equal(venmoPaymentUrl("@boftbuild"),"https://venmo.com/boftbuild");
+ assert.equal(venmoPaymentUrl("boftbuild"),"https://venmo.com/boftbuild");
+ assert.equal(venmoPaymentUrl("https://evil.example"),null);assert.equal(venmoPaymentUrl("boftbuild?redirect=evil"),null);
+ assert.match(PAYMENT_PAYEE_DISCLAIMER,/Bandits of the Framing LLC.*payment memo/);
+});
+
+import {processRouteRefunds} from '../src/lib/payments/route-refunds';
+test('Refund worker is inert regardless of configured provider keys',async()=>{
+ assert.deepEqual(await processRouteRefunds(),{enabled:false,processed:0});
+});
