@@ -33,6 +33,6 @@ export function categoryBadge(items:UrgentItem[],kind:UrgentItem["kind"]) {
  return {count:rows.length,color:(rows.some(row=>row.urgency==="red")?"red":rows.some(row=>row.urgency==="orange")?"orange":"green") as Urgency};
 }
 export function aggregateBands(items:UrgentItem[]) {
- const categories=[{kind:"problem",label:"Support",href:"/app/notifications"},{kind:"refund",label:"Refunds",href:"/app/refunds"},{kind:"lost",label:"Lost",href:"/app/lost"}] as const;
+ const categories=[{kind:"problem",label:"Support",href:"/app/support"},{kind:"refund",label:"Refunds",href:"/app/refunds"},{kind:"lost",label:"Lost",href:"/app/lost"}] as const;
  return attentionBands(items).map(band=>({color:band.color,count:band.items.length,categories:categories.map(category=>({...category,count:band.items.filter(item=>item.kind===category.kind).length})).filter(category=>category.count>0)}));
 }

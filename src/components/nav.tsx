@@ -39,7 +39,7 @@ const ATTENTION_PATHS: Record<AttentionKey, string> = {
   quotes: "/app/quotes",
   jobs: "/app/jobs",
   refunds: "/app/refunds",
-  notifications: "/app/notifications",
+  notifications: "/app/support",
   lost: "/app/lost",
 };
 
@@ -322,7 +322,7 @@ export function Nav({
           title: "Refunds waiting to be issued",
           attentionKey: "refunds",
         },
-        { path: "notifications", label: "Support", count: liveAttention.notifications, title: "Pending customer responses", attentionKey: "notifications" },
+        { path: "support", label: "Support", count: liveAttention.notifications, title: "Pending customer responses", attentionKey: "notifications" },
         { path: "equipment", label: "Equipment" },
       ];
 

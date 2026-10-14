@@ -47,6 +47,7 @@ export default async function AppLayout({
       </aside>
       <div className="workspace">
         <header className="topbar">
+          {ctx && canAny(ctx.access,["support.inbox"]) && <Link className="button secondary" href="/app/support">Support</Link>}
           {ctx && canAny(ctx.access,["pr.routes.plan","pr.routes.live","pr.receiving","pr.returns","pr.reschedule"]) && <Link className="button secondary" href="/app/pick-return">Pick up &amp; Return</Link>}
           {ctx && canAny(ctx.access,["customers.view"]) && <form action="/app/customers">
             <input

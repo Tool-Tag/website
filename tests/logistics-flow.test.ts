@@ -1777,7 +1777,7 @@ test("Support inbox deduplicates mail, opens a numbered case on reply, preserves
  assert.match(reply.case_code,/^TT-C-\d{4}-\d{5,}$/);assert.match(reply.body,/Happy to help\n\n/);assert.equal(reply.to,"support-customer@example.test");assert.equal(reply.mailbox,"support");
  await assert.rejects(value("select public.support_prepare_reply($1,$2,'duplicate')",[cid,replyId]),/already submitted/);
  await supportWorker(()=>value("select public.support_finish_reply($1,'Sent','outbox-1','thread-new',null)",[replyId]));
- await value("select public.support_close($1)",[cid]);assert.equal(await value("select status from public.support_conversations where id=$1",[cid]),"Closed");
+ await finishSupportTestProtocol(cid);assert.equal(await value("select status from public.support_conversations where id=$1",[cid]),"Closed");
  const next=await supportWorker(()=>rpc("support_ingest",inboxMessage("inbox-2","thread-new")));
  assert.equal(next,cid);assert.equal(await value("select status from public.support_conversations where id=$1",[cid]),"Open");assert.equal(Number(await value("select unread_count from public.support_conversations where id=$1",[cid])),1);
  // Subject and References fallbacks, but never cross customer/department solely from a guessed case folio.
@@ -2313,11 +2313,12 @@ test("Login attention is Owner/Manager-only and Job response clocks stop only af
  const quote=await createQuote(customer.id);const token=await value<string>("select public.send_quote($1)",[quote]);
  const accepted=await acceptWithLogistics(token,{option_code:"dropoff_pickup"});const job=accepted.job_id;
  await db.query("update public.jobs set status='Issue / Review',work_stage='Issue Review' where id=$1",[job]);
+ const jobCase=await value<string>("select id from public.support_conversations where job_id=$1 and origin='Job' and status<>'Closed'",[job]);
  const load=()=>value<{eligible:boolean;items:{id:string;kind:string}[]}>("select public.urgent_login_attention()");
  const refund=await value<string>("insert into public.refund_requests(unit_id,job_id,amount,reason) values($1,$2,5,'Other') returning id",[unit,job]);
  const support=await supportWorker(()=>rpc("support_ingest",inboxMessage("urgent-in","urgent-thread")));
 
- let summary=await load();assert.equal(summary.eligible,true);assert.ok(summary.items.some(i=>i.kind==='problem'&&i.id===job));
+ let summary=await load();assert.equal(summary.eligible,true);assert.ok(summary.items.some(i=>i.kind==='problem'&&i.id===jobCase));
  assert.ok(summary.items.some(i=>i.kind==='refund'&&i.id===refund));assert.ok(summary.items.some(i=>i.kind==='problem'&&i.id===support));
  await db.query("update public.support_messages set sent_at=now()-interval '5 days' where conversation_id=$1",[support]);
  await db.query("insert into public.support_messages(conversation_id,direction,sender_email,subject,body,sent_at) values($1,'Inbound','customer@example.test','New details','More details',now()-interval '1 day')",[support]);
@@ -2333,7 +2334,7 @@ test("Login attention is Owner/Manager-only and Job response clocks stop only af
 
  await db.query("update public.jobs set updated_at=now() where id=$1",[job]);
  await value("select public.record_issue_response($1)",[job]);
- summary=await load();assert.equal(summary.items.some(i=>i.kind==='problem'&&i.id===job),false);
+ summary=await load();assert.equal(summary.items.some(i=>i.kind==='problem'&&i.id===jobCase),false);
  assert.equal(Number(await value("select count(*) from public.audit_log where entity_id=$1 and field='Customer issue response recorded'",[job])),1);
  await value("select public.record_issue_response($1)",[job]);
  assert.equal(Number(await value("select count(*) from public.audit_log where entity_id=$1 and field='Customer issue response recorded'",[job])),1);
@@ -2342,4 +2343,48 @@ test("Login attention is Owner/Manager-only and Job response clocks stop only af
  await value("select public.rbac_save_user($1,'attention-manager',true,array[$2]::uuid[])",[employee,managerRole]);
  await staffAs(employee,async()=>{assert.equal((await load()).eligible,true);});
  assert.equal(await value("select has_function_privilege('anon','public.urgent_login_attention()','execute')"),false);
+});
+
+test("Dedicated Support creates one manual call, validates its Job, resolves and reopens the same email thread",async()=>{
+ const customer=await createCustomer("Manual support","manual-support"),quote=await createQuote(customer.id);
+ const token=await value<string>("select public.send_quote($1)",[quote]);const job=(await acceptWithLogistics(token,{option_code:"dropoff_pickup"})).job_id;
+ const request=await value<string>("select gen_random_uuid()");
+ const create=()=>value<string>("select public.support_create_case($1,$2,$3,'Phone call','Customer called about timing')",[request,customer.id,job]);
+ const id=await create();assert.equal(await create(),id);
+ const c=await value<{origin:string;channel:string;case_code:string}>("select to_jsonb(c) from public.support_conversations c where id=$1",[id]);assert.equal(c.origin,'Inbox');assert.equal(c.channel,'Call');assert.match(c.case_code,/^TT-C-/);
+ const other=await createCustomer("Other support customer","other-support");await assert.rejects(value("select public.support_create_case(gen_random_uuid(),$1,$2,'Wrong Job','Details')",[other.id,job]),/belonging to this customer/);
+ const clock=await value<string>("select max(sent_at) from public.support_messages where conversation_id=$1",[id]);await value("select public.support_mark_read($1,$2)",[id,clock]);await finishSupportTestProtocol(id);assert.equal(await value("select status from public.support_conversations where id=$1",[id]),'Closed');
+ const reopened=await supportWorker(()=>rpc("support_ingest",inboxMessage('call-reopened','call-reopened-thread',{sender_email:'manual-support@example.test',subject:`[${c.case_code}] Re: Phone call`,sent_at:new Date(Date.now()+2000).toISOString()})));assert.equal(reopened,id);assert.equal(await value("select status from public.support_conversations where id=$1",[id]),'Open');
+ const rows=await value<{id:string;waiting_since:string|null}[]>("select public.support_cases()");assert.ok(rows.find(row=>row.id===id)?.waiting_since);
+ assert.equal(await value("select has_function_privilege('anon','public.support_create_case(uuid,uuid,uuid,text,text)','execute')"),false);
+ const driver=await addStaff(['Driver'],'support-driver-denied');await staffAs(driver,async()=>{await assert.rejects(value("select public.support_cases()"),/Support inbox permission/);await assert.rejects(value("select public.support_directory()"),/Support inbox permission/);});
+});
+
+test("Job Support reuses Gmail replies and resolution without duplicating urgency or releasing the Job",async()=>{
+ const customer=await createCustomer("Job support","job-support"),quote=await createQuote(customer.id);const token=await value<string>("select public.send_quote($1)",[quote]);const job=(await acceptWithLogistics(token,{option_code:"dropoff_pickup"})).job_id;
+ await db.query("update public.jobs set status='Issue / Review',work_stage='Issue Review' where id=$1",[job]);
+ const id=await value<string>("select id from public.support_conversations where job_id=$1 and origin='Job'",[job]);await value("select private.capture_job_support($1)",[job]);assert.equal(Number(await value("select count(*) from public.support_conversations where job_id=$1 and origin='Job'",[job])),1);
+ const through=await value<string>("select max(sent_at) from public.support_messages where conversation_id=$1",[id]);await value("select public.support_mark_read($1,$2)",[id,through]);
+ const pending=await value<{items:{id:string}[]}>("select public.urgent_login_attention()");assert.ok(pending.items.some(i=>i.id===id));assert.equal(pending.items.some(i=>i.id===job),false);
+ const reply=await value<{id:string}>("select public.support_prepare_reply($1,gen_random_uuid(),'We are reviewing your issue.')",[id]);await supportWorker(()=>value("select public.support_finish_reply($1,'Sent','job-support-out','job-support-thread',null)",[reply.id]));
+ assert.equal(await value("select issue_response_at is not null from public.jobs where id=$1",[job]),true);
+ assert.equal((await value<{items:{id:string}[]}>("select public.urgent_login_attention()")).items.some(i=>i.id===id),false);
+ await finishSupportTestProtocol(id);assert.equal(await value("select status from public.jobs where id=$1",[job]),'Issue / Review');
+});
+
+async function finishSupportTestProtocol(id:string){
+ const final=await value<string>("insert into public.support_messages(conversation_id,direction,sender_email,subject,body,delivery_status) values($1,'Outbound','support','Case closure','It was a pleasure helping you. Thank you for choosing ToolTag!','Sent') returning id",[id]);
+ await value("select public.support_resolve_protocol($1,$2)",[id,final]);
+}
+
+test("Hello inquiries have no case number and cannot resolve without the final closure protocol",async()=>{
+ const id=await supportWorker(()=>rpc("support_ingest",inboxMessage('hello-no-code','hello-no-code-thread',{mailbox:'hello',subject:'General question'})));
+ const through=await value<string>("select max(sent_at) from public.support_messages where conversation_id=$1",[id]);await value("select public.support_mark_read($1,$2)",[id,through]);
+ await assert.rejects(value("select public.support_close($1)",[id]),/closure protocol/);
+ const reply=await value<{id:string;case_code:string|null;subject:string}>("select public.support_prepare_reply($1,gen_random_uuid(),'Is there anything else we can help you with?')",[id]);assert.equal(reply.case_code,null);assert.equal(reply.subject,'Re: General question');
+ await supportWorker(()=>value("select public.support_finish_reply($1,'Sent','hello-no-code-out','hello-no-code-thread',null)",[reply.id]));
+ await assert.rejects(value("select public.support_resolve_protocol($1,$2)",[id,reply.id]),/final closure message/);
+ await finishSupportTestProtocol(id);assert.equal(await value("select case_code from public.support_conversations where id=$1",[id]),null);
+ const newer=await supportWorker(()=>rpc("support_ingest",inboxMessage('hello-reopen-no-code','hello-no-code-thread',{mailbox:'hello',subject:'Re: General question',sent_at:new Date(Date.now()+2000).toISOString()})));assert.equal(newer,id);assert.equal(await value("select closure_final_message_id from public.support_conversations where id=$1",[id]),null);
+ assert.equal(await value("select has_function_privilege('anon','public.support_resolve_protocol(uuid,uuid)','execute')"),false);
 });
