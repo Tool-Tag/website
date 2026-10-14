@@ -2415,3 +2415,19 @@ test("Support and Hello acknowledgments personalize linked customers, keep real 
  assert.equal(await value("select has_function_privilege('authenticated','public.support_claim_ack()','execute')"),false);
  assert.ok(customer.id);
 });
+
+test("Public Help submissions route to Questions/Support, enqueue receipts, deduplicate retries and only link matching customer Jobs",async()=>{
+ const customer=await createCustomer("Help customer","help-customer"),quote=await createQuote(customer.id);const token=await value<string>("select public.send_quote($1)",[quote]);const job=(await acceptWithLogistics(token,{option_code:"dropoff_pickup"})).job_id;const code=await value<string>("select code from public.jobs where id=$1",[job]);
+ const request=await value<string>("select gen_random_uuid()"),network='c'.repeat(64),hash='d'.repeat(64);
+ const payload={mailbox:'support',name:'Help customer',email:'help-customer@example.test',phone:'3852142163',job:code,message:'Please review my delivery.',sms_opt_in:false,policies_accepted:false};
+ const submit=()=>supportWorker(()=>value<{reference:string}>("select public.submit_help_message($1,$2,$3,$4::jsonb)",[request,network,hash,JSON.stringify(payload)]));
+ const result=await submit();assert.match(result.reference,/^TT-C-/);assert.deepEqual(await submit(),result);
+ const cid=await value<string>("select conversation_id from private.help_submissions where request_id=$1",[request]);assert.equal(await value("select job_id from public.support_conversations where id=$1",[cid]),job);assert.equal(Number(await value("select count(*) from public.support_messages where conversation_id=$1 and direction='Inbound'",[cid])),1);assert.equal(Number(await value("select count(*) from public.support_acknowledgments where conversation_id=$1",[cid])),1);
+ const helloRequest=await value<string>("select gen_random_uuid()");const hello=await supportWorker(()=>value<{reference:string}>("select public.submit_help_message($1,$2,$3,$4::jsonb)",[helloRequest,network,'e'.repeat(64),JSON.stringify({...payload,mailbox:'hello',email:'new-question@example.test'})]));assert.equal(hello.reference,'Message received');
+ const helloId=await value<string>("select conversation_id from private.help_submissions where request_id=$1",[helloRequest]);assert.equal(await value("select case_code from public.support_conversations where id=$1",[helloId]),null);assert.equal(await value("select customer_id from public.support_conversations where id=$1",[helloId]),null);
+ const unverified=await value<string>("select gen_random_uuid()");await supportWorker(()=>value("select public.submit_help_message($1,$2,$3,$4::jsonb)",[unverified,network,'f'.repeat(64),JSON.stringify({...payload,email:'someone-else@example.test'})]));assert.equal(await value("select c.job_id from public.support_conversations c join private.help_submissions s on s.conversation_id=c.id where s.request_id=$1",[unverified]),null);
+ await assert.rejects(value("select public.submit_help_message($1,$2,$3,$4::jsonb)",[request,network,hash,JSON.stringify(payload)]),/Worker credentials/);
+ assert.equal(await value("select has_function_privilege('anon','public.submit_help_message(uuid,text,text,jsonb)','execute')"),false);
+ for(let i=0;i<2;i++)await supportWorker(()=>value("select public.submit_help_message(gen_random_uuid(),$1,$2,$3::jsonb)",[network,String(i).repeat(64),JSON.stringify({...payload,email:`help-rate-${i}@example.test`})]));
+ await assert.rejects(supportWorker(()=>value("select public.submit_help_message(gen_random_uuid(),$1,$2,$3::jsonb)",[network,'1'.repeat(64),JSON.stringify({...payload,email:'help-rate-blocked@example.test'})])),/rate limit/);
+});
