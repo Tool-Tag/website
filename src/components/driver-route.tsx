@@ -23,7 +23,7 @@ export async function DriverRoute({leg,date,routeId}:{leg:"pickup"|"return";date
   const [{ data: orders }, { data: jobs }, { data: routes }, { data: stops }, { data: docs }] =
     await Promise.all([
       db.from("pick_return_orders").select("*").eq("unit_id", unit),
-      db.from("jobs").select("*").eq("unit_id", unit),
+      db.from("jobs").select("*").eq("unit_id", unit).eq("is_lost",false),
       db.from("pick_return_routes").select("*").eq("unit_id", unit).eq("route_date", date),
       db.from("pick_return_stops").select("*").eq("unit_id", unit),
       db

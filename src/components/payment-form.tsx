@@ -49,19 +49,21 @@ export function PaymentForm({
   venmoHandle,
   cardConfigured = false,
   routePayment = false,
+  pickupRetryPayment = false,
 }: {
   cardConfigured?: boolean;
   routePayment?: boolean;
+  pickupRetryPayment?:boolean;
   token: string;
   balanceDue: number | string;
   zelleEmail?: string | null;
   venmoHandle?: string | null;
 }) {
   const router = useRouter();
-  const [method, setMethod] = useState("Cash");
+  const [method, setMethod] = useState(pickupRetryPayment ? "Zelle" : "Cash");
   const [state, action, pending] = useActionState<ActionState, FormData>(
     async (previous, form) => {
-      try { return await customerAction(routePayment ? "route-payment" : "payment", token, previous, form); }
+      try { return await customerAction(pickupRetryPayment ? "pickup-retry-payment" : routePayment ? "route-payment" : "payment", token, previous, form); }
       catch { return {error: "Payment submission failed. Please try again with a smaller screenshot."}; }
     },
     {},
@@ -91,7 +93,7 @@ export function PaymentForm({
             aria-label="Payment method"
           >
             <button type="button" role="tab" aria-selected={method === "Card"} onClick={()=>setMethod("Card")} disabled={!cardConfigured}>Card (TEST) {!cardConfigured && <small>Not configured</small>}</button>
-            <button
+            {!pickupRetryPayment && <button
               type="button"
               role="tab"
               aria-selected={method === "Cash"}
@@ -103,7 +105,7 @@ export function PaymentForm({
               onClick={() => setMethod("Cash")}
             >
               Cash
-            </button>
+            </button>}
 
             <button
               type="button"

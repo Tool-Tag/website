@@ -23,7 +23,7 @@ export async function PickupRoute({date}:{date:string}){
  const jobIds=(stops??[]).map(s=>s.job_id);
  const results=jobIds.length?await Promise.all([
  db.from("pick_return_orders").select("*").eq("unit_id",unit).in("job_id",jobIds).in("service_method",["Pickup Only","Pickup & Delivery"]).eq("fee_status","Confirmed"),
- db.from("jobs").select("*").eq("unit_id",unit).in("id",jobIds),
+ db.from("jobs").select("*").eq("unit_id",unit).eq("is_lost",false).in("id",jobIds),
  db.from("job_items").select("job_id,article,sequence").eq("unit_id",unit).in("job_id",jobIds).order("sequence"),
  db.from("documents").select("*").eq("unit_id",unit).in("job_id",jobIds).eq("type","Receiving Evidence").eq("status","Available"),
  db.from("commercial_flows").select("id,customer_id").eq("unit_id",unit),

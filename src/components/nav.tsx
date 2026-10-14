@@ -304,7 +304,8 @@ export function Nav({
           title: "Open Jobs",
           attentionKey: "jobs",
         },
-        { path: "pick-return", label: "Pick up & Return" },
+        { path: "pick-return", label: "Pick Up & Delivery" },
+        { path: "lost", label: "Lost" },
         { path: "customers", label: "Customers" },
         { path: "finance", label: "Finance" },
         {

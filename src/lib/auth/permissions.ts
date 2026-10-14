@@ -53,6 +53,7 @@ export function canMutate(access: Access, operation: string) {
 }
 export function sectionPermissions(section: string): readonly Permission[] {
   switch (section) {
+    case "lost": return ["jobs.view","pr.returns"];
     case "jobs": case "job-extensions": return ["jobs.view"];
     case "quotes": case "get-tagged": case "accepted-documents": return ["quotes.view"];
     case "notifications": return ["support.inbox"];

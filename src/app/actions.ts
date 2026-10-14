@@ -381,19 +381,20 @@ export async function customerAction(
     revalidatePath(`/status/${token}`);
     return { ok: true };
   }
-  if ((kind === "payment" || kind === "route-payment") && form.get("method") === "Card") {
+  if ((kind === "payment" || kind === "route-payment" || kind === "pickup-retry-payment") && form.get("method") === "Card") {
     if (!cardPaymentsConfigured()) return { error: "Card payments are not configured yet" };
     const attemptId = randomUUID();
-    const prepared = await db.rpc("prepare_route_payment",{p_token:token,p_method:"Card",p_attempt:attemptId});
+    const prepared = kind === "pickup-retry-payment" ? await db.rpc("prepare_pickup_retry_card",{p_token:token,p_attempt:attemptId}) : await db.rpc("prepare_route_payment",{p_token:token,p_method:"Card",p_attempt:attemptId});
     if(prepared.error) return {error:prepared.error.message};
+    const checkoutAttemptId=String(prepared.data.attempt_id || attemptId);
     const provider=paymentProvider("Card");
     if(!provider.isConfigured()) return {error:"Card payments are not configured yet."};
     try {
       if(!(await stripeTestCustomer(String(prepared.data.job_id)))) return {error:"Card payments are in TEST mode and available only for TEST- customers."};
       const base=toolTagPublicUrl();
-      const result=await provider.start({attemptId,amountCents:Math.round(Number(prepared.data.amount)*100),currency:"usd",description:`ToolTag balance · ${prepared.data.job_code}`,customerEmail:String(prepared.data.customer_email || ""),successUrl:`${base}/${kind === "route-payment" ? "status" : "payment"}/${encodeURIComponent(token)}`,cancelUrl:`${base}/${kind === "route-payment" ? "status" : "payment"}/${encodeURIComponent(token)}`,jobId:prepared.data.job_id,quoteId:prepared.data.quote_id,paymentScope:"full"});
+      const result=await provider.start({attemptId:checkoutAttemptId,amountCents:Math.round(Number(prepared.data.amount)*100),currency:"usd",description:kind === "pickup-retry-payment" ? `ToolTag Pickup retry · ${prepared.data.job_code}` : `ToolTag balance · ${prepared.data.job_code}`,customerEmail:String(prepared.data.customer_email || ""),successUrl:`${base}/${["route-payment","pickup-retry-payment"].includes(kind) ? "status" : "payment"}/${encodeURIComponent(token)}`,cancelUrl:`${base}/${["route-payment","pickup-retry-payment"].includes(kind) ? "status" : "payment"}/${encodeURIComponent(token)}`,jobId:prepared.data.job_id,quoteId:prepared.data.quote_id,paymentScope:"full"});
       if(!result.redirectUrl || !result.providerReference) return {error:"Card checkout unavailable."};
-      const attached=await db.rpc("attach_route_card_session",{p_token:token,p_attempt:attemptId,p_reference:result.providerReference});
+      const attached=await db.rpc("attach_route_card_session",{p_token:token,p_attempt:checkoutAttemptId,p_reference:result.providerReference});
       if(attached.error)return {error:attached.error.message};
       return {ok:true,link:result.redirectUrl};
     } catch (error) {console.error("STRIPE_CHECKOUT_START_FAILED",{name:error instanceof Error?error.name:"unknown",code:(error as {cause?:{code?:string}})?.cause?.code ?? "CHECKOUT_FAILED"});return {error:"Could not start card checkout."};}
@@ -519,10 +520,12 @@ export async function customerAction(
   if (
     kind === "payment" ||
     kind === "route-payment" ||
+    kind === "pickup-retry-payment" ||
     kind === "pickup-payment" ||
     kind === "cancellation-payment"
   ) {
     try {
+    const pickupRetry=kind === "pickup-retry-payment";
     const pickupFee = kind === "pickup-payment";
     const cancellationBalance = kind === "cancellation-payment";
     const method = String(form.get("method") || "");
@@ -530,8 +533,8 @@ export async function customerAction(
     let proofPath: string | null = null;
     const file = form.get("proof");
 
-    if (pickupFee ? !["Zelle", "Venmo"].includes(method) : !["Cash", "Zelle", "Venmo"].includes(method))
-      return { error: pickupFee ? "Choose Zelle or Venmo." : "Choose Cash, Zelle or Venmo." };
+    if ((pickupFee || pickupRetry) ? !["Zelle", "Venmo"].includes(method) : !["Cash", "Zelle", "Venmo"].includes(method))
+      return { error: (pickupFee || pickupRetry) ? "Choose Zelle or Venmo." : "Choose Cash, Zelle or Venmo." };
 
     if (method !== "Cash" && (!pickupFee || (file instanceof File && file.size > 0))) {
       if (!(file instanceof File) || file.size === 0)
@@ -564,7 +567,7 @@ export async function customerAction(
       if (uploadError) return { error: "Could not upload payment proof." };
     }
 
-    const { error } = kind === "route-payment"
+    const { error } = pickupRetry ? await db.rpc("submit_pickup_retry_payment",{p_token:token,p_method:method,p_request:requestKey,p_path:proofPath}) : kind === "route-payment"
       ? await db.rpc("submit_route_payment",{p_token:token,p_method:method,p_request:requestKey,p_path:proofPath})
       : pickupFee
       ? await db.rpc("public_submit_pickup_fee_payment", {
@@ -609,6 +612,7 @@ export async function customerAction(
       revalidatePath("/app", "layout");
       return { ok: true };
     }
+    if (pickupRetry) { revalidatePath(`/status/${token}`);revalidatePath("/app","layout");return {ok:true}; }
     if (cancellationBalance) {
       revalidatePath(`/status/${token}`);
       revalidatePath("/app", "layout");

@@ -131,6 +131,7 @@ export async function Jobs({ id }: { id?: string }) {
   const { access } = await context();
   const j = (await rows("jobs", { id }))[0];
   if (!j) return <Empty>Job not found.</Empty>;
+  if (j.is_lost) return <Panel><p>This Job is in Lost.</p><Link href="/app/lost" className="button">Open Lost</Link></Panel>;
 
   const [
     docs,

@@ -1643,3 +1643,5 @@ body:has(.get-tagged-react-dialog[open]) {
 .delivery-stop-list { padding-left:28px; }
 .delivery-stop-list > li { padding:16px; border-bottom:1px solid var(--border,#303946); }
 .delivery-stop-list > li[draggable="true"] { cursor:grab; }
+.pickup-missed-only { background:rgba(57,113,247,.15); border-left:4px solid #3971f7; }
+.pickup-missed-combined { background:rgba(239,83,103,.13); border-left:4px solid #ef5367; }

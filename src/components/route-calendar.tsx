@@ -1,10 +1,11 @@
 "use client";
 import {useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
+import {choosePickupRetryDay} from "@/app/pickup-driver-actions";
 import {routeAvailability, scheduleRoute} from "@/app/route-actions";
 import {TOOLTAG_TIMEZONE} from "@/lib/domain/time";
 type Availability = {day:string; slots:{eta:string;label:string}[]; moved:boolean};
-export function RouteCalendar({job,leg,token,locale="en"}:{job:string;leg:"Pickup"|"Return";token?:string;locale?:"en"|"es"}) {
+export function RouteCalendar({job,leg,token,locale="en",pickupRetry=false}:{job:string;leg:"Pickup"|"Return";token?:string;locale?:"en"|"es";pickupRetry?:boolean}) {
  const router=useRouter();
  const es=locale==="es";
  const displayError=(message:string)=>es?"No se pudo completar la solicitud. Revisa la disponibilidad y vuelve a intentar.":message;
@@ -34,11 +35,11 @@ export function RouteCalendar({job,leg,token,locale="en"}:{job:string;leg:"Picku
   setPending(true);setError("");setOk(false);setAvailable(null);setEta("");
   try {const result=await routeAvailability(job,leg,day,token);if(result.error)setError(displayError(result.error));else {setAvailable(result.data);setEta(result.data.slots[0]?.eta || "");}} catch {setError(displayError("Could not load route availability. Please retry."));} finally{setPending(false);}
  }
- async function save(){if(!available)return;setPending(true);setError("");try{const result=await scheduleRoute(job,leg,available.day,eta,token);if(result.error){setError(displayError(result.error));setAvailable(null);}else{setOk(true);router.refresh();}}catch{setError(displayError("Could not schedule. Please retry."));}finally{setPending(false);}}
+ async function save(){if(!available)return;setPending(true);setError("");try{const result=pickupRetry&&token?await choosePickupRetryDay(job,token,available.day):await scheduleRoute(job,leg,available.day,eta,token);if(result.error){setError(displayError(result.error));setAvailable(null);}else{setOk(true);router.refresh();}}catch{setError(displayError("Could not schedule. Please retry."));}finally{setPending(false);}}
  return <section className="stack"><p>{`${weekdays.map(day=>(es?["domingo","lunes","martes","miércoles","jueves","viernes","sábado"]:["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"])[day]).join(", ")} · ${leg === "Pickup" ? "8:00 AM–12:00 PM" : "2:00 PM–6:00 PM"}`} (Denver)</p>
  <div className="actions"><button type="button" disabled={pending || offset===0} onClick={()=>setOffset(Math.max(0,offset-28))}>{es?"Anteriores":"Previous"}</button><button type="button" disabled={pending} onClick={()=>setOffset(offset+28)}>{es?"Siguientes fechas":"Next dates"}</button></div>
  <div role="group" aria-label={es?`Calendario de ${leg==="Pickup"?"recolección":"entrega"}`:`${leg} calendar`} style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:4}}>{days.map(d=>{const day=d.toISOString().slice(0,10);return <button key={day} type="button" disabled={pending || !weekdays.includes(d.getUTCDay()) || !dayAvailability[day]} aria-pressed={available?.day===day} onClick={()=>choose(day)}>{d.toLocaleDateString(es?"es-MX":"en-US",{timeZone:"UTC",month:"short",day:"numeric",weekday:"short"})}</button>;})}</div>
- {available && <>{available.moved && <p className="notice">{es?"La fecha no está disponible. Siguiente fecha disponible: ":"That date is unavailable. The next available date is "}{available.day}{es?". Al guardar se notificará al cliente.":". Saving will notify the customer."}</p>}<label>{es?"Horario programado":"Initial ETA"}<select value={eta} onChange={e=>setEta(e.target.value)} disabled={pending}>{available.slots.map(s=><option key={s.eta} value={s.eta}>{s.label}</option>)}</select></label><button type="button" disabled={pending || !eta} onClick={save}>{pending ? (es?"Guardando…":"Saving…") : es?`Programar ${leg==="Pickup"?"recolección":"entrega"}`:`Schedule ${leg}`}</button></>}
+ {available && <>{available.moved && <p className="notice">{es?"La fecha no está disponible. Siguiente fecha disponible: ":"That date is unavailable. The next available date is "}{available.day}{es?". Al guardar se notificará al cliente.":". Saving will notify the customer."}</p>}{!pickupRetry&&<label>{es?"Horario programado":"Initial ETA"}<select value={eta} onChange={e=>setEta(e.target.value)} disabled={pending}>{available.slots.map(s=><option key={s.eta} value={s.eta}>{s.label}</option>)}</select></label>}<button type="button" disabled={pending || !eta} onClick={save}>{pending ? (es?"Guardando…":"Saving…") : es?`Programar ${leg==="Pickup"?"recolección":"entrega"}`:`Schedule ${leg}`}</button></>}
  {error && <p className="notice error" role="alert">{error}</p>}{ok && <p className="notice success">{es?"Programado. El cliente fue notificado.":"Scheduled. The customer has been notified."}</p>}
  </section>;
 }

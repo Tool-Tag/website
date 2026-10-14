@@ -274,7 +274,7 @@ before(async () => {
 
 
 
-  await db.query("update public.unit_settings set sales_tax_rate=0,shop_delivery_blocks_enabled=false where unit_id=$1",[unit]);
+  await db.query("update public.unit_settings set sales_tax_rate=0,shop_delivery_blocks_enabled=false,shop_pickup_blocks_enabled=false where unit_id=$1",[unit]);
   await value("select public.publish_policy($1,$2,$3)", [
     unit,
     "TEST AGREEMENT V1",
@@ -1000,11 +1000,11 @@ test("Stops advance sequentially, but route closure requires explicit confirmati
  assert.equal(await value("select status from public.pick_return_routes where id=$1",[route]),"Completed");
 });
 
-async function driverPickupFixture(suffix:string,offset=150){
+async function driverPickupFixture(suffix:string,offset=150,option:"pickup_only"|"pickup_delivery"="pickup_delivery"){
  await db.query("update public.unit_settings set max_pickup_stops_per_saturday=10 where unit_id=$1",[unit]);
  const customer=await createCustomer(suffix,suffix);const quote=await createQuote(customer.id);
  const review=await value<string>("select public.send_quote($1)",[quote]);
- const accepted=await acceptWithLogistics(review,{option_code:"pickup_delivery",pickup_address:"101 Pickup Way",saturday_date:futureSaturday()});
+ const accepted=await acceptWithLogistics(review,{option_code:option,pickup_address:"101 Pickup Way",saturday_date:futureSaturday()});
  const job=accepted.job_id;const token=await value<string>("select private.ensure_job_status_link($1)",[job]);
  await db.query("update public.pick_return_orders set fee_status='Confirmed' where job_id=$1",[job]);
  await db.query("update public.quote_logistics set payment_status='paid_confirmed' where quote_id=$1",[quote]);
@@ -2195,5 +2195,101 @@ test('Delivery cutoff and driver interruption requeue for shop scheduling rather
   assert.equal(await value('select private.delivery_queue_eligible($1)',[f.job]),true);
   assert.equal(await value('select return_window_start from public.pick_return_orders where job_id=$1',[f.job]),null);
   assert.equal(Number(await value("select count(*) from public.pick_return_stops where job_id=$1 and status='Scheduled'",[f.job])),0);
+ }finally{await db.exec('rollback');}
+});
+
+test('Failed Delivery verification survives removal from the live block and requires every item before closure',async()=>{
+ await db.exec('begin');try{
+  const f=await driverReturnFixture('verify-failed-delivery');const route=await value<string>('select route_id from public.pick_return_stops where id=$1',[f.stop]);
+  await value("select public.return_driver_action($1,'en-route')",[f.stop]);await value("select public.return_driver_action($1,'arrived')",[f.stop]);await db.query("update public.pick_return_stops set return_wait_until=now()-interval '1 second' where id=$1",[f.stop]);await value("select public.return_driver_action($1,'not-home')",[f.stop]);
+  assert.equal(await value('select status from public.failed_delivery_verifications where stop_id=$1',[f.stop]),'Pending');
+  await blockReject(()=>value('select public.confirm_pick_return_route($1)',[route]),/verify each item/);
+  await blockReject(()=>value("select public.verify_failed_delivery($1,'{}')",[f.stop]),/Verify|item/);
+  const ids=await value<string[]>('select array_agg(id) from public.job_items where job_id=$1',[f.job]);await value('select public.verify_failed_delivery($1,$2::uuid[])',[f.stop,ids]);await value('select public.verify_failed_delivery($1,$2::uuid[])',[f.stop,ids]);
+  assert.equal(await value('select status from public.failed_delivery_verifications where stop_id=$1',[f.stop]),'Verified');await value('select public.confirm_pick_return_route($1)',[route]);
+ }finally{await db.exec('rollback');}
+});
+
+test('A documented loss moves the Job to Lost, retains driver and missing-item trace, and permits block closure without fabricated item checks',async()=>{
+ await db.exec('begin');try{
+  const f=await driverReturnFixture('lost-job');const route=await value<string>('select route_id from public.pick_return_stops where id=$1',[f.stop]);
+  await value("select public.return_driver_action($1,'en-route')",[f.stop]);await value("select public.return_driver_action($1,'arrived')",[f.stop]);await db.query("update public.pick_return_stops set return_wait_until=now()-interval '1 second' where id=$1",[f.stop]);await value("select public.return_driver_action($1,'not-home')",[f.stop]);
+  await blockReject(()=>value("select public.mark_failed_delivery_lost($1,'{}','')",[f.stop]),/Explain/);
+  const loss=await value<string>("select public.mark_failed_delivery_lost($1,'{}','Item was not present when the driver returned to the shop.')",[f.stop]);
+  assert.equal(await value('select is_lost from public.jobs where id=$1',[f.job]),true);assert.equal(await value('select status from public.failed_delivery_verifications where stop_id=$1',[f.stop]),'Lost');
+  assert.equal(Number(await value("select count(*) from private.route_item_checks where stop_id=$1 and kind='Returned'",[f.stop])),0);
+  assert.equal(await value("select public.mark_failed_delivery_lost($1,'{}','Repeat report')",[f.stop]),loss);
+  const list=await value<{id:string;items:unknown[]}[]>('select public.lost_job_list()');assert.ok(list.find(l=>l.id===loss)?.items.length);
+  assert.equal(await value('select private.delivery_queue_eligible($1)',[f.job]),false);await value('select public.confirm_pick_return_route($1)',[route]);
+  await blockReject(()=>value("update public.jobs set is_lost=false where id=$1 returning id",[f.job]),/Lost/);
+ }finally{await db.exec('rollback');}
+});
+
+test('Pickup block planning mirrors Delivery, preserves 8 AM–12 PM, and supports atomic reorder/removal',async()=>{
+ await db.exec('begin');try{
+  const a=await driverPickupFixture('pickup-block-a',350);const b=await driverPickupFixture('pickup-block-b',350);
+  await db.query("update public.jobs set created_at=now()-interval '2 days' where id=$1",[a.job]);await db.query("update public.jobs set created_at=now()-interval '1 day' where id=$1",[b.job]);
+  await db.query('update public.unit_settings set shop_pickup_blocks_enabled=true where unit_id=$1',[unit]);
+  await db.query("update public.pick_return_stops set status='Cancelled' where id=any($1::uuid[])",[[a.stop,b.stop]]);
+  await db.query("update public.pick_return_orders set pickup_status='Not Scheduled',pickup_window_start=null,pickup_window_end=null,pickup_eta=null where job_id=any($1::uuid[])",[[a.job,b.job]]);
+  const dates=await value<{date:string;blocks:{capacity:number}[]}[]>('select public.pickup_block_availability($1,now()::date+400)',[a.job]);assert.ok(dates.length);assert.equal(dates[0].blocks[0].capacity,20);
+  const route=await value<string>('select public.assign_pickup_block($1,$2)',[a.job,dates[0].date]);assert.equal(await value('select public.assign_pickup_block($1,$2)',[b.job,dates[0].date]),route);
+  assert.equal(await value("select to_char(pickup_window_start at time zone 'America/Denver','HH24:MI') from public.pick_return_orders where job_id=$1",[a.job]),'08:00');
+  const ids=await value<string[]>("select array_agg(id order by sequence) from public.pick_return_stops where route_id=$1 and status<>'Cancelled'",[route]);await value("select public.save_pickup_block($1,null,$2::uuid[],'{}',20,null)",[route,ids.slice().reverse()]);
+  await value("select public.save_pickup_block($1,null,$2::uuid[],$3::uuid[],20,null)",[route,[ids[0]],[ids[1]]]);assert.equal(await value('select private.pickup_queue_eligible($1)',[b.job]),true);
+ }finally{await db.exec('rollback');}
+});
+
+async function missPickupForRetry(suffix:string,option:"pickup_only"|"pickup_delivery"="pickup_delivery"){
+ const f=await driverPickupFixture(suffix,600,option);await db.query('update public.unit_settings set shop_pickup_blocks_enabled=true where unit_id=$1',[unit]);
+ await value("select public.pickup_driver_action($1,'en-route')",[f.stop]);await value("select public.pickup_driver_action($1,'arrived')",[f.stop]);await db.query("update public.pick_return_stops set pickup_wait_until=now()-interval '1 second' where id=$1",[f.stop]);await value("select public.pickup_driver_action($1,'pickup-miss')",[f.stop]);return f;
+}
+test('Missed Pickup & Delivery charges only Pickup Only, allocates manual payment exclusively to its retry invoice, and date choice returns to the shop queue',async()=>{
+ await db.exec('begin');try{
+  const f=await missPickupForRetry('paid-pickup-retry');const original=await value<number>('select fee_amount from public.pick_return_orders where job_id=$1',[f.job]);
+  await value("select public.pickup_miss_choice($1,$2,'reschedule')",[f.job,f.token]);await value("select public.pickup_miss_choice($1,$2,'reschedule')",[f.job,f.token]);
+  assert.equal(Number(await value('select count(*) from public.pickup_attempt_fees where job_id=$1',[f.job])),1);assert.equal(Number(await value('select amount from public.pickup_attempt_fees where job_id=$1',[f.job])),9.99);assert.equal(Number(original),19.99);
+  const day=await value<string>('select (now()::date+700)::text');const a=await value<{day:string;slots:{eta:string}[]}>("select public.route_availability($1,'Pickup',$2,$3)",[f.job,day,f.token]);
+  await blockReject(()=>value('select public.choose_pickup_retry_day($1,$2,$3)',[f.job,f.token,a.day]),/Confirm/);
+  await blockReject(()=>value("select public.route_schedule($1,'Pickup',$2,$3,$4)",[f.job,a.day,a.slots[0].eta,f.token]),/new Pickup fee|shop will assign/);
+  const baseBefore=await value<number>('select collected from public.sale_balances where job_id=$1',[f.job]);
+  const req=await value<{id:string}>('select public.submit_pickup_retry_payment($1,\'Zelle\',gen_random_uuid())',[f.token]);await value('select public.confirm_payment_request($1)',[req.id]);
+  assert.equal(Number(await value('select collected from public.sale_balances where job_id=$1',[f.job])),Number(baseBefore));assert.equal(await value('select private.pickup_retry_paid($1)',[f.job]),true);
+  await value('select public.choose_pickup_retry_day($1,$2,$3)',[f.job,f.token,a.day]);assert.equal(await value('select private.pickup_queue_eligible($1)',[f.job]),true);assert.equal(Number(await value("select count(*) from public.pick_return_stops where job_id=$1 and status='Scheduled'",[f.job])),0);
+  assert.equal(Number(await value('select fee_amount from public.pick_return_orders where job_id=$1',[f.job])),Number(original));
+ }finally{await db.exec('rollback');}
+});
+
+test('Stripe TEST pickup retry confirmation pays only the retry sale and preserves pinned Utah tax',async()=>{
+ await db.exec('begin');try{
+  await db.query('update public.unit_settings set sales_tax_rate=7.45 where unit_id=$1',[unit]);const f=await missPickupForRetry('TEST-stripe-pickup-retry');await value("select public.pickup_miss_choice($1,$2,'reschedule')",[f.job,f.token]);
+  assert.equal(Number(await value('select amount from public.pickup_attempt_fees where job_id=$1',[f.job])),10.73);assert.equal(Number(await value("select (s.tax_snapshot->>'tax_amount')::numeric from public.sales s join public.pickup_attempt_fees pf on pf.sale_id=s.transaction_id where pf.job_id=$1",[f.job])),0.74);
+  const attempt=await value<string>('select gen_random_uuid()');await value('select public.prepare_pickup_retry_card($1,$2)',[f.token,attempt]);const again=await value<{attempt_id:string}>('select public.prepare_pickup_retry_card($1,gen_random_uuid())',[f.token]);assert.equal(again.attempt_id,attempt);await value("select public.attach_route_card_session($1,$2,'cs_test_pickup_retry')",[f.token,attempt]);const base=await value<number>('select collected from public.sale_balances where job_id=$1',[f.job]);
+  await db.query("select set_config('request.jwt.claim.role','service_role',false)");await value("select public.confirm_logistics_card_payment($1,'cs_test_pickup_retry',10.73)",[attempt]);await value("select public.confirm_logistics_card_payment($1,'cs_test_pickup_retry',10.73)",[attempt]);
+  assert.equal(await value('select private.pickup_retry_paid($1)',[f.job]),true);assert.equal(Number(await value('select collected from public.sale_balances where job_id=$1',[f.job])),Number(base));
+ }finally{await db.exec('rollback');}
+});
+
+test('Unanswered combined Pickup expires once after 15 days and registers the delivery refund in existing Refunds without replay',async()=>{
+ await db.exec('begin');try{
+  const f=await missPickupForRetry('expiry-combined');await db.query("update public.pick_return_orders set fee_status='Pending Verification' where job_id=$1",[f.job]);const initial=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) select gen_random_uuid(),unit_id,job_id,'Zelle',fee_amount,'Pickup Fee' from public.pick_return_orders where job_id=$1 returning id",[f.job]);await value('select public.confirm_payment_request($1)',[initial]);await db.query("update public.pick_return_orders set pickup_miss_expires_at=now()-interval '1 second' where job_id=$1",[f.job]);
+  await value('select private.reconcile_pickups()');await value('select private.reconcile_pickups()');assert.equal(await value('select status from public.jobs where id=$1',[f.job]),'Cancelled');
+  assert.equal(Number(await value("select count(*) from public.refund_requests where job_id=$1 and source_kind='Pickup expiry'",[f.job])),1);assert.equal(Number(await value("select amount from public.refund_requests where job_id=$1 and source_kind='Pickup expiry'",[f.job])),9.99);assert.equal(await value("select status from public.refund_requests where job_id=$1 and source_kind='Pickup expiry'",[f.job]),'Pending');
+  assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",['pickup-expiry-refund:'+f.stop])),1);
+ }finally{await db.exec('rollback');}
+});
+
+
+test('Unanswered Pickup Only cancels after 15 days with no refund and preserves the nonrefundable initial fee',async()=>{
+ await db.exec('begin');try{
+  const f=await missPickupForRetry('expiry-pickup-only','pickup_only');
+  await db.query("update public.pick_return_orders set fee_status='Pending Verification' where job_id=$1",[f.job]);
+  const initial=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) select gen_random_uuid(),unit_id,job_id,'Zelle',fee_amount,'Pickup Fee' from public.pick_return_orders where job_id=$1 returning id",[f.job]);await value('select public.confirm_payment_request($1)',[initial]);
+  await db.query("update public.pick_return_orders set pickup_miss_expires_at=now()-interval '1 second' where job_id=$1",[f.job]);
+  await value('select private.reconcile_pickups()');await value('select private.reconcile_pickups()');
+  assert.equal(await value('select status from public.jobs where id=$1',[f.job]),'Cancelled');
+  assert.equal(Number(await value('select count(*) from public.refund_requests where job_id=$1',[f.job])),0);
+  assert.equal(Number(await value('select collected from public.sale_balances where job_id=$1',[f.job])),9.99);
+  assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",['pickup-expiry-refund:'+f.stop])),0);
  }finally{await db.exec('rollback');}
 });
