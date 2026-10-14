@@ -539,3 +539,12 @@ test("Popup aggregates categories without individual records and menu urgency us
  const bands=aggregateBands(items);assert.equal(bands.length,3);assert.equal(bands[0].count,3);
  assert.equal(bands[0].categories.length,3);assert.ok(bands.every(b=>b.categories.every(c=>!('id' in c))));
 });
+
+import {supportAckEnabled} from "../src/lib/integrations/support-gmail";
+test("Automatic receipts require production live mail and never dispatch in local, preview or test-delivery mode",()=>{
+ const env={TOOLTAG_SUPPORT_INBOX_ENABLED:"true",TOOLTAG_MAIL_MODE:"live",NODE_ENV:"production",VERCEL_ENV:"production",GOOGLE_CLIENT_ID:"fixture",GOOGLE_CLIENT_SECRET:"fixture",GOOGLE_REFRESH_TOKEN:"fixture"};
+ assert.equal(supportAckEnabled(env),true);
+ assert.equal(supportAckEnabled({...env,TOOLTAG_MAIL_MODE:"test-delivery"}),false);
+ assert.equal(supportAckEnabled({...env,NODE_ENV:"development",TOOLTAG_MAIL_ALLOW_LOCAL_SEND:"true"}),false);
+ assert.equal(supportAckEnabled({...env,VERCEL_ENV:"preview"}),false);
+});

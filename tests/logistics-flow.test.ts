@@ -1763,13 +1763,13 @@ async function supportWorker<T>(action:()=>Promise<T>) {
 function inboxMessage(id:string,thread:string,extra:Record<string,unknown>={}) {
  return {gmail_message_id:id,gmail_thread_id:thread,mailbox:"support",sender_email:"support-customer@example.test",sender_name:"TEST-Support Customer",subject:"Question about my tools",rfc_message_id:`<${id}@example.test>`,references_header:"",in_reply_to:"",body:"Please help with my tools.",sent_at:new Date().toISOString(),...extra};
 }
-test("Support inbox deduplicates mail, opens a numbered case on reply, preserves signature and reopens closed cases",async()=>{
+test("Support inbox deduplicates mail, numbers cases at receipt, preserves signature and reopens closed cases",async()=>{
  const customer=await createCustomer("TEST-Support Customer","support-customer");
  const cid=await supportWorker(()=>rpc("support_ingest",inboxMessage("inbox-1","thread-1")));
  assert.equal(await supportWorker(()=>rpc("support_ingest",inboxMessage("inbox-1","thread-1"))),cid);
  assert.equal(Number(await value("select count(*) from public.support_messages where conversation_id=$1",[cid])),1);
  assert.equal(await value("select customer_id from public.support_conversations where id=$1",[cid]),customer.id);
- assert.equal(await value("select case_code from public.support_conversations where id=$1",[cid]),null);
+ assert.match(await value<string>("select case_code from public.support_conversations where id=$1",[cid]),/^TT-C-/);
  await value("select public.support_mark_read($1,now())",[cid]);
  assert.equal(Number(await value("select unread_count from public.support_conversations where id=$1",[cid])),0);
  const replyId=await value<string>("select gen_random_uuid()");
@@ -2387,4 +2387,31 @@ test("Hello inquiries have no case number and cannot resolve without the final c
  await finishSupportTestProtocol(id);assert.equal(await value("select case_code from public.support_conversations where id=$1",[id]),null);
  const newer=await supportWorker(()=>rpc("support_ingest",inboxMessage('hello-reopen-no-code','hello-no-code-thread',{mailbox:'hello',subject:'Re: General question',sent_at:new Date(Date.now()+2000).toISOString()})));assert.equal(newer,id);assert.equal(await value("select closure_final_message_id from public.support_conversations where id=$1",[id]),null);
  assert.equal(await value("select has_function_privilege('anon','public.support_resolve_protocol(uuid,uuid)','execute')"),false);
+});
+
+test("Support and Hello acknowledgments personalize linked customers, keep real response clocks pending and never replay",async()=>{
+ await db.query("update public.support_acknowledgments set status='Cancelled' where status='Queued'");
+ const customer=await createCustomer("Avery Client","ack-client");
+ const id=await supportWorker(()=>rpc("support_ingest",inboxMessage('ack-support','ack-support-thread',{sender_email:'ack-client@example.test'})));
+ assert.equal(await supportWorker(()=>rpc("support_ingest",inboxMessage('ack-support','ack-support-thread',{sender_email:'ack-client@example.test'}))),id);
+ assert.equal(Number(await value("select count(*) from public.support_acknowledgments where conversation_id=$1",[id])),1);
+ const code=await value<string>("select case_code from public.support_conversations where id=$1",[id]);
+ const ack=await supportWorker(()=>value<{id:string;body:string;mailbox:string;automatic:boolean}>("select public.support_claim_ack()"));assert.equal(ack.automatic,true);assert.equal(ack.mailbox,'support');assert.equal(ack.body,`Hi Avery Client, we've received your inquiry and it will be reviewed within 1-2 days. Your case number is #${code}. Thank you for your patience.`);
+ await supportWorker(()=>value("select public.support_finish_reply($1,'Sent','ack-support-out','ack-support-thread',null)",[ack.id]));
+ assert.equal(await value("select status from public.support_conversations where id=$1",[id]),'New');
+ const cases=await value<{id:string;waiting_since:string|null}[]>("select public.support_cases()");assert.ok(cases.find(c=>c.id===id)?.waiting_since);
+ assert.ok((await value<{items:{id:string}[]}>("select public.urgent_login_attention()")).items.some(c=>c.id===id));
+ assert.equal(await supportWorker(()=>value("select public.support_claim_ack()")),null);
+ const hello=await supportWorker(()=>rpc("support_ingest",inboxMessage('ack-hello','ack-hello-thread',{mailbox:'hello',sender_email:'unknown-ack@example.test'})));
+ const helloAck=await supportWorker(()=>value<{id:string;body:string;subject:string;mailbox:string}>("select public.support_claim_ack()"));assert.equal(helloAck.body,"Hi there, we've received your message and we'll get back to you as soon as possible. Thank you for reaching out.");assert.equal(helloAck.mailbox,'hello');assert.doesNotMatch(helloAck.subject,/TT-C/);assert.equal(await value("select case_code from public.support_conversations where id=$1",[hello]),null);
+ await supportWorker(()=>value("select public.support_finish_reply($1,'Unknown',null,null,'GMAIL_DELIVERY_UNKNOWN')",[helloAck.id]));
+ assert.equal(await supportWorker(()=>value("select public.support_claim_ack()")),null);
+ assert.equal(await value("select status from public.support_acknowledgments where outbound_id=$1",[helloAck.id]),'Unknown');
+ const human=await value<{id:string}>("select public.support_prepare_reply($1,gen_random_uuid(),'Here is an answer from our team.')",[hello]);
+ await supportWorker(()=>value("select public.support_finish_reply($1,'Failed',null,null,'TEST_NO_SEND')",[human.id]));
+
+ const automatic=await supportWorker(()=>rpc("support_ingest",inboxMessage('ack-loop','ack-loop-thread',{automatic:true})));assert.equal(Number(await value("select count(*) from public.support_acknowledgments where conversation_id=$1",[automatic])),0);
+ await assert.rejects(value("select public.support_claim_ack()"),/Worker credentials/);
+ assert.equal(await value("select has_function_privilege('authenticated','public.support_claim_ack()','execute')"),false);
+ assert.ok(customer.id);
 });
