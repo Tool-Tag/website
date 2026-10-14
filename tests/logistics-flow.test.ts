@@ -2319,6 +2319,11 @@ test("Login attention is Owner/Manager-only and Job response clocks stop only af
 
  let summary=await load();assert.equal(summary.eligible,true);assert.ok(summary.items.some(i=>i.kind==='problem'&&i.id===job));
  assert.ok(summary.items.some(i=>i.kind==='refund'&&i.id===refund));assert.ok(summary.items.some(i=>i.kind==='problem'&&i.id===support));
+ await db.query("update public.support_messages set sent_at=now()-interval '5 days' where conversation_id=$1",[support]);
+ await db.query("insert into public.support_messages(conversation_id,direction,sender_email,subject,body,sent_at) values($1,'Inbound','customer@example.test','New details','More details',now()-interval '1 day')",[support]);
+ const pendingClock=await value<{items:{id:string;started_at:string}[]}>("select public.urgent_login_attention()");
+ assert.equal(Date.parse(pendingClock.items.find(i=>i.id===support)!.started_at),new Date(await value<string>("select max(sent_at) from public.support_messages where conversation_id=$1 and direction='Inbound'",[support])).getTime());
+
  await db.query("insert into public.support_messages(conversation_id,direction,sender_email,subject,body,delivery_status,sent_at) values($1,'Outbound','support@example.test','Response','Reply','Failed',now()+interval '1 second')",[support]);
  assert.ok((await load()).items.some(i=>i.id===support));
  await db.query("update public.support_messages set delivery_status='Sent' where conversation_id=$1 and direction='Outbound'",[support]);

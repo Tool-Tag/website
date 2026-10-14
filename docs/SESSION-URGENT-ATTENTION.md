@@ -14,7 +14,7 @@ Owner and an active custom role named **Manager** (case-insensitive) receive the
 
 - Refunds: inclusive Denver **weekday** days (Monday–Friday) from `requested_at`: days 1–2 green, 3–4 orange, 5+ red. Completed/cancelled or fully processed entries are excluded.
 - Customer responses: inclusive Denver **weekday** days (Monday–Friday; holidays are not a separate calendar): day 1 green, 2–3 orange, 4+ red. Overdue items remain red.
-- Support/Hello: oldest inbound message after the latest successfully **Sent** outbound response, in an open conversation. Reading a message, preparing a draft or a failed send does not clear the obligation. Closing the case removes it; a new inbound reply reopens it through the existing inbox behavior.
+- Support/Hello: latest inbound message after the latest successfully **Sent** outbound response, in an open conversation. Reading a message, preparing a draft or a failed send does not clear the obligation. Closing the case removes it; a new inbound reply reopens it through the existing inbox behavior.
 - Job issues: entering `Issue / Review` starts a dedicated timestamp so unrelated updates do not reset the clock. Staff with `jobs.manage` can explicitly confirm an actual customer response on the Job; this records the actor and audit event, does not send mail and does not resolve the issue. A new issue cycle resets the clock. Existing active issues use their last known update time as the initial approximation; no notification is replayed.
 - Lost: always red while the Job remains Lost, regardless of age.
 

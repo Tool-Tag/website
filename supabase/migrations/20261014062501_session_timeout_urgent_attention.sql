@@ -51,7 +51,7 @@ create function public.urgent_login_attention() returns jsonb language plpgsql s
  union all
  select 'problem',c.id,coalesce(c.case_code,c.subject),'/app/notifications',clock.started_at
  from public.support_conversations c cross join lateral (
- select min(m.sent_at) started_at from public.support_messages m where m.conversation_id=c.id and m.direction='Inbound'
+ select max(m.sent_at) started_at from public.support_messages m where m.conversation_id=c.id and m.direction='Inbound'
  and m.sent_at>coalesce((select max(o.sent_at) from public.support_messages o where o.conversation_id=c.id and o.direction='Outbound' and o.delivery_status='Sent'),'-infinity'::timestamptz)
  ) clock where c.unit_id=u and c.status<>'Closed' and clock.started_at is not null
  union all
