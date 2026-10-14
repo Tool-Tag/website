@@ -24,7 +24,7 @@ export async function ReturnRoute({date}:{date:string}){
  const jobIds=(stops??[]).map(s=>s.job_id);
  const results=jobIds.length?await Promise.all([
  db.from("pick_return_orders").select("*").eq("unit_id",unit).in("job_id",jobIds).in("service_method",["Pickup & Delivery","Drop-off + Delivery"]).not("production_ready_at","is",null),
- db.from("jobs").select("*").eq("unit_id",unit).in("id",jobIds),
+ db.from("jobs").select("*").eq("unit_id",unit).eq("is_lost",false).in("id",jobIds),
  db.from("quote_logistics").select("quote_id,delivery_address").eq("unit_id",unit),
  db.from("job_items").select("job_id,article,sequence,stage").eq("unit_id",unit).in("job_id",jobIds).order("sequence"),
  db.from("documents").select("*").eq("unit_id",unit).in("job_id",jobIds).eq("type","Delivery Evidence").eq("status","Available"),
@@ -36,7 +36,7 @@ export async function ReturnRoute({date}:{date:string}){
  if(results.some(r=>r.error))throw new Error("Could not load Return details");
  const [orders,jobs,logistics,items,documents,flows,customers,extensions,balances]=results.map(r=>r.data??[]);
  const allowed=new Set((orders??[]).filter(o=>o.return_status=== "Delivery In Progress" || (o.return_window_start&&new Date(o.return_window_start).toLocaleDateString("en-CA",{timeZone:"America/Denver"})===date)).map(o=>o.job_id));
- const visible=(stops??[]).filter(s=>s.status!=="Cancelled"&&allowed.has(s.job_id)&&(items??[]).some(i=>i.job_id===s.job_id)&&((items??[]).filter(i=>i.job_id===s.job_id).every(i=>["Finished","Cancelled"].includes(i.stage))||(extensions??[]).some(x=>x.job_id===s.job_id&&["Requested","Draft","Sent","Approved"].includes(x.status))));
+ const visible=(stops??[]).filter(s=>s.status!=="Cancelled"&&s.status!=="Failed"&&allowed.has(s.job_id)&&(items??[]).some(i=>i.job_id===s.job_id)&&((items??[]).filter(i=>i.job_id===s.job_id).every(i=>["Finished","Cancelled"].includes(i.stage))||(extensions??[]).some(x=>x.job_id===s.job_id&&["Requested","Draft","Sent","Approved"].includes(x.status))));
  return <section className="return-route driver-landing"><RouteDeparture/><StatusRefresh channels={liveChannels.filter((value):value is string=>typeof value==="string")} />
  <Link className="button secondary" href="/pick-return">← All routes</Link><p className="eyebrow">SUNDAY / RETURN</p><h1>{routeDateLabel(date)}</h1><p className="driver-window">2:00 PM–6:00 PM · Denver time</p><p>{visible.filter(s=>s.status==="Completed").length}/{visible.length} delivered</p>
  {(routes??[]).map(route=><RouteNotificationControls key={route.id} leg="Return" route={route.id} departed={route.departed_at} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}

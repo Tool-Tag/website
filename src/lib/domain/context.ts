@@ -51,6 +51,7 @@ export async function rows(
       table === "categories"
         ? q.or(`unit_id.eq.${unit},unit_id.is.null`)
         : q.eq("unit_id", unit);
+  if (table === "jobs" && !options.id) q = q.eq("is_lost", false);
   if (options.id) q = q.eq("id", options.id);
   if (options.field) q = q.eq(options.field, options.value!);
   if (options.order) q = q.order(options.order, { ascending: false });

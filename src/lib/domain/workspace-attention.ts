@@ -35,6 +35,7 @@ export async function workspaceAttention(
       db
         .from("jobs")
         .select("id,quote_id,status,work_stage")
+        .eq("is_lost",false)
         .eq("unit_id", unit),
       db
         .from("refund_requests")

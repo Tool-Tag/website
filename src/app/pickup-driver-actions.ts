@@ -16,3 +16,8 @@ export async function pickupMissChoice(job:string,token:string,choice:string){
  if(r.error)return {error:r.error.message};
  await dispatchWorkerMail();revalidatePath(`/status/${token}`);revalidatePath("/pick-return","layout");return {ok:true};
 }
+
+export async function choosePickupRetryDay(job:string,token:string,day:string){
+ const db=await supabase();const {error}=await db.rpc("choose_pickup_retry_day",{p_job:job,p_token:token,p_day:day});if(error)return {error:error.message};
+ await dispatchWorkerMail();revalidatePath(`/status/${token}`);revalidatePath("/app/pick-return");return {ok:true};
+}
