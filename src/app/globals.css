@@ -1650,3 +1650,9 @@ body:has(.get-tagged-react-dialog[open]) {
 .urgency-band {border-left:6px solid;padding:12px 16px;margin:12px 0;border-radius:8px;}
 .urgency-band h3 {margin:0;}.urgency-band a {text-decoration:underline;}
 .urgency-red {border-color:#ff7575;background:#351b23;}.urgency-orange {border-color:#ffb454;background:#35291b;}.urgency-green {border-color:#6bdfa0;background:#173025;}
+.urgency-categories {display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;}
+.workspace-nav-link .workspace-nav-count.workspace-nav-count-red {background:#ad283e;color:#fff;border-color:#ff8794;}
+.workspace-nav-link .workspace-nav-count.workspace-nav-count-orange {background:#8a4300;color:#fff;border-color:#ffc178;}
+.workspace-nav-link .workspace-nav-count.workspace-nav-count-green {background:#17633e;color:#fff;border-color:#7be3a8;}
+
+.workspace-nav-link .workspace-nav-count.workspace-nav-count-neutral {background:#29313e;color:#e5eaf1;border-color:#66758a;}

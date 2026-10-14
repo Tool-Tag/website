@@ -25,3 +25,11 @@ Support conversations and Job issues are distinct obligations; no unreliable ema
 New authenticated RPCs use empty search paths and explicit grants. Session introspection is restricted to the caller's authenticated Auth session. Attention reads require active Owner/Manager eligibility and return only ToolTag records. Links retain the destination's existing permission checks. RLS and mutating staff RPCs use the expired-session guard through `private.staff_active`.
 
 Migration: `20261014062501_session_timeout_urgent_attention.sql`. No applied migration or Agreement text changed. No migration applied to production; no main merge or deployment performed by this task.
+
+## Aggregated popup and menu badges
+
+Each color has one panel containing category totals only, never individual records. At most three category links are initially visible; any extra categories expand through **See more**. Support combines pending inbox and Job-response obligations. Refunds and Lost are separate totals.
+
+The sidebar label **Support** opens the existing notifications inbox; its current tabs are preserved. Support, Refunds and Lost each have a visible count (including zero), with the highest urgency in that category: red, then orange, then green. Counters refresh through the existing 30-second polling and focus/visibility refresh; looking at a section does not clear pending obligations. Non-Owner/Manager staff can retrieve counts only for their existing category permissions, without becoming eligible for the login popup or gaining new permissions.
+
+Traffic-light colors are exclusive to Support, Refunds and Lost. All other menu counters use a neutral slate-gray style, including the active section.

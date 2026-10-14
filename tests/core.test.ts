@@ -524,3 +524,18 @@ test("Refund urgency uses confirmed business days and weekend submissions start 
  const item=classifyAttention([{kind:"refund",id:"1",label:"test",href:"/app/refunds",started_at:"2026-10-09T18:00:00Z"}],new Date("2026-10-12T18:00:00Z"))[0];
  assert.equal(item.days,2);assert.equal(item.urgency,"green");
 });
+
+import {aggregateBands,categoryBadge} from "../src/lib/domain/urgent-attention";
+test("Popup aggregates categories without individual records and menu urgency uses red over orange over green",()=>{
+ const items=classifyAttention([
+ {kind:"refund",id:"r1",label:"one",href:"/app/refunds",started_at:"2026-10-13T18:00:00Z"},
+ {kind:"refund",id:"r2",label:"two",href:"/app/refunds",started_at:"2026-10-09T18:00:00Z"},
+ {kind:"refund",id:"r3",label:"three",href:"/app/refunds",started_at:"2026-10-02T18:00:00Z"},
+ {kind:"problem",id:"p",label:"support",href:"/app/notifications",started_at:"2026-10-09T18:00:00Z"},
+ {kind:"lost",id:"l",label:"lost",href:"/app/lost",started_at:"2026-10-14T18:00:00Z"}],new Date("2026-10-14T18:00:00Z"));
+ assert.deepEqual(categoryBadge(items,"refund"),{count:3,color:"red"});
+ assert.equal(categoryBadge(items.filter(i=>i.id!=="r3"),"refund").color,"orange");
+ assert.deepEqual(categoryBadge([],"refund"),{count:0,color:"green"});
+ const bands=aggregateBands(items);assert.equal(bands.length,3);assert.equal(bands[0].count,3);
+ assert.equal(bands[0].categories.length,3);assert.ok(bands.every(b=>b.categories.every(c=>!('id' in c))));
+});
