@@ -6,6 +6,7 @@ on:
       - main
       - feature/pick-return-ui
       - feature/roles-support-inbox
+      - feature/pick-return-delivery-blocks
   pull_request:
 
 permissions:

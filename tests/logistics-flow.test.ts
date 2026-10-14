@@ -274,7 +274,7 @@ before(async () => {
 
 
 
-  await db.query("update public.unit_settings set sales_tax_rate=0 where unit_id=$1",[unit]);
+  await db.query("update public.unit_settings set sales_tax_rate=0,shop_delivery_blocks_enabled=false where unit_id=$1",[unit]);
   await value("select public.publish_policy($1,$2,$3)", [
     unit,
     "TEST AGREEMENT V1",
@@ -2070,4 +2070,130 @@ test('AWS acceptance is chargeable even if delivery fails; delivery metadata nev
  await value("select public.record_sms_delivery_outcome('aws-accepted-delivered','Delivered',null,now())");await value("select public.record_sms_delivery_outcome('aws-accepted-failed','Failed','Carrier unavailable',now())");await value("select public.record_sms_delivery_outcome('aws-accepted-failed','Failed','Carrier unavailable',now())");
  }finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
  assert.equal(Number(await value('select delivered_count from public.sms_cost_totals where quote_id=$1',[q])),1);assert.equal(Number(await value('select delivery_failed_count from public.sms_cost_totals where quote_id=$1',[q])),1);assert.equal(Number(await value('select sms_count from public.sms_cost_totals where quote_id=$1',[q])),2);assert.equal(Number(await value('select posted_amount from public.sms_cost_totals where quote_id=$1',[q])),0.01);
+});
+
+async function blockReject(promise:()=>Promise<unknown>,pattern:RegExp) {
+ await db.exec("savepoint expected_error");try {await assert.rejects(promise(),pattern);}finally{await db.exec("rollback to savepoint expected_error; release savepoint expected_error");}
+}
+
+// Keep legacy scheduling regressions above, and exercise the production shop-controlled mode here.
+test('Shop delivery blocks queue finished jobs, allocate atomically, preserve existing routes, reorder and remove to the queue',async()=>{
+ await db.exec('begin');
+ try {
+  await db.query('update public.unit_settings set shop_delivery_blocks_enabled=true where unit_id=$1',[unit]);
+  const a=await readyReturn('blocks-first');const b=await readyReturn('blocks-second');
+  await db.query("update public.pick_return_orders set production_ready_at=now()-interval '2 days' where job_id=$1",[a.job]);
+  await db.query("update public.pick_return_orders set production_ready_at=now()-interval '1 day' where job_id=$1",[b.job]);
+  assert.equal(Number(await value("select count(*) from public.pick_return_stops s join public.pick_return_routes r on r.id=s.route_id where s.job_id=$1 and r.leg='Return' and s.status='Scheduled'",[a.job])),0);
+  assert.equal(await value('select private.delivery_queue_eligible($1)',[a.job]),true);
+  const days=await value<{date:string;blocks:{number:number;capacity:number}[]}[]>('select public.delivery_block_availability($1,(now()::date+30))',[a.job]);
+  assert.ok(days.length);assert.equal(days[0].blocks[0].number,1);assert.equal(days[0].blocks[0].capacity,20);
+  const route=await value<string>('select public.assign_delivery_block($1,$2)',[a.job,days[0].date]);
+  await value('select private.auto_return($1)',[a.job]);
+  assert.equal(await value('select return_window_start is not null from public.pick_return_orders where job_id=$1',[a.job]),true,'Worker keeps the existing shop assignment');
+  assert.equal(await value('select public.assign_delivery_block($1,$2)',[b.job,days[0].date]),route);
+  const stops=await db.query<{id:string;job_id:string}>('select id,job_id from public.pick_return_stops where route_id=$1 and status<>\'Cancelled\' order by sequence',[route]);
+  assert.deepEqual(stops.rows.map(s=>s.job_id),[a.job,b.job]);
+  const reversed=stops.rows.map(s=>s.id).reverse();
+  await value("select public.save_delivery_block($1,null,$2::uuid[],'{}',20,null)",[route,reversed]);
+  assert.deepEqual((await db.query<{id:string}>('select id from public.pick_return_stops where route_id=$1 and status<>\'Cancelled\' order by sequence',[route])).rows.map(s=>s.id),reversed);
+  await value("select public.save_delivery_block($1,null,$2::uuid[],$3::uuid[],20,null)",[route,[reversed[0]],[reversed[1]]]);
+  assert.equal(await value('select private.delivery_queue_eligible($1)',[a.job]),true);
+  assert.equal(Number(await value('select count(*) from public.pick_return_routes where id=$1',[route])),1);
+  await blockReject(()=>value("select public.save_delivery_block($1,null,$2::uuid[],'{}',20,null)",[route,[reversed[0],reversed[0]]]),/changed/);
+  const stop=reversed[0];await db.query("update public.pick_return_stops set status='Failed' where id=$1",[stop]);
+  await blockReject(()=>value('select public.confirm_pick_return_route($1)',[route]),/verify each item/);
+  const items=await db.query<{id:string}>('select id from public.job_items where job_id=$1',[b.job]);
+  await value("select public.verify_route_items($1,'Returned',$2::uuid[])",[stop,items.rows.map(i=>i.id)]);
+  await value('select public.confirm_pick_return_route($1)',[route]);
+  assert.equal(await value('select confirmed_at is not null from public.pick_return_routes where id=$1',[route]),true);
+ } finally {await db.exec('rollback');}
+});
+
+test('Shop delivery misses reserve no route, wait for paid retry, then requeue once; 15 unpaid days require shop pickup',async()=>{
+ await db.exec('begin');
+ try {
+  const f=await driverReturnFixture('blocks-retry');
+  await db.query('update public.unit_settings set shop_delivery_blocks_enabled=true where unit_id=$1',[unit]);
+  await value("select public.return_driver_action($1,'en-route')",[f.stop]);await value("select public.return_driver_action($1,'arrived')",[f.stop]);
+  await db.query("update public.pick_return_stops set return_wait_until=now()-interval '1 second' where id=$1",[f.stop]);
+  await value("select public.return_driver_action($1,'not-home')",[f.stop]);
+  assert.equal(await value('select return_reservation_stop_id from public.pick_return_orders where job_id=$1',[f.job]),null);
+  assert.equal(await value('select return_window_start from public.pick_return_orders where job_id=$1',[f.job]),null);
+  assert.equal(await value('select private.delivery_queue_eligible($1)',[f.job]),false);
+  assert.equal(Number(await value("select count(*) from public.pick_return_stops where job_id=$1 and status='Requested'",[f.job])),0);
+  await value('select public.choose_second_return($1,$2)',[f.job,f.token]);
+  const due=await value<number>('select balance_due from public.job_commercial_totals where id=$1',[f.job]);
+  const pay=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',$3,'Final Balance') returning id",[unit,f.job,due]);
+  await value('select public.confirm_payment_request($1)',[pay]);await value('select private.reconcile_delivery($1)',[f.job]);
+  assert.equal(await value('select private.delivery_queue_eligible($1)',[f.job]),true);
+  assert.equal(Number(await value("select count(*) from public.pick_return_stops where job_id=$1 and status in ('Requested','Scheduled')",[f.job])),0);
+  const notice=await value<string>("select payload::text from public.notifications where dedupe_key=$1",['return-missed:'+f.stop]);assert.match(notice,/schedule.*shop/);
+  await db.query("update public.pick_return_orders set return_reservation_expires_at=now()-interval '1 second' where job_id=$1",[f.job]);
+  // A paid retry remains eligible even if the former unpaid deadline has passed.
+  await value('select private.reconcile_delivery($1)',[f.job]);assert.equal(await value('select private.delivery_queue_eligible($1)',[f.job]),true);
+ } finally {await db.exec('rollback');}
+});
+
+test('Delivery capacity is enforced at 20 across RPCs, hides full dates, and only an Owner can authorize extra stops',async()=>{
+ await db.exec('begin');
+ try {
+  await db.query('update public.unit_settings set shop_delivery_blocks_enabled=true where unit_id=$1',[unit]);
+  const first=await readyReturn('capacity-0');
+  const dates=await value<{date:string}[]>('select public.delivery_block_availability($1,now()::date+42)',[first.job]);const day=dates[0].date;
+  const route=await value<string>('select public.assign_delivery_block($1,$2)',[first.job,day]);
+  for(let i=1;i<20;i++){const f=await readyReturn(`capacity-${i}`);await value('select public.assign_delivery_block($1,$2)',[f.job,day]);}
+  const extra=await readyReturn('capacity-extra');
+  assert.equal(Number(await value("select count(*) from public.pick_return_stops where route_id=$1 and status<>'Cancelled'",[route])),20);
+  const full=await value<{date:string}[]>('select public.delivery_block_availability($1,$2)',[extra.job,day]);assert.ok(full.every(d=>d.date!==day));
+  await blockReject(()=>value('select public.assign_delivery_block($1,$2)',[extra.job,day]),/no longer available/);
+  await blockReject(()=>value("select private.assign_route($1,'Return',($2::date+time '14:00') at time zone 'America/Denver',($2::date+time '18:00') at time zone 'America/Denver')",[extra.job,day]),/block is full/);
+  const ids=await value<string[]>("select array_agg(id order by sequence) from public.pick_return_stops where route_id=$1 and status<>'Cancelled'",[route]);
+  const employee='90000000-0000-0000-0000-000000000097';
+  await db.query('insert into auth.users(id) values($1)',[employee]);await db.query("insert into public.memberships(unit_id,user_id,role) values($1,$2,'viewer')",[unit,employee]);
+  const role=await value<string>("select id from public.roles where unit_id=$1 and system_key='Employee'",[unit]);await value("select public.rbac_save_user($1,'Capacity employee',true,array[$2::uuid])",[employee,role]);
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[employee]);
+  await blockReject(()=>value("select public.save_delivery_block($1,null,$2::uuid[],'{}',21,'Test exception')",[route,ids]),/Owner/);
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);
+  await value("select public.save_delivery_block($1,null,$2::uuid[],'{}',21,'Test exception')",[route,ids]);
+  assert.equal(await value('select capacity_authorized_by::text from public.pick_return_routes where id=$1',[route]),admin);
+  await value('select public.assign_delivery_block($1,$2)',[extra.job,day]);
+  assert.equal(Number(await value("select count(*) from public.pick_return_stops where route_id=$1 and status<>'Cancelled'",[route])),21);
+ }finally{await db.exec('rollback');}
+});
+
+test('An unpaid missed delivery disappears from monitoring after 15 days and remains a free shop-pickup Job',async()=>{
+ await db.exec('begin');
+ try {
+  const f=await driverReturnFixture('blocks-unpaid-expiry');
+  await db.query('update public.unit_settings set shop_delivery_blocks_enabled=true where unit_id=$1',[unit]);
+  await value("select public.return_driver_action($1,'en-route')",[f.stop]);await value("select public.return_driver_action($1,'arrived')",[f.stop]);
+  await db.query("update public.pick_return_stops set return_wait_until=now()-interval '1 second' where id=$1",[f.stop]);await value("select public.return_driver_action($1,'not-home')",[f.stop]);
+  await db.query("update public.pick_return_orders set return_reservation_expires_at=now()-interval '1 second' where job_id=$1",[f.job]);
+  await value('select private.reconcile_delivery($1)',[f.job]);
+  assert.equal(await value('select delivery_payment_status from public.pick_return_orders where job_id=$1',[f.job]),'Shop Pickup');
+  assert.equal(Number(await value('select count(*) from public.jobs where id=$1',[f.job])),1);
+  const state=await value<{job:string;eligible:boolean;awaiting_resolution:boolean}[]>('select public.delivery_queue_state()');
+  assert.equal(state.find(s=>s.job===f.job)?.awaiting_resolution,false);assert.equal(state.find(s=>s.job===f.job)?.eligible,false);
+ }finally{await db.exec('rollback');}
+});
+
+test('Delivery cutoff and driver interruption requeue for shop scheduling rather than silently allocating another route',async()=>{
+ await db.exec('begin');
+ try {
+  const incidentJob=await driverReturnFixture('blocks-incident');
+  await db.query('update public.unit_settings set shop_delivery_blocks_enabled=true where unit_id=$1',[unit]);
+  const route=await value<string>('select route_id from public.pick_return_stops where id=$1',[incidentJob.stop]);
+  const incident=await value<string>('select public.report_driver_incident($1)',[route]);
+  await value("select public.resolve_driver_incident($1,'Rescheduled')",[incident]);
+  assert.equal(await value('select private.delivery_queue_eligible($1)',[incidentJob.job]),true);
+  assert.equal(Number(await value("select count(*) from public.route_compensations where incident_id=$1 and job_id=$2 and amount=10",[incident,incidentJob.job])),1);
+  const f=await readyReturn('blocks-cutoff');
+  const days=await value<{date:string}[]>('select public.delivery_block_availability($1,now()::date+56)',[f.job]);await value('select public.assign_delivery_block($1,$2)',[f.job,days[0].date]);
+  await db.query("update public.pick_return_orders set return_window_start=now()+interval '30 minutes',delivery_payment_method='Zelle' where job_id=$1",[f.job]);
+  await value('select private.reconcile_delivery($1)',[f.job]);
+  assert.equal(await value('select private.delivery_queue_eligible($1)',[f.job]),true);
+  assert.equal(await value('select return_window_start from public.pick_return_orders where job_id=$1',[f.job]),null);
+  assert.equal(Number(await value("select count(*) from public.pick_return_stops where job_id=$1 and status='Scheduled'",[f.job])),0);
+ }finally{await db.exec('rollback');}
 });

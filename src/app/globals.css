@@ -1637,3 +1637,9 @@ body:has(.get-tagged-react-dialog[open]) {
 .intake-sms-consent { grid-column: 1 / -1; font-size: .8rem; line-height: 1.5; }
 .sms-opt-in-dialog { width: min(95vw, 600px); max-height: 90vh; overflow: auto; border: 1px solid var(--line); border-radius: 16px; padding: 24px; background: var(--panel, #10151c); color: var(--text, #fff); }
 .sms-opt-in-dialog::backdrop { background: rgb(0 0 0 / .75); }
+
+.delivery-block-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),340px)); gap:16px; margin:20px 0; }
+.delivery-block-card { text-align:left; display:flex; flex-direction:column; gap:12px; color:inherit; cursor:pointer; width:100%; }
+.delivery-stop-list { padding-left:28px; }
+.delivery-stop-list > li { padding:16px; border-bottom:1px solid var(--border,#303946); }
+.delivery-stop-list > li[draggable="true"] { cursor:grab; }
