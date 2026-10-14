@@ -1,3 +1,5 @@
+import { StaffLoginAttention } from "@/components/staff-login-attention";
+import { SessionTimeout } from "@/components/session-timeout";
 import { PermissionProvider } from "@/components/permission-provider";
 import { canAny, driverOnly } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
@@ -17,7 +19,7 @@ export default async function AppLayout({
   if (ctx && driverOnly(ctx.access)) redirect("/pick-return");
   const attention = ctx ? await workspaceAttention(ctx.db, ctx.unit) : undefined;
   return (
-    <PermissionProvider access={ctx?.access ?? {owner:false,blocks:[]}}><div className="shell">
+    <PermissionProvider access={ctx?.access ?? {owner:false,blocks:[]}}>{ctx && <><SessionTimeout expiresAt={ctx.session.expires_at} serverNow={ctx.session.server_now}/><StaffLoginAttention db={ctx.db} sessionId={ctx.session.session_id}/></>}<div className="shell">
       <aside className="sidebar">
         <Link className="brand" href="/app">
           Tool<span>Tag</span>

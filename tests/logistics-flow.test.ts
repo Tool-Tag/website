@@ -186,6 +186,9 @@ before(async () => {
      create role supabase_admin;
      create schema auth;
      create table auth.users(id uuid primary key,email text);
+     create table auth.sessions(id uuid primary key,user_id uuid references auth.users(id),created_at timestamptz default now());
+     create function auth.test_session() returns trigger language plpgsql as 'begin insert into auth.sessions(id,user_id) values(new.id,new.id);return new;end';
+     create trigger test_session after insert on auth.users for each row execute function auth.test_session();
      create function auth.uid() returns uuid language sql stable
        as 'select nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
      create function auth.role() returns text language sql stable
@@ -249,6 +252,7 @@ before(async () => {
 
   await db.exec(
     `insert into auth.users(id) values('${admin}');
+     select set_config('request.jwt.claim.session_id','${admin}',false);
      insert into public.memberships
        select id,'${admin}','admin' from public.business_units;
      select set_config('request.jwt.claim.sub','${admin}',false);
@@ -946,7 +950,7 @@ test("Logistics proof stays tied to its payment and private proxy metadata requi
   await assert.rejects(value("select public.payment_proof_file($1,$2,'wrong')",[code,submitted.payment_request_id]),/File unavailable/);
   const file=await value<{path:string}>("select public.payment_proof_file($1,$2,$3)",[code,submitted.payment_request_id,owner]);
   assert.equal(file.path,path);
- } finally {await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
+ } finally {await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false)",[admin]);}
 });
 
 test("Return ETAs can be shared up to configured daily capacity; full day moves to next Sunday",async()=>{
@@ -1197,7 +1201,7 @@ for(const leg of ["Pickup","Return"]){
  await value("select public.update_driver_route_estimates($1,$2::jsonb)",[route,JSON.stringify([{id:stops[2],minutes:null}])]);
  assert.equal(await value("select approximate_eta from public.pick_return_stops where id=$1",[stops[2]]),null);
  await db.query("select set_config('request.jwt.claim.sub','',false)");
- try{await assert.rejects(value("select public.driver_route_estimate_context($1)",[route]));await assert.rejects(value("select public.update_driver_route_estimates($1,'[]'::jsonb)",[route]));}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
+ try{await assert.rejects(value("select public.driver_route_estimate_context($1)",[route]));await assert.rejects(value("select public.update_driver_route_estimates($1,'[]'::jsonb)",[route]));}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false)",[admin]);}
  });
 }
 
@@ -1220,7 +1224,7 @@ test('Pickup driver breakdown pauses the route, timeout reschedules next Saturda
  assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",[`route-incident:${f.incident}:${f.job}`])),1);
  await db.query("update public.route_incidents set deadline=now()-interval '1 second' where id=$1",[f.incident]);
  await db.query("select set_config('request.jwt.claim.sub','',false),set_config('request.jwt.claim.role','service_role',false)");
- try{await value('select private.reconcile_driver_exceptions()');}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.role','authenticated',false)",[admin]);}
+ try{await value('select private.reconcile_driver_exceptions()');}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false),set_config('request.jwt.claim.role','authenticated',false)",[admin]);}
  assert.equal(await value('select status from public.route_incidents where id=$1',[f.incident]),'Rescheduled');
  assert.equal(await value('select status from public.pick_return_stops where id=$1',[f.stop]),'Cancelled');
  assert.equal(Number(await value('select amount from public.route_compensations where incident_id=$1 and job_id=$2',[f.incident,f.job])),10);
@@ -1362,7 +1366,7 @@ test("Customer route snapshot hides other customers, preserves read-only behavio
  await assert.rejects(value('select public.customer_route_tracking($1,$2)',[f.job,other.token]),/Status link unavailable/);
  // Anonymous caller needs the exact capability token even when staff membership is absent.
  await db.query("select set_config('request.jwt.claim.sub','',false),set_config('request.jwt.claim.role','anon',false)");
- try{assert.equal((await get())[0].total,2);await assert.rejects(value('select public.customer_route_tracking($1,$2)',[f.job,'wrong']),/Access denied/);}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.role','authenticated',false)",[admin]);}
+ try{assert.equal((await get())[0].total,2);await assert.rejects(value('select public.customer_route_tracking($1,$2)',[f.job,'wrong']),/Access denied/);}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false),set_config('request.jwt.claim.role','authenticated',false)",[admin]);}
  await value('select public.depart_driver_route($1)',[route]);
  await value('select public.update_driver_route_estimates($1,$2::jsonb)',[route,JSON.stringify([{id:f.stop,minutes:30},{id:other.stop,minutes:45}])]);
  data=await get();assert.ok(data[0].estimated_eta);
@@ -1510,7 +1514,7 @@ test("SMS settings hide secrets and restrict administrative configuration", asyn
  await db.query("update private.sms_settings set encrypted_credentials='fakeiv.faketag.fakecipher' where unit_id=$1",[unit]);
  const settings=await value<Record<string,unknown>>("select public.sms_settings_status()");assert.equal(settings.credentials_saved,true);assert.equal(settings.encrypted_credentials,undefined);
  await db.query("select set_config('request.jwt.claim.sub','',false)");
- try {await assert.rejects(value("select public.sms_settings_status()"),/Administrative|Permission denied|Owner/);await assert.rejects(value("select public.save_sms_settings('{}',null)"),/Administrative|Permission denied|Owner/);} finally {await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
+ try {await assert.rejects(value("select public.sms_settings_status()"),/Administrative|Permission denied|Owner/);await assert.rejects(value("select public.save_sms_settings('{}',null)"),/Administrative|Permission denied|Owner/);} finally {await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false)",[admin]);}
 });
 
 test("Real customer email and US phone are unique across formats and updates", async () => {
@@ -1608,9 +1612,9 @@ test("Stripe TEST worker lookup does not expose tables or accept real customers"
 });
 
 async function staffAs(user: string, action: () => Promise<void>) {
- await db.query("select set_config('request.jwt.claim.sub',$1,false)",[user]);
+ await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false)",[user]);
  await db.exec("set row_security=on;set role authenticated");
- try {await action();} finally {await db.exec("reset role");await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
+ try {await action();} finally {await db.exec("reset role");await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false)",[admin]);}
 }
 async function addStaff(roleKeys: string[], name: string) {
  const user=await value<string>("insert into auth.users(id,email) values(gen_random_uuid(),$1) returning id",[`${name}@example.test`]);
@@ -2152,9 +2156,9 @@ test('Delivery capacity is enforced at 20 across RPCs, hides full dates, and onl
   const employee='90000000-0000-0000-0000-000000000097';
   await db.query('insert into auth.users(id) values($1)',[employee]);await db.query("insert into public.memberships(unit_id,user_id,role) values($1,$2,'viewer')",[unit,employee]);
   const role=await value<string>("select id from public.roles where unit_id=$1 and system_key='Employee'",[unit]);await value("select public.rbac_save_user($1,'Capacity employee',true,array[$2::uuid])",[employee,role]);
-  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[employee]);
+  await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false)",[employee]);
   await blockReject(()=>value("select public.save_delivery_block($1,null,$2::uuid[],'{}',21,'Test exception')",[route,ids]),/Owner/);
-  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);
+  await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false)",[admin]);
   await value("select public.save_delivery_block($1,null,$2::uuid[],'{}',21,'Test exception')",[route,ids]);
   assert.equal(await value('select capacity_authorized_by::text from public.pick_return_routes where id=$1',[route]),admin);
   await value('select public.assign_delivery_block($1,$2)',[extra.job,day]);
@@ -2292,4 +2296,45 @@ test('Unanswered Pickup Only cancels after 15 days with no refund and preserves 
   assert.equal(Number(await value('select collected from public.sale_balances where job_id=$1',[f.job])),9.99);
   assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",['pickup-expiry-refund:'+f.stop])),0);
  }finally{await db.exec('rollback');}
+});
+
+ test("Staff login expires at four hours and expired or foreign sessions lose RBAC access", async()=>{
+ const session=await value<{active:boolean;expires_at:string}>("select public.staff_session_state()");assert.equal(session.active,true);
+ await db.query("update auth.sessions set created_at=now()-interval '4 hours' where id=$1",[admin]);
+ try{assert.equal((await value<{active:boolean}>("select public.staff_session_state()")).active,false);assert.equal(await value("select private.staff_active($1)",[unit]),false);}
+ finally{await db.query("update auth.sessions set created_at=now() where id=$1",[admin]);}
+ await db.query("select set_config('request.jwt.claim.session_id','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',false)");
+ try{assert.equal((await value<{active:boolean}>("select public.staff_session_state()")).active,false);}
+ finally{await db.query("select set_config('request.jwt.claim.session_id',$1,false)",[admin]);}
+ });
+
+test("Login attention is Owner/Manager-only and Job response clocks stop only after an audited response",async()=>{
+ const customer=await createCustomer("Attention test","attention-test");
+ const quote=await createQuote(customer.id);const token=await value<string>("select public.send_quote($1)",[quote]);
+ const accepted=await acceptWithLogistics(token,{option_code:"dropoff_pickup"});const job=accepted.job_id;
+ await db.query("update public.jobs set status='Issue / Review',work_stage='Issue Review' where id=$1",[job]);
+ const load=()=>value<{eligible:boolean;items:{id:string;kind:string}[]}>("select public.urgent_login_attention()");
+ const refund=await value<string>("insert into public.refund_requests(unit_id,job_id,amount,reason) values($1,$2,5,'Other') returning id",[unit,job]);
+ const support=await supportWorker(()=>rpc("support_ingest",inboxMessage("urgent-in","urgent-thread")));
+
+ let summary=await load();assert.equal(summary.eligible,true);assert.ok(summary.items.some(i=>i.kind==='problem'&&i.id===job));
+ assert.ok(summary.items.some(i=>i.kind==='refund'&&i.id===refund));assert.ok(summary.items.some(i=>i.kind==='problem'&&i.id===support));
+ await db.query("insert into public.support_messages(conversation_id,direction,sender_email,subject,body,delivery_status,sent_at) values($1,'Outbound','support@example.test','Response','Reply','Failed',now()+interval '1 second')",[support]);
+ assert.ok((await load()).items.some(i=>i.id===support));
+ await db.query("update public.support_messages set delivery_status='Sent' where conversation_id=$1 and direction='Outbound'",[support]);
+ assert.equal((await load()).items.some(i=>i.id===support),false);
+ await db.query("update public.refund_requests set status='Completed',processed_amount=amount where id=$1",[refund]);
+ assert.equal((await load()).items.some(i=>i.id===refund),false);
+
+ await db.query("update public.jobs set updated_at=now() where id=$1",[job]);
+ await value("select public.record_issue_response($1)",[job]);
+ summary=await load();assert.equal(summary.items.some(i=>i.kind==='problem'&&i.id===job),false);
+ assert.equal(Number(await value("select count(*) from public.audit_log where entity_id=$1 and field='Customer issue response recorded'",[job])),1);
+ await value("select public.record_issue_response($1)",[job]);
+ assert.equal(Number(await value("select count(*) from public.audit_log where entity_id=$1 and field='Customer issue response recorded'",[job])),1);
+ const employee=await addStaff(['Employee'],'attention-employee');await staffAs(employee,async()=>{assert.equal((await load()).eligible,false);});
+ const managerRole=await value<string>("select public.rbac_save_role(null,'Manager',array['jobs.view'])");
+ await value("select public.rbac_save_user($1,'attention-manager',true,array[$2]::uuid[])",[employee,managerRole]);
+ await staffAs(employee,async()=>{assert.equal((await load()).eligible,true);});
+ assert.equal(await value("select has_function_privilege('anon','public.urgent_login_attention()','execute')"),false);
 });

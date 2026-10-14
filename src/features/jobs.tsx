@@ -1,3 +1,4 @@
+import {IssueResponse} from "@/components/issue-response";
 import {SmsCosts} from "@/features/sms-costs";
 import {RefundsPanel} from "@/features/refunds";
 import { can } from "@/lib/auth/permissions";
@@ -528,7 +529,7 @@ export async function Jobs({ id }: { id?: string }) {
 
       {stage === "Issue Review" && (
         <Panel title="Issue / Review">
-          <p>The customer reported an issue. This Job requires review before continuing.</p>
+          <p>The customer reported an issue. This Job requires review before continuing.</p><IssueResponse job={j.id} responded={Boolean(j.issue_response_at)}/>
         </Panel>
       )}
 

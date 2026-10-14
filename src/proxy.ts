@@ -17,7 +17,17 @@ export async function proxy(request: NextRequest) {
       },
     },
   });
-  await client.auth.getUser();
+  const {data:{user}} = await client.auth.getUser();
+  if (user && request.nextUrl.pathname !== "/login") {
+    const {data:session,error} = await client.rpc("staff_session_state");
+    if (error || !session?.active) {
+      await client.auth.signOut({scope:"local"});
+      const expired = NextResponse.redirect(new URL("/login?notice=session-expired",request.url));
+      response.cookies.getAll().forEach(cookie=>expired.cookies.set(cookie));
+      expired.headers.set("Cache-Control","private, no-store");
+      return expired;
+    }
+  }
   response.headers.set("Cache-Control", "private, no-store");
   return response;
 }

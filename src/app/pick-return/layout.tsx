@@ -1,3 +1,5 @@
+import { StaffLoginAttention } from "@/components/staff-login-attention";
+import { SessionTimeout } from "@/components/session-timeout";
 import Link from "next/link";
 import { PermissionProvider } from "@/components/permission-provider";
 import { driverOnly } from "@/lib/auth/permissions";
@@ -13,7 +15,7 @@ export default async function PickReturnLayout({
   const ctx = await requirePermission("driver.routes","pr.routes.live","pr.routes.plan","pr.receiving","pr.returns","pr.reschedule");
 
   return (
-    <PermissionProvider access={ctx.access}><div className="workspace driver-workspace">
+    <PermissionProvider access={ctx.access}><SessionTimeout expiresAt={ctx.session.expires_at} serverNow={ctx.session.server_now}/><StaffLoginAttention db={ctx.db} sessionId={ctx.session.session_id}/><div className="workspace driver-workspace">
       <header className="topbar">
         <Link className="brand" href="/pick-return">
           Tool<span>Tag</span>

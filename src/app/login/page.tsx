@@ -14,7 +14,7 @@ export default async function Login({
       <p className="muted">Private access for authorized accounts.</p>
       {p.notice && (
         <p className="notice">
-          Your account needs ToolTag access. An administrator must assign it before you can continue.</p>
+          {p.notice === "session-expired" ? "Your four-hour session has ended. Please sign in again." : "Your account needs ToolTag access. An administrator must assign it before you can continue."}</p>
       )}
       {isConfigured() ? (
         <LoginForm />

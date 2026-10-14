@@ -10,6 +10,8 @@ export const context = cache(async () => {
     error,
   } = await db.auth.getUser();
   if (error || !user) redirect("/login");
+  const { data: session, error: sessionError } = await db.rpc("staff_session_state");
+  if (sessionError || !session?.active) redirect("/auth/session-expired");
   const { data: membership } = await db
     .from("memberships")
     .select("role")
@@ -21,7 +23,7 @@ export const context = cache(async () => {
   if (accessError || !permissions?.active) redirect("/login?notice=access");
   const access: Access = { owner: permissions.owner === true, blocks: Array.isArray(permissions.blocks) ? permissions.blocks : [] };
   if (!access.owner && access.blocks.length === 0) redirect("/login?notice=access");
-  return { db, user, access, role: access.owner ? "admin" : driverOnly(access) ? "driver" : "employee", unit: TOOLTAG };
+  return { db, user, access, session, role: access.owner ? "admin" : driverOnly(access) ? "driver" : "employee", unit: TOOLTAG };
 });
 export async function requirePermission(...blocks: string[]) {
   const ctx = await context();
