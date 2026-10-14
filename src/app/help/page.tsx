@@ -1,3 +1,4 @@
+import {HelpContactCards} from "@/components/help-contact-cards";
 import Link from "next/link";
 import { GetTaggedModalLink } from "@/components/get-tagged-modal-link";
 
@@ -11,6 +12,8 @@ export default function HelpPage() {
       <p className="muted">
         Use the option that matches your current ToolTag service.
       </p>
+
+      <HelpContactCards/>
 
       <section className="panel">
         <h2>Cancel a Service</h2>

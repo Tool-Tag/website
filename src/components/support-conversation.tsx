@@ -10,6 +10,6 @@ export function SupportConversation({id,through,closed,canClose,sendEnabled}:{id
  {!sendEnabled && <p className="muted">Gmail inbox sending is not enabled.</p>}
  {error && <p className="notice error" role="alert">{error}</p>}
  <div className="actions"><button disabled={pending || !sendEnabled || !body.trim()}>{pending ? "Working…":"Send reply"}</button>
- {canClose && !closed && <button type="button" className="secondary" disabled={pending} onClick={()=>start(async()=>{const result=await closeSupportCase(id);setError(result.error || "");router.refresh();})}>Close case</button>}</div>
+ {canClose && !closed && <button type="button" className="secondary" disabled={pending} onClick={()=>start(async()=>{const result=await closeSupportCase(id);setError(result.error || "");router.refresh();})}>Mark resolved</button>}</div>
  </form></div>;
 }

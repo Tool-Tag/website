@@ -1,3 +1,5 @@
+import { StaffLoginAttention } from "@/components/staff-login-attention";
+import { SessionTimeout } from "@/components/session-timeout";
 import { PermissionProvider } from "@/components/permission-provider";
 import { canAny, driverOnly } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
@@ -17,7 +19,7 @@ export default async function AppLayout({
   if (ctx && driverOnly(ctx.access)) redirect("/pick-return");
   const attention = ctx ? await workspaceAttention(ctx.db, ctx.unit) : undefined;
   return (
-    <PermissionProvider access={ctx?.access ?? {owner:false,blocks:[]}}><div className="shell">
+    <PermissionProvider access={ctx?.access ?? {owner:false,blocks:[]}}>{ctx && <><SessionTimeout expiresAt={ctx.session.expires_at} serverNow={ctx.session.server_now}/><StaffLoginAttention db={ctx.db} sessionId={ctx.session.session_id}/></>}<div className="shell">
       <aside className="sidebar">
         <Link className="brand" href="/app">
           Tool<span>Tag</span>
@@ -45,6 +47,7 @@ export default async function AppLayout({
       </aside>
       <div className="workspace">
         <header className="topbar">
+          {ctx && canAny(ctx.access,["support.inbox"]) && <Link className="button secondary" href="/app/support">Support</Link>}
           {ctx && canAny(ctx.access,["pr.routes.plan","pr.routes.live","pr.receiving","pr.returns","pr.reschedule"]) && <Link className="button secondary" href="/app/pick-return">Pick up &amp; Return</Link>}
           {ctx && canAny(ctx.access,["customers.view"]) && <form action="/app/customers">
             <input

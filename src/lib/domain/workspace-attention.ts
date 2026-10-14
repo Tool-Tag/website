@@ -1,3 +1,4 @@
+import {classifyAttention,categoryBadge,type AttentionRecord,type Urgency} from "./urgent-attention";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type WorkspaceAttention = {
@@ -6,6 +7,8 @@ export type WorkspaceAttention = {
   jobs: number;
   refunds: number;
   notifications: number;
+  lost: number;
+  urgency?: {notifications:Urgency;refunds:Urgency;lost:Urgency};
 };
 
 type GetTaggedAttentionRow = {
@@ -18,6 +21,7 @@ const ZERO: WorkspaceAttention = {
   jobs: 0,
   refunds: 0,
   notifications: 0,
+  lost: 0,
 };
 
 export async function workspaceAttention(
@@ -25,7 +29,7 @@ export async function workspaceAttention(
   unit: string,
 ): Promise<WorkspaceAttention> {
   try {
-    const [requests, quotes, jobs, refunds, support] = await Promise.all([
+    const [requests, quotes, jobs, refunds, support, urgent] = await Promise.all([
       db.rpc("get_tagged_attention"),
       db
         .from("quotes")
@@ -43,6 +47,7 @@ export async function workspaceAttention(
         .eq("unit_id", unit)
         .eq("status", "Pending"),
       db.rpc("support_attention"),
+      db.rpc("urgent_login_attention"),
     ]);
 
     const requestRows: GetTaggedAttentionRow[] = Array.isArray(requests.data)
@@ -81,12 +86,16 @@ export async function workspaceAttention(
       (request) => Number(request.amount)>Number(request.processed_amount),
     );
 
+    const urgentRows=classifyAttention((urgent.data?.items??[]) as AttentionRecord[]);
+    const supportBadge=categoryBadge(urgentRows,"problem"),refundBadge=categoryBadge(urgentRows,"refund"),lostBadge=categoryBadge(urgentRows,"lost");
     return {
-      notifications: Number(support.data || 0),
+      lost:lostBadge.count,
+      urgency:{notifications:supportBadge.color,refunds:refundBadge.color,lost:lostBadge.color},
+      notifications: urgent.error?Number(support.data||0):supportBadge.count,
       getTagged: requestRows.length,
       quotes: openQuotes.length,
       jobs: openJobs.length,
-      refunds: pendingRefunds.length,
+      refunds: urgent.error?pendingRefunds.length:refundBadge.count,
     };
   } catch {
     return ZERO;

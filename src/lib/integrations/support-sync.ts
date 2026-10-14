@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { SupportGmail, parseSupportMessage, supportEnabled } from "./support-gmail";
+import { SupportGmail, parseSupportMessage, supportEnabled, supportAckEnabled, type SupportReply } from "./support-gmail";
 import { MailFailure } from "./gmail";
 export async function syncSupportInbox(db: SupabaseClient, env: Record<string,string|undefined> = process.env, gmail = new SupportGmail(env)) {
  if (!supportEnabled(env)) return {status:"disabled",imported:0};
@@ -13,6 +13,16 @@ export async function syncSupportInbox(db: SupabaseClient, env: Record<string,st
    if(Date.now()-started>180000)throw new MailFailure("SUPPORT_SYNC_TIME_BUDGET");
    const parsed=parseSupportMessage(await gmail.get(entry.id),env);if (!parsed) continue;
    const result=await db.rpc("support_ingest",{p:parsed});if(result.error) throw new MailFailure("SUPPORT_PERSIST_FAILED");imported++;
+  }
+  if(supportAckEnabled(env)) {
+   for(let i=0;i<10;i++) {
+    if(Date.now()-started>180000)break;
+    const ack=await db.rpc("support_claim_ack");if(ack.error)throw new MailFailure("SUPPORT_ACK_CLAIM_FAILED");if(!ack.data)break;
+    const reply=ack.data as SupportReply;let status="Sent",providerId:string|null=null,thread:string|null=null,code:string|null=null;
+    try{const sent=await gmail.send(reply);providerId=sent.id;thread=sent.threadId;}
+    catch(error){code=error instanceof MailFailure?error.code:"GMAIL_DELIVERY_UNKNOWN";status=code==="GMAIL_DELIVERY_UNKNOWN"?"Unknown":"Failed";}
+    const finish=await db.rpc("support_finish_reply",{p_id:reply.id,p_status:status,p_gmail_id:providerId,p_thread:thread,p_error:code});if(finish.error)throw new MailFailure("SUPPORT_ACK_FINISH_FAILED");
+   }
   }
   // Reconcile ambiguous sends by deterministic Message-ID, never automatically resend them.
   const pending=await db.from("support_messages").select("id").in("delivery_status",["Sending","Unknown"]).lt("sent_at",new Date(Date.now()-60000).toISOString()).limit(10);

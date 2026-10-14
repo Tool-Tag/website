@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorkspaceAttention } from "@/lib/domain/workspace-attention";
 
-type AttentionKey = keyof WorkspaceAttention;
+type AttentionKey = Exclude<keyof WorkspaceAttention,"urgency">;
 
 type LinkSpec = {
   path: string;
@@ -22,6 +22,7 @@ const EMPTY_ATTENTION: WorkspaceAttention = {
   jobs: 0,
   refunds: 0,
   notifications: 0,
+  lost: 0,
 };
 
 const ATTENTION_KEYS: AttentionKey[] = [
@@ -30,6 +31,7 @@ const ATTENTION_KEYS: AttentionKey[] = [
   "jobs",
   "refunds",
   "notifications",
+  "lost",
 ];
 
 const ATTENTION_PATHS: Record<AttentionKey, string> = {
@@ -37,7 +39,8 @@ const ATTENTION_PATHS: Record<AttentionKey, string> = {
   quotes: "/app/quotes",
   jobs: "/app/jobs",
   refunds: "/app/refunds",
-  notifications: "/app/notifications",
+  notifications: "/app/support",
+  lost: "/app/lost",
 };
 
 const POLL_INTERVAL_MS = 30_000;
@@ -61,6 +64,8 @@ function parseAttention(value: unknown): WorkspaceAttention | null {
     next[key] = Math.floor(count);
   }
 
+  const colors=(value as WorkspaceAttention).urgency;
+  if(colors && [colors.notifications,colors.refunds,colors.lost].every(color=>["red","orange","green"].includes(color)))next.urgency=colors;
   return next;
 }
 
@@ -87,6 +92,7 @@ export function Nav({
     jobs: false,
     refunds: false,
     notifications: false,
+    lost: false,
   });
   const nudgeTimers = useRef<Partial<Record<AttentionKey, number>>>({});
   const lastNudgeAt = useRef<Record<AttentionKey, number>>({
@@ -95,6 +101,7 @@ export function Nav({
     jobs: 0,
     refunds: 0,
     notifications: 0,
+    lost: 0,
   });
   const bootstrapped = useRef(false);
 
@@ -305,7 +312,7 @@ export function Nav({
           attentionKey: "jobs",
         },
         { path: "pick-return", label: "Pick Up & Delivery" },
-        { path: "lost", label: "Lost" },
+        { path: "lost", label: "Lost", count:liveAttention.lost,attentionKey:"lost",title:"Lost cases requiring attention" },
         { path: "customers", label: "Customers" },
         { path: "finance", label: "Finance" },
         {
@@ -315,7 +322,7 @@ export function Nav({
           title: "Refunds waiting to be issued",
           attentionKey: "refunds",
         },
-        { path: "notifications", label: "Notifications", count: liveAttention.notifications, title: "New emails and unread case replies", attentionKey: "notifications" },
+        { path: "support", label: "Support", count: liveAttention.notifications, title: "Pending customer responses", attentionKey: "notifications" },
         { path: "equipment", label: "Equipment" },
       ];
 
@@ -325,6 +332,8 @@ export function Nav({
         const href = `/app${link.path ? "/" + link.path : ""}`;
         const active = pathIsInside(path, href);
         const count = Number(link.count ?? 0);
+        const delicate=link.attentionKey === "notifications" || link.attentionKey === "refunds" || link.attentionKey === "lost";
+        const color=delicate?liveAttention.urgency?.[link.attentionKey as "notifications"|"refunds"|"lost"]??"green":undefined;
         const isNudging =
           Boolean(link.attentionKey) &&
           Boolean(link.attentionKey && nudging[link.attentionKey]);
@@ -343,9 +352,9 @@ export function Nav({
             className="workspace-nav-link"
           >
             <span>{link.label}</span>
-            {count > 0 && (
+            {(count > 0 || delicate) && (
               <span
-                className={`workspace-nav-count${isNudging ? " workspace-nav-count-attention" : ""}`}
+                className={`workspace-nav-count workspace-nav-count-${color??"neutral"}${isNudging ? " workspace-nav-count-attention" : ""}`}
                 aria-hidden="true"
               >
                 {count > 99 ? "99+" : count}

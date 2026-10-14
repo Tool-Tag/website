@@ -186,6 +186,9 @@ before(async () => {
      create role supabase_admin;
      create schema auth;
      create table auth.users(id uuid primary key,email text);
+     create table auth.sessions(id uuid primary key,user_id uuid references auth.users(id),created_at timestamptz default now());
+     create function auth.test_session() returns trigger language plpgsql as 'begin insert into auth.sessions(id,user_id) values(new.id,new.id);return new;end';
+     create trigger test_session after insert on auth.users for each row execute function auth.test_session();
      create function auth.uid() returns uuid language sql stable
        as 'select nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
      create function auth.role() returns text language sql stable
@@ -249,6 +252,7 @@ before(async () => {
 
   await db.exec(
     `insert into auth.users(id) values('${admin}');
+     select set_config('request.jwt.claim.session_id','${admin}',false);
      insert into public.memberships
        select id,'${admin}','admin' from public.business_units;
      select set_config('request.jwt.claim.sub','${admin}',false);
@@ -946,7 +950,7 @@ test("Logistics proof stays tied to its payment and private proxy metadata requi
   await assert.rejects(value("select public.payment_proof_file($1,$2,'wrong')",[code,submitted.payment_request_id]),/File unavailable/);
   const file=await value<{path:string}>("select public.payment_proof_file($1,$2,$3)",[code,submitted.payment_request_id,owner]);
   assert.equal(file.path,path);
- } finally {await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
+ } finally {await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false)",[admin]);}
 });
 
 test("Return ETAs can be shared up to configured daily capacity; full day moves to next Sunday",async()=>{
@@ -1197,7 +1201,7 @@ for(const leg of ["Pickup","Return"]){
  await value("select public.update_driver_route_estimates($1,$2::jsonb)",[route,JSON.stringify([{id:stops[2],minutes:null}])]);
  assert.equal(await value("select approximate_eta from public.pick_return_stops where id=$1",[stops[2]]),null);
  await db.query("select set_config('request.jwt.claim.sub','',false)");
- try{await assert.rejects(value("select public.driver_route_estimate_context($1)",[route]));await assert.rejects(value("select public.update_driver_route_estimates($1,'[]'::jsonb)",[route]));}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
+ try{await assert.rejects(value("select public.driver_route_estimate_context($1)",[route]));await assert.rejects(value("select public.update_driver_route_estimates($1,'[]'::jsonb)",[route]));}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false)",[admin]);}
  });
 }
 
@@ -1220,7 +1224,7 @@ test('Pickup driver breakdown pauses the route, timeout reschedules next Saturda
  assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",[`route-incident:${f.incident}:${f.job}`])),1);
  await db.query("update public.route_incidents set deadline=now()-interval '1 second' where id=$1",[f.incident]);
  await db.query("select set_config('request.jwt.claim.sub','',false),set_config('request.jwt.claim.role','service_role',false)");
- try{await value('select private.reconcile_driver_exceptions()');}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.role','authenticated',false)",[admin]);}
+ try{await value('select private.reconcile_driver_exceptions()');}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false),set_config('request.jwt.claim.role','authenticated',false)",[admin]);}
  assert.equal(await value('select status from public.route_incidents where id=$1',[f.incident]),'Rescheduled');
  assert.equal(await value('select status from public.pick_return_stops where id=$1',[f.stop]),'Cancelled');
  assert.equal(Number(await value('select amount from public.route_compensations where incident_id=$1 and job_id=$2',[f.incident,f.job])),10);
@@ -1362,7 +1366,7 @@ test("Customer route snapshot hides other customers, preserves read-only behavio
  await assert.rejects(value('select public.customer_route_tracking($1,$2)',[f.job,other.token]),/Status link unavailable/);
  // Anonymous caller needs the exact capability token even when staff membership is absent.
  await db.query("select set_config('request.jwt.claim.sub','',false),set_config('request.jwt.claim.role','anon',false)");
- try{assert.equal((await get())[0].total,2);await assert.rejects(value('select public.customer_route_tracking($1,$2)',[f.job,'wrong']),/Access denied/);}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.role','authenticated',false)",[admin]);}
+ try{assert.equal((await get())[0].total,2);await assert.rejects(value('select public.customer_route_tracking($1,$2)',[f.job,'wrong']),/Access denied/);}finally{await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false),set_config('request.jwt.claim.role','authenticated',false)",[admin]);}
  await value('select public.depart_driver_route($1)',[route]);
  await value('select public.update_driver_route_estimates($1,$2::jsonb)',[route,JSON.stringify([{id:f.stop,minutes:30},{id:other.stop,minutes:45}])]);
  data=await get();assert.ok(data[0].estimated_eta);
@@ -1510,7 +1514,7 @@ test("SMS settings hide secrets and restrict administrative configuration", asyn
  await db.query("update private.sms_settings set encrypted_credentials='fakeiv.faketag.fakecipher' where unit_id=$1",[unit]);
  const settings=await value<Record<string,unknown>>("select public.sms_settings_status()");assert.equal(settings.credentials_saved,true);assert.equal(settings.encrypted_credentials,undefined);
  await db.query("select set_config('request.jwt.claim.sub','',false)");
- try {await assert.rejects(value("select public.sms_settings_status()"),/Administrative|Permission denied|Owner/);await assert.rejects(value("select public.save_sms_settings('{}',null)"),/Administrative|Permission denied|Owner/);} finally {await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
+ try {await assert.rejects(value("select public.sms_settings_status()"),/Administrative|Permission denied|Owner/);await assert.rejects(value("select public.save_sms_settings('{}',null)"),/Administrative|Permission denied|Owner/);} finally {await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false)",[admin]);}
 });
 
 test("Real customer email and US phone are unique across formats and updates", async () => {
@@ -1608,9 +1612,9 @@ test("Stripe TEST worker lookup does not expose tables or accept real customers"
 });
 
 async function staffAs(user: string, action: () => Promise<void>) {
- await db.query("select set_config('request.jwt.claim.sub',$1,false)",[user]);
+ await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false)",[user]);
  await db.exec("set row_security=on;set role authenticated");
- try {await action();} finally {await db.exec("reset role");await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
+ try {await action();} finally {await db.exec("reset role");await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false)",[admin]);}
 }
 async function addStaff(roleKeys: string[], name: string) {
  const user=await value<string>("insert into auth.users(id,email) values(gen_random_uuid(),$1) returning id",[`${name}@example.test`]);
@@ -1759,13 +1763,13 @@ async function supportWorker<T>(action:()=>Promise<T>) {
 function inboxMessage(id:string,thread:string,extra:Record<string,unknown>={}) {
  return {gmail_message_id:id,gmail_thread_id:thread,mailbox:"support",sender_email:"support-customer@example.test",sender_name:"TEST-Support Customer",subject:"Question about my tools",rfc_message_id:`<${id}@example.test>`,references_header:"",in_reply_to:"",body:"Please help with my tools.",sent_at:new Date().toISOString(),...extra};
 }
-test("Support inbox deduplicates mail, opens a numbered case on reply, preserves signature and reopens closed cases",async()=>{
+test("Support inbox deduplicates mail, numbers cases at receipt, preserves signature and reopens closed cases",async()=>{
  const customer=await createCustomer("TEST-Support Customer","support-customer");
  const cid=await supportWorker(()=>rpc("support_ingest",inboxMessage("inbox-1","thread-1")));
  assert.equal(await supportWorker(()=>rpc("support_ingest",inboxMessage("inbox-1","thread-1"))),cid);
  assert.equal(Number(await value("select count(*) from public.support_messages where conversation_id=$1",[cid])),1);
  assert.equal(await value("select customer_id from public.support_conversations where id=$1",[cid]),customer.id);
- assert.equal(await value("select case_code from public.support_conversations where id=$1",[cid]),null);
+ assert.match(await value<string>("select case_code from public.support_conversations where id=$1",[cid]),/^TT-C-/);
  await value("select public.support_mark_read($1,now())",[cid]);
  assert.equal(Number(await value("select unread_count from public.support_conversations where id=$1",[cid])),0);
  const replyId=await value<string>("select gen_random_uuid()");
@@ -1773,7 +1777,7 @@ test("Support inbox deduplicates mail, opens a numbered case on reply, preserves
  assert.match(reply.case_code,/^TT-C-\d{4}-\d{5,}$/);assert.match(reply.body,/Happy to help\n\n/);assert.equal(reply.to,"support-customer@example.test");assert.equal(reply.mailbox,"support");
  await assert.rejects(value("select public.support_prepare_reply($1,$2,'duplicate')",[cid,replyId]),/already submitted/);
  await supportWorker(()=>value("select public.support_finish_reply($1,'Sent','outbox-1','thread-new',null)",[replyId]));
- await value("select public.support_close($1)",[cid]);assert.equal(await value("select status from public.support_conversations where id=$1",[cid]),"Closed");
+ await finishSupportTestProtocol(cid);assert.equal(await value("select status from public.support_conversations where id=$1",[cid]),"Closed");
  const next=await supportWorker(()=>rpc("support_ingest",inboxMessage("inbox-2","thread-new")));
  assert.equal(next,cid);assert.equal(await value("select status from public.support_conversations where id=$1",[cid]),"Open");assert.equal(Number(await value("select unread_count from public.support_conversations where id=$1",[cid])),1);
  // Subject and References fallbacks, but never cross customer/department solely from a guessed case folio.
@@ -2152,9 +2156,9 @@ test('Delivery capacity is enforced at 20 across RPCs, hides full dates, and onl
   const employee='90000000-0000-0000-0000-000000000097';
   await db.query('insert into auth.users(id) values($1)',[employee]);await db.query("insert into public.memberships(unit_id,user_id,role) values($1,$2,'viewer')",[unit,employee]);
   const role=await value<string>("select id from public.roles where unit_id=$1 and system_key='Employee'",[unit]);await value("select public.rbac_save_user($1,'Capacity employee',true,array[$2::uuid])",[employee,role]);
-  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[employee]);
+  await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false)",[employee]);
   await blockReject(()=>value("select public.save_delivery_block($1,null,$2::uuid[],'{}',21,'Test exception')",[route,ids]),/Owner/);
-  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);
+  await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.session_id',$1,false)",[admin]);
   await value("select public.save_delivery_block($1,null,$2::uuid[],'{}',21,'Test exception')",[route,ids]);
   assert.equal(await value('select capacity_authorized_by::text from public.pick_return_routes where id=$1',[route]),admin);
   await value('select public.assign_delivery_block($1,$2)',[extra.job,day]);
@@ -2292,4 +2296,138 @@ test('Unanswered Pickup Only cancels after 15 days with no refund and preserves 
   assert.equal(Number(await value('select collected from public.sale_balances where job_id=$1',[f.job])),9.99);
   assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",['pickup-expiry-refund:'+f.stop])),0);
  }finally{await db.exec('rollback');}
+});
+
+ test("Staff login expires at four hours and expired or foreign sessions lose RBAC access", async()=>{
+ const session=await value<{active:boolean;expires_at:string}>("select public.staff_session_state()");assert.equal(session.active,true);
+ await db.query("update auth.sessions set created_at=now()-interval '4 hours' where id=$1",[admin]);
+ try{assert.equal((await value<{active:boolean}>("select public.staff_session_state()")).active,false);assert.equal(await value("select private.staff_active($1)",[unit]),false);}
+ finally{await db.query("update auth.sessions set created_at=now() where id=$1",[admin]);}
+ await db.query("select set_config('request.jwt.claim.session_id','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',false)");
+ try{assert.equal((await value<{active:boolean}>("select public.staff_session_state()")).active,false);}
+ finally{await db.query("select set_config('request.jwt.claim.session_id',$1,false)",[admin]);}
+ });
+
+test("Login attention is Owner/Manager-only and Job response clocks stop only after an audited response",async()=>{
+ const customer=await createCustomer("Attention test","attention-test");
+ const quote=await createQuote(customer.id);const token=await value<string>("select public.send_quote($1)",[quote]);
+ const accepted=await acceptWithLogistics(token,{option_code:"dropoff_pickup"});const job=accepted.job_id;
+ await db.query("update public.jobs set status='Issue / Review',work_stage='Issue Review' where id=$1",[job]);
+ const jobCase=await value<string>("select id from public.support_conversations where job_id=$1 and origin='Job' and status<>'Closed'",[job]);
+ const load=()=>value<{eligible:boolean;items:{id:string;kind:string}[]}>("select public.urgent_login_attention()");
+ const refund=await value<string>("insert into public.refund_requests(unit_id,job_id,amount,reason) values($1,$2,5,'Other') returning id",[unit,job]);
+ const support=await supportWorker(()=>rpc("support_ingest",inboxMessage("urgent-in","urgent-thread")));
+
+ let summary=await load();assert.equal(summary.eligible,true);assert.ok(summary.items.some(i=>i.kind==='problem'&&i.id===jobCase));
+ assert.ok(summary.items.some(i=>i.kind==='refund'&&i.id===refund));assert.ok(summary.items.some(i=>i.kind==='problem'&&i.id===support));
+ await db.query("update public.support_messages set sent_at=now()-interval '5 days' where conversation_id=$1",[support]);
+ await db.query("insert into public.support_messages(conversation_id,direction,sender_email,subject,body,sent_at) values($1,'Inbound','customer@example.test','New details','More details',now()-interval '1 day')",[support]);
+ const pendingClock=await value<{items:{id:string;started_at:string}[]}>("select public.urgent_login_attention()");
+ assert.equal(Date.parse(pendingClock.items.find(i=>i.id===support)!.started_at),new Date(await value<string>("select max(sent_at) from public.support_messages where conversation_id=$1 and direction='Inbound'",[support])).getTime());
+
+ await db.query("insert into public.support_messages(conversation_id,direction,sender_email,subject,body,delivery_status,sent_at) values($1,'Outbound','support@example.test','Response','Reply','Failed',now()+interval '1 second')",[support]);
+ assert.ok((await load()).items.some(i=>i.id===support));
+ await db.query("update public.support_messages set delivery_status='Sent' where conversation_id=$1 and direction='Outbound'",[support]);
+ assert.equal((await load()).items.some(i=>i.id===support),false);
+ await db.query("update public.refund_requests set status='Completed',processed_amount=amount where id=$1",[refund]);
+ assert.equal((await load()).items.some(i=>i.id===refund),false);
+
+ await db.query("update public.jobs set updated_at=now() where id=$1",[job]);
+ await value("select public.record_issue_response($1)",[job]);
+ summary=await load();assert.equal(summary.items.some(i=>i.kind==='problem'&&i.id===jobCase),false);
+ assert.equal(Number(await value("select count(*) from public.audit_log where entity_id=$1 and field='Customer issue response recorded'",[job])),1);
+ await value("select public.record_issue_response($1)",[job]);
+ assert.equal(Number(await value("select count(*) from public.audit_log where entity_id=$1 and field='Customer issue response recorded'",[job])),1);
+ const employee=await addStaff(['Employee'],'attention-employee');await staffAs(employee,async()=>{assert.equal((await load()).eligible,false);});
+ const managerRole=await value<string>("select public.rbac_save_role(null,'Manager',array['jobs.view'])");
+ await value("select public.rbac_save_user($1,'attention-manager',true,array[$2]::uuid[])",[employee,managerRole]);
+ await staffAs(employee,async()=>{assert.equal((await load()).eligible,true);});
+ assert.equal(await value("select has_function_privilege('anon','public.urgent_login_attention()','execute')"),false);
+});
+
+test("Dedicated Support creates one manual call, validates its Job, resolves and reopens the same email thread",async()=>{
+ const customer=await createCustomer("Manual support","manual-support"),quote=await createQuote(customer.id);
+ const token=await value<string>("select public.send_quote($1)",[quote]);const job=(await acceptWithLogistics(token,{option_code:"dropoff_pickup"})).job_id;
+ const request=await value<string>("select gen_random_uuid()");
+ const create=()=>value<string>("select public.support_create_case($1,$2,$3,'Phone call','Customer called about timing')",[request,customer.id,job]);
+ const id=await create();assert.equal(await create(),id);
+ const c=await value<{origin:string;channel:string;case_code:string}>("select to_jsonb(c) from public.support_conversations c where id=$1",[id]);assert.equal(c.origin,'Inbox');assert.equal(c.channel,'Call');assert.match(c.case_code,/^TT-C-/);
+ const other=await createCustomer("Other support customer","other-support");await assert.rejects(value("select public.support_create_case(gen_random_uuid(),$1,$2,'Wrong Job','Details')",[other.id,job]),/belonging to this customer/);
+ const clock=await value<string>("select max(sent_at) from public.support_messages where conversation_id=$1",[id]);await value("select public.support_mark_read($1,$2)",[id,clock]);await finishSupportTestProtocol(id);assert.equal(await value("select status from public.support_conversations where id=$1",[id]),'Closed');
+ const reopened=await supportWorker(()=>rpc("support_ingest",inboxMessage('call-reopened','call-reopened-thread',{sender_email:'manual-support@example.test',subject:`[${c.case_code}] Re: Phone call`,sent_at:new Date(Date.now()+2000).toISOString()})));assert.equal(reopened,id);assert.equal(await value("select status from public.support_conversations where id=$1",[id]),'Open');
+ const rows=await value<{id:string;waiting_since:string|null}[]>("select public.support_cases()");assert.ok(rows.find(row=>row.id===id)?.waiting_since);
+ assert.equal(await value("select has_function_privilege('anon','public.support_create_case(uuid,uuid,uuid,text,text)','execute')"),false);
+ const driver=await addStaff(['Driver'],'support-driver-denied');await staffAs(driver,async()=>{await assert.rejects(value("select public.support_cases()"),/Support inbox permission/);await assert.rejects(value("select public.support_directory()"),/Support inbox permission/);});
+});
+
+test("Job Support reuses Gmail replies and resolution without duplicating urgency or releasing the Job",async()=>{
+ const customer=await createCustomer("Job support","job-support"),quote=await createQuote(customer.id);const token=await value<string>("select public.send_quote($1)",[quote]);const job=(await acceptWithLogistics(token,{option_code:"dropoff_pickup"})).job_id;
+ await db.query("update public.jobs set status='Issue / Review',work_stage='Issue Review' where id=$1",[job]);
+ const id=await value<string>("select id from public.support_conversations where job_id=$1 and origin='Job'",[job]);await value("select private.capture_job_support($1)",[job]);assert.equal(Number(await value("select count(*) from public.support_conversations where job_id=$1 and origin='Job'",[job])),1);
+ const through=await value<string>("select max(sent_at) from public.support_messages where conversation_id=$1",[id]);await value("select public.support_mark_read($1,$2)",[id,through]);
+ const pending=await value<{items:{id:string}[]}>("select public.urgent_login_attention()");assert.ok(pending.items.some(i=>i.id===id));assert.equal(pending.items.some(i=>i.id===job),false);
+ const reply=await value<{id:string}>("select public.support_prepare_reply($1,gen_random_uuid(),'We are reviewing your issue.')",[id]);await supportWorker(()=>value("select public.support_finish_reply($1,'Sent','job-support-out','job-support-thread',null)",[reply.id]));
+ assert.equal(await value("select issue_response_at is not null from public.jobs where id=$1",[job]),true);
+ assert.equal((await value<{items:{id:string}[]}>("select public.urgent_login_attention()")).items.some(i=>i.id===id),false);
+ await finishSupportTestProtocol(id);assert.equal(await value("select status from public.jobs where id=$1",[job]),'Issue / Review');
+});
+
+async function finishSupportTestProtocol(id:string){
+ const final=await value<string>("insert into public.support_messages(conversation_id,direction,sender_email,subject,body,delivery_status) values($1,'Outbound','support','Case closure','It was a pleasure helping you. Thank you for choosing ToolTag!','Sent') returning id",[id]);
+ await value("select public.support_resolve_protocol($1,$2)",[id,final]);
+}
+
+test("Hello inquiries have no case number and cannot resolve without the final closure protocol",async()=>{
+ const id=await supportWorker(()=>rpc("support_ingest",inboxMessage('hello-no-code','hello-no-code-thread',{mailbox:'hello',subject:'General question'})));
+ const through=await value<string>("select max(sent_at) from public.support_messages where conversation_id=$1",[id]);await value("select public.support_mark_read($1,$2)",[id,through]);
+ await assert.rejects(value("select public.support_close($1)",[id]),/closure protocol/);
+ const reply=await value<{id:string;case_code:string|null;subject:string}>("select public.support_prepare_reply($1,gen_random_uuid(),'Is there anything else we can help you with?')",[id]);assert.equal(reply.case_code,null);assert.equal(reply.subject,'Re: General question');
+ await supportWorker(()=>value("select public.support_finish_reply($1,'Sent','hello-no-code-out','hello-no-code-thread',null)",[reply.id]));
+ await assert.rejects(value("select public.support_resolve_protocol($1,$2)",[id,reply.id]),/final closure message/);
+ await finishSupportTestProtocol(id);assert.equal(await value("select case_code from public.support_conversations where id=$1",[id]),null);
+ const newer=await supportWorker(()=>rpc("support_ingest",inboxMessage('hello-reopen-no-code','hello-no-code-thread',{mailbox:'hello',subject:'Re: General question',sent_at:new Date(Date.now()+2000).toISOString()})));assert.equal(newer,id);assert.equal(await value("select closure_final_message_id from public.support_conversations where id=$1",[id]),null);
+ assert.equal(await value("select has_function_privilege('anon','public.support_resolve_protocol(uuid,uuid)','execute')"),false);
+});
+
+test("Support and Hello acknowledgments personalize linked customers, keep real response clocks pending and never replay",async()=>{
+ await db.query("update public.support_acknowledgments set status='Cancelled' where status='Queued'");
+ const customer=await createCustomer("Avery Client","ack-client");
+ const id=await supportWorker(()=>rpc("support_ingest",inboxMessage('ack-support','ack-support-thread',{sender_email:'ack-client@example.test'})));
+ assert.equal(await supportWorker(()=>rpc("support_ingest",inboxMessage('ack-support','ack-support-thread',{sender_email:'ack-client@example.test'}))),id);
+ assert.equal(Number(await value("select count(*) from public.support_acknowledgments where conversation_id=$1",[id])),1);
+ const code=await value<string>("select case_code from public.support_conversations where id=$1",[id]);
+ const ack=await supportWorker(()=>value<{id:string;body:string;mailbox:string;automatic:boolean}>("select public.support_claim_ack()"));assert.equal(ack.automatic,true);assert.equal(ack.mailbox,'support');assert.equal(ack.body,`Hi Avery Client, we've received your inquiry and it will be reviewed within 1-2 days. Your case number is #${code}. Thank you for your patience.`);
+ await supportWorker(()=>value("select public.support_finish_reply($1,'Sent','ack-support-out','ack-support-thread',null)",[ack.id]));
+ assert.equal(await value("select status from public.support_conversations where id=$1",[id]),'New');
+ const cases=await value<{id:string;waiting_since:string|null}[]>("select public.support_cases()");assert.ok(cases.find(c=>c.id===id)?.waiting_since);
+ assert.ok((await value<{items:{id:string}[]}>("select public.urgent_login_attention()")).items.some(c=>c.id===id));
+ assert.equal(await supportWorker(()=>value("select public.support_claim_ack()")),null);
+ const hello=await supportWorker(()=>rpc("support_ingest",inboxMessage('ack-hello','ack-hello-thread',{mailbox:'hello',sender_email:'unknown-ack@example.test'})));
+ const helloAck=await supportWorker(()=>value<{id:string;body:string;subject:string;mailbox:string}>("select public.support_claim_ack()"));assert.equal(helloAck.body,"Hi there, we've received your message and we'll get back to you as soon as possible. Thank you for reaching out.");assert.equal(helloAck.mailbox,'hello');assert.doesNotMatch(helloAck.subject,/TT-C/);assert.equal(await value("select case_code from public.support_conversations where id=$1",[hello]),null);
+ await supportWorker(()=>value("select public.support_finish_reply($1,'Unknown',null,null,'GMAIL_DELIVERY_UNKNOWN')",[helloAck.id]));
+ assert.equal(await supportWorker(()=>value("select public.support_claim_ack()")),null);
+ assert.equal(await value("select status from public.support_acknowledgments where outbound_id=$1",[helloAck.id]),'Unknown');
+ const human=await value<{id:string}>("select public.support_prepare_reply($1,gen_random_uuid(),'Here is an answer from our team.')",[hello]);
+ await supportWorker(()=>value("select public.support_finish_reply($1,'Failed',null,null,'TEST_NO_SEND')",[human.id]));
+
+ const automatic=await supportWorker(()=>rpc("support_ingest",inboxMessage('ack-loop','ack-loop-thread',{automatic:true})));assert.equal(Number(await value("select count(*) from public.support_acknowledgments where conversation_id=$1",[automatic])),0);
+ await assert.rejects(value("select public.support_claim_ack()"),/Worker credentials/);
+ assert.equal(await value("select has_function_privilege('authenticated','public.support_claim_ack()','execute')"),false);
+ assert.ok(customer.id);
+});
+
+test("Public Help submissions route to Questions/Support, enqueue receipts, deduplicate retries and only link matching customer Jobs",async()=>{
+ const customer=await createCustomer("Help customer","help-customer"),quote=await createQuote(customer.id);const token=await value<string>("select public.send_quote($1)",[quote]);const job=(await acceptWithLogistics(token,{option_code:"dropoff_pickup"})).job_id;const code=await value<string>("select code from public.jobs where id=$1",[job]);
+ const request=await value<string>("select gen_random_uuid()"),network='c'.repeat(64),hash='d'.repeat(64);
+ const payload={mailbox:'support',name:'Help customer',email:'help-customer@example.test',phone:'3852142163',job:code,message:'Please review my delivery.',sms_opt_in:false,policies_accepted:false};
+ const submit=()=>supportWorker(()=>value<{reference:string}>("select public.submit_help_message($1,$2,$3,$4::jsonb)",[request,network,hash,JSON.stringify(payload)]));
+ const result=await submit();assert.match(result.reference,/^TT-C-/);assert.deepEqual(await submit(),result);
+ const cid=await value<string>("select conversation_id from private.help_submissions where request_id=$1",[request]);assert.equal(await value("select job_id from public.support_conversations where id=$1",[cid]),job);assert.equal(Number(await value("select count(*) from public.support_messages where conversation_id=$1 and direction='Inbound'",[cid])),1);assert.equal(Number(await value("select count(*) from public.support_acknowledgments where conversation_id=$1",[cid])),1);
+ const helloRequest=await value<string>("select gen_random_uuid()");const hello=await supportWorker(()=>value<{reference:string}>("select public.submit_help_message($1,$2,$3,$4::jsonb)",[helloRequest,network,'e'.repeat(64),JSON.stringify({...payload,mailbox:'hello',email:'new-question@example.test'})]));assert.equal(hello.reference,'Message received');
+ const helloId=await value<string>("select conversation_id from private.help_submissions where request_id=$1",[helloRequest]);assert.equal(await value("select case_code from public.support_conversations where id=$1",[helloId]),null);assert.equal(await value("select customer_id from public.support_conversations where id=$1",[helloId]),null);
+ const unverified=await value<string>("select gen_random_uuid()");await supportWorker(()=>value("select public.submit_help_message($1,$2,$3,$4::jsonb)",[unverified,network,'f'.repeat(64),JSON.stringify({...payload,email:'someone-else@example.test'})]));assert.equal(await value("select c.job_id from public.support_conversations c join private.help_submissions s on s.conversation_id=c.id where s.request_id=$1",[unverified]),null);
+ await assert.rejects(value("select public.submit_help_message($1,$2,$3,$4::jsonb)",[request,network,hash,JSON.stringify(payload)]),/Worker credentials/);
+ assert.equal(await value("select has_function_privilege('anon','public.submit_help_message(uuid,text,text,jsonb)','execute')"),false);
+ for(let i=0;i<2;i++)await supportWorker(()=>value("select public.submit_help_message(gen_random_uuid(),$1,$2,$3::jsonb)",[network,String(i).repeat(64),JSON.stringify({...payload,email:`help-rate-${i}@example.test`})]));
+ await assert.rejects(supportWorker(()=>value("select public.submit_help_message(gen_random_uuid(),$1,$2,$3::jsonb)",[network,'1'.repeat(64),JSON.stringify({...payload,email:'help-rate-blocked@example.test'})])),/rate limit/);
 });

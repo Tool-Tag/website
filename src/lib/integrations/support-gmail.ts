@@ -3,8 +3,8 @@ type Env = Record<string, string | undefined>;
 export type Department = "support" | "hello";
 export type GmailPart = { mimeType?: string; body?: { data?: string }; parts?: GmailPart[]; headers?: { name: string; value: string }[] };
 export type GmailIncoming = { id: string; threadId: string; internalDate: string; labelIds?: string[]; payload?: GmailPart };
-export type IncomingSupport = { mailbox: Department; sender_email: string; sender_name: string; gmail_message_id: string; gmail_thread_id: string; rfc_message_id: string; in_reply_to: string; references_header: string; subject: string; body: string; sent_at: string };
-export type SupportReply = { id: string; mailbox: Department; to: string; subject: string; body: string; message_id: string; thread_id: string; in_reply_to: string; references: string };
+export type IncomingSupport = { automatic?:boolean; mailbox: Department; sender_email: string; sender_name: string; gmail_message_id: string; gmail_thread_id: string; rfc_message_id: string; in_reply_to: string; references_header: string; subject: string; body: string; sent_at: string };
+export type SupportReply = { automatic?:boolean; id: string; mailbox: Department; to: string; subject: string; body: string; message_id: string; thread_id: string; in_reply_to: string; references: string };
 export function supportAddresses(env: Env = process.env) {
  const aliases = { support: env.TOOLTAG_INBOX_SUPPORT_ADDRESS || "support@tooltag.martinlab.studio", hello: env.TOOLTAG_INBOX_HELLO_ADDRESS || "hello@tooltag.martinlab.studio" };
  const reserved = [env.TOOLTAG_MAIL_QUOTES_FROM || "quotes@tooltag.martinlab.studio",env.TOOLTAG_MAIL_BILLING_FROM || "billing@tooltag.martinlab.studio"].map(a=>a.toLowerCase());
@@ -15,6 +15,7 @@ export function supportEnabled(env: Env = process.env) {
  return env.TOOLTAG_SUPPORT_INBOX_ENABLED === "true" && env.NODE_ENV === "production" && (!env.VERCEL_ENV || env.VERCEL_ENV === "production") && !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_REFRESH_TOKEN);
 }
 export function supportReplyEnabled(env: Env = process.env) { return supportEnabled(env) && mailEnabled(env); }
+export function supportAckEnabled(env:Env=process.env) {return env.TOOLTAG_MAIL_MODE === "live" && supportReplyEnabled(env);}
 function header(part: GmailPart | undefined, name: string) { return part?.headers?.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || ""; }
 function address(value: string) { const match = value.match(/(?:<)?([A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,})(?:>)?/i); return match?.[1].toLowerCase() || ""; }
 function parts(part: GmailPart | undefined): GmailPart[] { return part ? [part,...(part.parts || []).flatMap(p => parts(p))] : []; }
@@ -31,13 +32,13 @@ export function parseSupportMessage(m: GmailIncoming, env: Env = process.env): I
  let body = Buffer.from((plain || html)?.body?.data || "", "base64url").toString("utf8");
  if (!plain) body = body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,"").replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,"").replace(/<[^>]+>/g," ").replace(/&nbsp;/g," ").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&");
  const date = Number(m.internalDate); if (!Number.isFinite(date) || date <= 0) return null;
- return { mailbox, sender_email: sender, sender_name: cleanHeader(header(m.payload,"From").replace(/<[^>]+>/g,"").replace(/^"|"$/g,"")).slice(0,200), gmail_message_id: m.id, gmail_thread_id: m.threadId, rfc_message_id: cleanHeader(header(m.payload,"Message-ID")), in_reply_to: cleanHeader(header(m.payload,"In-Reply-To")), references_header: cleanHeader(header(m.payload,"References")), subject: cleanHeader(header(m.payload,"Subject")), body: body.slice(0,100000), sent_at: new Date(date).toISOString() };
+ return { automatic: !!(header(m.payload,"Auto-Submitted") && header(m.payload,"Auto-Submitted").toLowerCase()!=="no") || /^(bulk|junk|list)$/i.test(header(m.payload,"Precedence")), mailbox, sender_email: sender, sender_name: cleanHeader(header(m.payload,"From").replace(/<[^>]+>/g,"").replace(/^"|"$/g,"")).slice(0,200), gmail_message_id: m.id, gmail_thread_id: m.threadId, rfc_message_id: cleanHeader(header(m.payload,"Message-ID")), in_reply_to: cleanHeader(header(m.payload,"In-Reply-To")), references_header: cleanHeader(header(m.payload,"References")), subject: cleanHeader(header(m.payload,"Subject")), body: body.slice(0,100000), sent_at: new Date(date).toISOString() };
 }
 export function supportMime(reply: SupportReply, env: Env = process.env) {
  const alias = supportAddresses(env)[reply.mailbox];
  const base = gmailMime({from:`ToolTag ${reply.mailbox === "support" ? "Support" : "Hello"} <${alias}>`,replyTo:alias,to:reply.to,subject:reply.subject,text:reply.body,html:`<pre>${reply.body.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"})[c]!)}</pre>`},reply.id);
  const safeIds = (v: string) => v.match(/<[^<>\s\r\n]+>/g)?.slice(-20).join(" ") || "";
- const extra = [reply.in_reply_to && `In-Reply-To: ${safeIds(reply.in_reply_to)}`,reply.references && `References: ${safeIds(reply.references)}`].filter(Boolean);
+ const extra = [...(reply.automatic?["Auto-Submitted: auto-replied","X-Auto-Response-Suppress: All"]:[]),reply.in_reply_to && `In-Reply-To: ${safeIds(reply.in_reply_to)}`,reply.references && `References: ${safeIds(reply.references)}`].filter(Boolean);
  return base.replace(/^Message-ID: .*$/m,`Message-ID: ${supportMessageId(reply.id)}`).replace("MIME-Version: 1.0",[...extra,"MIME-Version: 1.0"].join("\r\n"));
 }
 export function supportMessageId(id: string) { if (!/^[0-9a-f-]{36}$/i.test(id)) throw new MailFailure("MAIL_HEADER_INVALID"); return `<${id}@tooltag.martinlab.studio>`; }

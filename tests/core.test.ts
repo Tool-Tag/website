@@ -501,3 +501,50 @@ import {processRouteRefunds} from '../src/lib/payments/route-refunds';
 test('Refund worker is inert regardless of configured provider keys',async()=>{
  assert.deepEqual(await processRouteRefunds(),{enabled:false,processed:0});
 });
+
+import {urgency,attentionBands} from "../src/lib/domain/urgent-attention";
+test("Urgency combines categories, preserves overdue records and always puts Lost in red",()=>{
+ assert.deepEqual([1,2,3,4,5,7,8].map(d=>urgency("refund",d)),["green","green","orange","orange","red","red","red"]);
+ assert.deepEqual([1,2,3,4,5,6].map(d=>urgency("problem",d)),["green","orange","orange","red","red","red"]);
+ assert.equal(urgency("lost",0),"red");
+ const bands=attentionBands(["refund","problem","lost"].map((kind,i)=>({kind:kind as "refund"|"problem"|"lost",id:String(i),label:"test",href:"/app",days:5,urgency:urgency(kind as "refund"|"problem"|"lost",5)})));
+ assert.equal(bands[0].items.length,3);
+});
+
+import {queueDays,classifyAttention} from "../src/lib/domain/urgent-attention";
+test("Refund calendar days and response weekdays use Denver inclusive day 1 across weekends/DST",()=>{
+ assert.equal(queueDays("2026-10-09T18:00:00Z",new Date("2026-10-12T18:00:00Z")),4);
+ assert.equal(queueDays("2026-10-09T18:00:00Z",new Date("2026-10-12T18:00:00Z"),true),2);
+ assert.equal(queueDays("2026-10-10T00:01:00Z",new Date("2026-10-10T01:00:00Z")),1);
+ assert.equal(queueDays("2026-10-31T18:00:00Z",new Date("2026-11-02T18:00:00Z")),3);
+});
+
+test("Refund urgency uses confirmed business days and weekend submissions start counting on Monday",()=>{
+ assert.equal(queueDays("2026-10-11T18:00:00Z",new Date("2026-10-12T18:00:00Z"),true),1);
+ const item=classifyAttention([{kind:"refund",id:"1",label:"test",href:"/app/refunds",started_at:"2026-10-09T18:00:00Z"}],new Date("2026-10-12T18:00:00Z"))[0];
+ assert.equal(item.days,2);assert.equal(item.urgency,"green");
+});
+
+import {aggregateBands,categoryBadge} from "../src/lib/domain/urgent-attention";
+test("Popup aggregates categories without individual records and menu urgency uses red over orange over green",()=>{
+ const items=classifyAttention([
+ {kind:"refund",id:"r1",label:"one",href:"/app/refunds",started_at:"2026-10-13T18:00:00Z"},
+ {kind:"refund",id:"r2",label:"two",href:"/app/refunds",started_at:"2026-10-09T18:00:00Z"},
+ {kind:"refund",id:"r3",label:"three",href:"/app/refunds",started_at:"2026-10-02T18:00:00Z"},
+ {kind:"problem",id:"p",label:"support",href:"/app/notifications",started_at:"2026-10-09T18:00:00Z"},
+ {kind:"lost",id:"l",label:"lost",href:"/app/lost",started_at:"2026-10-14T18:00:00Z"}],new Date("2026-10-14T18:00:00Z"));
+ assert.deepEqual(categoryBadge(items,"refund"),{count:3,color:"red"});
+ assert.equal(categoryBadge(items.filter(i=>i.id!=="r3"),"refund").color,"orange");
+ assert.deepEqual(categoryBadge([],"refund"),{count:0,color:"green"});
+ const bands=aggregateBands(items);assert.equal(bands.length,3);assert.equal(bands[0].count,3);
+ assert.equal(bands[0].categories.length,3);assert.ok(bands.every(b=>b.categories.every(c=>!('id' in c))));
+});
+
+import {supportAckEnabled} from "../src/lib/integrations/support-gmail";
+test("Automatic receipts require production live mail and never dispatch in local, preview or test-delivery mode",()=>{
+ const env={TOOLTAG_SUPPORT_INBOX_ENABLED:"true",TOOLTAG_MAIL_MODE:"live",NODE_ENV:"production",VERCEL_ENV:"production",GOOGLE_CLIENT_ID:"fixture",GOOGLE_CLIENT_SECRET:"fixture",GOOGLE_REFRESH_TOKEN:"fixture"};
+ assert.equal(supportAckEnabled(env),true);
+ assert.equal(supportAckEnabled({...env,TOOLTAG_MAIL_MODE:"test-delivery"}),false);
+ assert.equal(supportAckEnabled({...env,NODE_ENV:"development",TOOLTAG_MAIL_ALLOW_LOCAL_SEND:"true"}),false);
+ assert.equal(supportAckEnabled({...env,VERCEL_ENV:"preview"}),false);
+});
