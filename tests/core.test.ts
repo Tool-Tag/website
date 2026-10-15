@@ -548,3 +548,28 @@ test("Automatic receipts require production live mail and never dispatch in loca
  assert.equal(supportAckEnabled({...env,NODE_ENV:"development",TOOLTAG_MAIL_ALLOW_LOCAL_SEND:"true"}),false);
  assert.equal(supportAckEnabled({...env,VERCEL_ENV:"preview"}),false);
 });
+
+import {refundAttention,compareRefundUrgency,refundEligibility,refundCompletionLabel} from "../src/lib/domain/refund-flow";
+import {renderNotification} from "../src/lib/integrations/notification-mail";
+test('Refund list uses confirmed business days, red-first sorting and preserves overdue red',()=>{
+ const now=new Date('2026-10-14T18:00:00Z');
+ assert.deepEqual(refundAttention(null,now),{days:0,color:'green'});
+ assert.deepEqual(refundAttention('2026-10-13T18:00:00Z',now),{days:2,color:'green'});
+ assert.deepEqual(refundAttention('2026-10-09T18:00:00Z',now),{days:4,color:'orange'});
+ assert.deepEqual(refundAttention('2026-10-08T18:00:00Z',now),{days:5,color:'red'});
+ assert.equal(refundAttention('2026-09-28T18:00:00Z',now).color,'red');
+ const rows=[null,'2026-10-09T18:00:00Z','2026-10-08T18:00:00Z'].map(confirmed_at=>({confirmed_at,requested_at:'2026-10-01T18:00:00Z'}));
+ assert.deepEqual(rows.sort((a,b)=>compareRefundUrgency(a,b,now)).map(r=>r.confirmed_at),['2026-10-08T18:00:00Z','2026-10-09T18:00:00Z',null]);
+ assert.equal(refundEligibility('2026-10-01T18:00:00Z','2026-10-15T18:00:00Z'),'Within the 14-calendar-day reporting window');
+ assert.equal(refundEligibility('2026-10-01T18:00:00Z','2026-10-16T18:00:00Z'),'Outside the 14-calendar-day reporting window');
+ assert.equal(refundEligibility(null,'2026-10-16T18:00:00Z'),'Needs origin event/date review');
+ assert.equal(refundCompletionLabel('No response within 5 days'),'Auto-completed, no response');
+ assert.match(refundCompletionLabel('Staff confirmed receipt','Email'),/Client confirmed.*Email/);
+});
+test('Refund issued mail shows secure proof and Confirm Receipt without signed storage URLs',()=>{
+ const link='https://tooltag.martinlab.studio/refund/'+'a'.repeat(64);
+ const message=renderNotification('Refund issued','Your refund was issued.','test@example.test','REFUND_UPDATE',link,'Confirm Receipt',link+'/proof');
+ assert.match(message.html,/Confirm Receipt/);assert.match(message.html,/View refund screenshot/);
+ assert.ok(message.text.includes(link+'/proof'));assert.doesNotMatch(message.html,/supabase.co|object\/sign/);
+ assert.throws(()=>renderNotification('Refund','Issued','test@example.test','REFUND_UPDATE',link,'Confirm Receipt','http://unsafe.example.test/proof'),/Secure proof/);
+});

@@ -2480,3 +2480,68 @@ test('Issued refunds auto-complete after five calendar days exactly once without
  assert.equal(await value('select status from public.refund_requests where id=$1',[f.id]),'Completed');assert.equal(await value('select completion_reason from public.refund_requests where id=$1',[f.id]),'No response within 5 days');assert.equal(await value('select acknowledged_at from public.refund_requests where id=$1',[f.id]),null);
  assert.equal(await value('select count(*) from public.transactions'),transactions);assert.equal(await value('select count(*) from public.notifications'),notices);assert.equal(await value("select position('reconcile_issued_refunds' in pg_get_functiondef('public.run_scheduled_tasks()'::regprocedure))>0"),true);
 });
+
+test('Refund rejection requires a reason, releases its reservation and keeps History read-only',async()=>{
+ const f=await lifecycleRefund('reject');
+ const before=await value('select count(*) from public.transactions');
+ const notices=await value('select count(*) from public.notifications');
+ const balance=()=>value<{id:string;available:number;customer_name:string}[]>('select public.refund_job_choices()');
+ const reserved=Number((await balance()).find(j=>j.id===f.job)!.available);
+ assert.match((await balance()).find(j=>j.id===f.job)!.customer_name,/Refund lifecycle/);
+ await assert.rejects(rpc('refund_request_action',{id:f.id,action:'reject',reason:'Cannot approve'}),/In Review/);
+ await rpc('refund_request_action',{id:f.id,action:'review'});
+ await assert.rejects(rpc('refund_request_action',{id:f.id,action:'reject',reason:' '}),/reason/);
+ await rpc('refund_request_action',{id:f.id,action:'reject',reason:'Duplicate request; original refund still active'});
+ await rpc('refund_request_action',{id:f.id,action:'reject',reason:'Repeat attempt'});
+ const row=await value<{status:string;rejection_reason:string;rejected_by:string}>('select row_to_json(r) from public.refund_requests r where id=$1',[f.id]);
+ assert.equal(row.status,'Rejected');assert.equal(row.rejection_reason,'Duplicate request; original refund still active');assert.equal(row.rejected_by,admin);
+ assert.equal(Number((await balance()).find(j=>j.id===f.job)!.available),reserved+10);
+ for(const action of ['review','approve','complete','confirm','cancel','note','acknowledge'])await assert.rejects(rpc('refund_request_action',{id:f.id,action,notes:'Cannot change history'}),/read-only/);
+ assert.equal((await value<{items:{id:string}[]}>('select public.urgent_login_attention()')).items.some(i=>i.id===f.id),false);
+ assert.equal(await value('select count(*) from public.transactions'),before);assert.equal(await value('select count(*) from public.notifications'),notices);
+ assert.equal(await value("select has_function_privilege('authenticated','public.refund_request_action_before_full_flow(jsonb)','execute')"),false);
+ assert.equal(await value("select has_function_privilege('anon','public.refund_request_action(jsonb)','execute')"),false);
+});
+
+test('Staff records customer receipt by phone/email once without creating another payment or notification',async()=>{
+ const f=await lifecycleRefund('staff-ack');await confirmRefundWindow(f.id);const issued=await issueLifecycle(f);
+ const viewer=await addStaff([],'refund-receipt-viewer');const role=await value<string>("select public.rbac_save_role(null,'Refund receipt viewer',array['payments.view'])");await value("select public.rbac_save_user($1,'Refund viewer',true,array[$2]::uuid[])",[viewer,role]);
+ await staffAs(viewer,async()=>{await assert.rejects(rpc('refund_request_action',{id:f.id,action:'acknowledge',channel:'Phone',notes:'Confirmed'}),/permission/);});
+ const transactions=await value('select count(*) from public.transactions'),notices=await value('select count(*) from public.notifications');
+ await assert.rejects(rpc('refund_request_action',{id:f.id,action:'acknowledge',channel:'SMS',notes:'Confirmed'}),/channel/);
+ await assert.rejects(rpc('refund_request_action',{id:f.id,action:'acknowledge',channel:'Phone',notes:' '}),/notes/);
+ await rpc('refund_request_action',{id:f.id,action:'acknowledge',channel:'Phone',notes:'Customer called and confirmed receipt.'});
+ await rpc('refund_request_action',{id:f.id,action:'acknowledge',channel:'Email',notes:'Repeated recording'});
+ const row=await value<{status:string;completed_by:string;completion_channel:string;completion_reason:string;completion_notes:string;acknowledged_at:string}>('select row_to_json(r) from public.refund_requests r where id=$1',[f.id]);
+ assert.equal(row.status,'Completed');assert.equal(row.completed_by,admin);assert.equal(row.completion_channel,'Phone');assert.equal(row.completion_reason,'Staff confirmed receipt');assert.ok(row.acknowledged_at);assert.match(row.completion_notes,/Customer called/);
+ await value('select public.public_refund($1,true)',[issued.token]);
+ await assert.rejects(rpc('refund_request_action',{id:f.id,action:'note',notes:'Edit history'}),/read-only/);
+ await assert.rejects(value('select public.update_document_evidence_metadata($1,$2::jsonb)',[issued.proof,'{}']),/read-only/);
+ await assert.rejects(value("select public.finish_document_storage($1,'tooltag-files',$2,'stored',null)",[issued.proof,unit+'/overwrite.png']),/read-only/);
+ assert.equal(await value('select count(*) from public.transactions'),transactions);assert.equal(await value('select count(*) from public.notifications'),notices);
+ const early=await lifecycleRefund('early-ack');await assert.rejects(rpc('refund_request_action',{id:early.id,action:'acknowledge',channel:'Email',notes:'Not issued'}),/Only Issued/);
+});
+
+test('Refund urgency uses confirmation and rejected source obligations do not reopen',async()=>{
+ const f=await lifecycleRefund('clock');
+ await db.query("update public.refund_requests set requested_at=now()-interval '30 days' where id=$1",[f.id]);
+ let attention=await value<{items:{id:string;started_at:string}[]}>('select public.urgent_login_attention()');
+ assert.ok(Date.parse(attention.items.find(i=>i.id===f.id)!.started_at)>Date.now()-60000);
+ await rpc('refund_request_action',{id:f.id,action:'confirm'});
+ await db.query("update public.refund_requests set confirmed_at=now()-interval '3 days' where id=$1",[f.id]);
+ attention=await value('select public.urgent_login_attention()');
+ assert.equal(Date.parse(attention.items.find(i=>i.id===f.id)!.started_at),new Date(await value<string>('select confirmed_at from public.refund_requests where id=$1',[f.id])).getTime());
+ // An automatic source may be updated later; it must not undo an audited rejection.
+ const driver=await driverReturnFixture('rejected-source');const due=await value<number>('select balance_due from public.job_commercial_totals where id=$1',[driver.job]);
+ const payment=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',$3,'Final Balance') returning id",[unit,driver.job,due]);await value('select public.confirm_payment_request($1)',[payment]);
+ const route=await freshIncidentRoute(driver,'Return');const incident=await value<string>('select public.report_driver_incident($1)',[route]);await value("select public.resolve_driver_incident($1,'Continued')",[incident]);
+ const id=await value<string>("select id from public.refund_requests where job_id=$1 and source_kind='Route'",[driver.job]);
+ await rpc('refund_request_action',{id,action:'review'});await rpc('refund_request_action',{id,action:'reject',reason:'Confirmed duplicate obligation'});
+ await db.query("update public.route_compensations set status='ManualRequired' where id=(select source_id from public.refund_requests where id=$1)",[id]);
+ assert.equal(await value('select status from public.refund_requests where id=$1',[id]),'Rejected');
+ const completed=await value<string>("select id from public.refund_requests where source_kind='Route' and status='Completed' limit 1");
+ assert.ok(completed);
+ const frozen=await value('select row_to_json(r) from public.refund_requests r where id=$1',[completed]);
+ await db.query("update public.route_compensations set status='ManualRequired' where id=(select source_id from public.refund_requests where id=$1)",[completed]);
+ assert.deepEqual(await value('select row_to_json(r) from public.refund_requests r where id=$1',[completed]),frozen);
+});
