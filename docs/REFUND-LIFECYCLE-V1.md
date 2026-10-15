@@ -30,3 +30,6 @@ Historical Completed/Cancelled records are not reprocessed, re-notified or conve
 Additive migration: `20261015024134_refund_approval_issuance_acknowledgment.sql`. Applied migrations/baselines are unchanged. Apply only after review/authorization; this task does not apply production SQL.
 
 Local isolated integration tests cover role restrictions, correct source reservations, screenshot ownership/method, unchanged processing gates, exactly-once ledger/notification behavior, bearer-token access, public acknowledgment, and five-day timeout without extra transactions/notifications. No real customer email or real provider refund is sent during tests.
+
+### Active case review
+Active refunds appear as clickable rows. Opening a Pending case in the details modal starts In Review for staff with `payments.refund`; viewers retain read-only access. Reopening never resets the review timestamp or moves later states backward. Approval and manual issuance remain separate explicit actions. The modal preserves its open state while refreshed server details show the review actions.

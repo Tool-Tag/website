@@ -25,3 +25,25 @@ export async function refundAction(kind: "create" | "review" | "approve" | "conf
         return { error: error instanceof Error ? error.message : "Unable to save refund." };
     }
 }
+
+/** Opening a case never approves or issues funds. Read-only staff cannot mutate it. */
+export async function openRefundReview(id: string): Promise<RefundState> {
+    try {
+        const {db, unit} = await requirePermission("payments.refund");
+        const {data: request, error} = await db.from("refund_requests")
+            .select("status,job_id").eq("unit_id", unit).eq("id", id).single();
+        if (error || !request) return {error: error?.message ?? "Refund not found."};
+        if (request.status !== "Pending") return {ok: true};
+        const result = await refundAction("review", id, {}, new FormData());
+        // A concurrent reviewer may already have advanced the case. Never move it backward.
+        if (result.error) {
+            const {data: latest} = await db.from("refund_requests").select("status")
+                .eq("unit_id", unit).eq("id", id).single();
+            if (!latest || latest.status === "Pending") return result;
+        }
+        revalidatePath(`/app/jobs/${request.job_id}`);
+        return {ok: true};
+    } catch (error) {
+        return {error: error instanceof Error ? error.message : "Unable to open refund review."};
+    }
+}

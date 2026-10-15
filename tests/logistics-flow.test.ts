@@ -2449,6 +2449,10 @@ test('Refund lifecycle enforces review and Owner/Manager approval, method screen
  const f=await lifecycleRefund('ack');
  await assert.rejects(rpc('refund_request_action',{id:f.id,action:'approve'}),/review/i);
  await rpc('refund_request_action',{id:f.id,action:'review'});assert.equal(await value('select status from public.refund_requests where id=$1',[f.id]),'In Review');
+ const reviewedAt=await value('select reviewed_at from public.refund_requests where id=$1',[f.id]);
+ await rpc('refund_request_action',{id:f.id,action:'review'});
+ assert.equal(String(await value('select reviewed_at from public.refund_requests where id=$1',[f.id])),String(reviewedAt));
+ assert.equal(await value('select status from public.refund_requests where id=$1',[f.id]),'In Review');
  await rpc('refund_request_action',{id:f.id,action:'confirm'});
  const employee=await addStaff([],'refund-life-staff');const role=await value<string>("select public.rbac_save_role(null,'Refund lifecycle staff',array['payments.refund'])");await value("select public.rbac_save_user($1,'Refund staff',true,array[$2]::uuid[])",[employee,role]);
  await staffAs(employee,async()=>{await assert.rejects(rpc('refund_request_action',{id:f.id,action:'approve'}),/Owner or Manager/);});
