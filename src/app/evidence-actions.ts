@@ -34,6 +34,7 @@ export type EvidenceRegistration = {
   paymentRequestId?: string;
   cancellationRequestId?: string;
   refundRequestId?: string;
+  refundMethod?: string;
   defaultVisibility?: "internal" | "customer";
   back?: string;
   photoOnly?: boolean;
@@ -89,6 +90,7 @@ export async function registerEvidenceAction(
         payment_request_id: config.paymentRequestId ?? null,
         cancellation_request_id: config.cancellationRequestId ?? null,
         refund_request_id: config.refundRequestId ?? null,
+        refund_method: config.refundMethod ?? null,
         file_name: original,
         original_file_name: original,
         mime_type: file.type || "application/octet-stream",

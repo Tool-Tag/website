@@ -1,0 +1,8 @@
+import {supabase} from "@/lib/supabase/server";
+import {RefundAcknowledgment} from "@/components/refund-acknowledgment";
+import {money} from "@/lib/domain/money";
+import {denverDateTime} from "@/lib/domain/time";
+import Link from "next/link";
+import {refundCompletionLabel} from "@/lib/domain/refund-flow";
+export const dynamic="force-dynamic";
+export default async function RefundPage({params}:{params:Promise<{token:string}>}){const {token}=await params;if(!/^[a-f0-9]{64}$/.test(token))return <main className="public"><h1>Refund link unavailable</h1></main>;const db=await supabase();const {data,error}=await db.rpc("public_refund",{p_token:token,p_ack:false});if(error||!data)return <main className="public"><h1>Refund link unavailable</h1><p>Please contact ToolTag for help.</p></main>;return <main className="public"><h1>Refund {data.status}</h1><section className="panel"><h2>{data.job_code} · {money(data.amount)}</h2>{Number(data.issued_amount)!==Number(data.amount)&&<p>Issued in this payment: {money(data.issued_amount)}</p>}<p>Method: {data.method} · Reference: {data.reference}</p><p>Issued: {denverDateTime(data.issued_at)}</p>{data.proof_available&&<Link className="button secondary" href={`/refund/${token}/proof`} target="_blank">View refund screenshot</Link>}{data.status==="Issued"?<><p>Please confirm when you receive this refund. If you do not respond by {denverDateTime(data.deadline)}, this record will be marked Completed automatically.</p><RefundAcknowledgment token={token}/></>:<p>This refund record is completed. {refundCompletionLabel(data.completion_reason)}. Contact ToolTag if you need help.</p>}</section></main>;}

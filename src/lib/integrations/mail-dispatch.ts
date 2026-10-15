@@ -20,6 +20,7 @@ export async function dispatchQuoteMail(db: SupabaseClient, quoteId?: string) {
       if (!event) break;
       let providerId: string | null = null, failure: string | null = null;
       try {
+        const refundReceipt = event.event === "REFUND_UPDATE" && event.payload.refund_id && event.payload.proof_id && /^\/refund\/[a-f0-9]{64}$/.test(event.payload.action_path ?? "");
         const message = event.payload.template === "job_receipt"
           ? renderJobReceipt(event.payload.snapshot,event.recipient)
           : event.payload.template === "notification"
@@ -33,11 +34,12 @@ export async function dispatchQuoteMail(db: SupabaseClient, quoteId?: string) {
                 : event.completion_token
                   ? new URL(`/completion/${event.completion_token}`, origin).href
                   : undefined,
-              event.event === "Completion acknowledgment"
+              refundReceipt ? "Confirm Receipt" : event.event === "Completion acknowledgment"
                 ? "Accept Delivery"
                 : ["JOB_STATUS_LINK", "JOB_STATUS_UPDATE"].includes(event.event)
                   ? "View Job Status"
                   : "Review details",
+              refundReceipt ? new URL(`${event.payload.action_path}/proof`, origin).href : undefined,
             )
           : renderQuoteMail(event.payload.snapshot, new URL(`/review/${event.token}`, origin).href, event.event === "Agreement accepted copy" ? "confirmation" : "quote", event.payload.job_code);
         Object.assign(message, mailSender(event.event), {to: event.recipient});
