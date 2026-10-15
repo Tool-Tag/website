@@ -1253,13 +1253,14 @@ test('Replacement continues with $5 compensation; customer may reschedule and up
  assert.equal(Number(await value('select count(*) from public.route_compensations where incident_id=$1 and job_id=$2',[f.incident,f.job])),1);
 });
 
-async function manualRefundProof(job:string,request:string){
- return value<string>("insert into public.documents(unit_id,job_id,refund_request_id,type,file_name,status,storage_status,uploaded_by) values($1,$2,$3,'Refund Review Evidence','test-proof.png','Available','stored',$4) returning id",[unit,job,request,admin]);
+async function manualRefundProof(job:string,request:string,method="Zelle"){
+ return value<string>("insert into public.documents(unit_id,job_id,refund_request_id,type,file_name,status,storage_status,uploaded_by,mime_type,refund_method) values($1,$2,$3,'Refund Review Evidence','test-proof.png','Available','stored',$4,'image/png',$5) returning id",[unit,job,request,admin,method]);
 }
 async function confirmRefundWindow(id:string){
- await rpc('refund_request_action',{id,action:'confirm',reviewed:true});
+ if(await value('select status from public.refund_requests where id=$1',[id])!=='Approved')await rpc('refund_request_action',{id,action:'confirm',reviewed:true});
  // Advance the fixture's confirmed dates rather than changing the system clock.
  await db.query("update public.refund_requests set confirmed_at=now()-interval '10 days',process_not_before=current_date-2,process_due=current_date where id=$1",[id]);
+ await rpc('refund_request_action',{id,action:'approve'});
 }
 test('Manual route refunds require proof/reference, never use Cash and complete idempotently',async()=>{
  const f=await driverReturnFixture('incident-manual-refund');
@@ -1272,6 +1273,7 @@ test('Manual route refunds require proof/reference, never use Cash and complete 
  assert.equal(Number(await value('select amount from public.refund_requests where id=$1',[id])),5);
  await assert.rejects(value('select public.confirm_route_refund($1,$2)',[await value('select source_id from public.refund_requests where id=$1',[id]),'REF']),/Finance/);
  await rpc('refund_request_action',{id,action:'confirm',reviewed:true});
+ await rpc('refund_request_action',{id,action:'approve'});
  await assert.rejects(rpc('refund_request_action',{id,action:'complete',method:'Zelle',reference:'REF'}),/business days/);
  await confirmRefundWindow(id);
  await assert.rejects(rpc('refund_request_action',{id,action:'complete',method:'Cash',reference:'REF'}),/Cash/);
@@ -1282,7 +1284,7 @@ test('Manual route refunds require proof/reference, never use Cash and complete 
  const payload={id,action:'complete',account_id:await value('select t.account_id from public.transactions t join public.collections c on c.transaction_id=t.id join public.sales s on s.transaction_id=c.sale_id where s.job_id=$1 limit 1',[f.job]),method:'Zelle',proof_id:proof,reference:'ZELLE-REFUND-TEST'};
  await rpc('refund_request_action',payload);await rpc('refund_request_action',payload);
  assert.equal(Number(await value("select count(*) from public.transactions where reference='ZELLE-REFUND-TEST' and type='REFUND'")),1);
- assert.equal(await value('select status from public.refund_requests where id=$1',[id]),'Completed');
+ assert.equal(await value('select status from public.refund_requests where id=$1',[id]),'Issued');
  const snapshot=await value<{job_code:string;method:string;amount:number}>('select confirmation_snapshot from public.refund_requests where id=$1',[id]);assert.equal(Number(snapshot.amount),5);assert.equal(snapshot.method,'Zelle');assert.ok(snapshot.job_code);
  assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key like $1",['manual-refund-completed:'+id+':%'])),1);
 });
@@ -1969,7 +1971,7 @@ test('Refunds reserve paid amounts, enforce 14 calendar days, business-day windo
  const second=await rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),amount:'5.00'});const wrongProof=await manualRefundProof(job,second);await confirmRefundWindow(id);
  await assert.rejects(rpc('refund_request_action',{id,action:'complete',method:'Zelle',account_id:account,reference:'wrongproof',proof_id:wrongProof}),/proof belonging/);
  await rpc('refund_request_action',{id:second,action:'cancel',notes:'Duplicate report'});assert.equal(await value('select status from public.refund_requests where id=$1',[second]),'Cancelled');
- const proof=await manualRefundProof(job,id);await rpc('refund_request_action',{id,action:'complete',method:'Check',account_id:account,reference:'CHECK-101',proof_id:proof});
+ const proof=await manualRefundProof(job,id,'Check');await rpc('refund_request_action',{id,action:'complete',method:'Check',account_id:account,reference:'CHECK-101',proof_id:proof});
  assert.equal(await value('select processed_by from public.refund_requests where id=$1',[id]),admin);
  const choice=(await value<{id:string;available:number}[]>('select public.refund_job_choices()')).find(x=>x.id===job)!;assert.equal(Number(choice.available),30);
  await db.query("update public.jobs set completion_email_sent_at=now()-interval '15 days' where id=$1",[job]);
@@ -2430,4 +2432,47 @@ test("Public Help submissions route to Questions/Support, enqueue receipts, dedu
  assert.equal(await value("select has_function_privilege('anon','public.submit_help_message(uuid,text,text,jsonb)','execute')"),false);
  for(let i=0;i<2;i++)await supportWorker(()=>value("select public.submit_help_message(gen_random_uuid(),$1,$2,$3::jsonb)",[network,String(i).repeat(64),JSON.stringify({...payload,email:`help-rate-${i}@example.test`})]));
  await assert.rejects(supportWorker(()=>value("select public.submit_help_message(gen_random_uuid(),$1,$2,$3::jsonb)",[network,'1'.repeat(64),JSON.stringify({...payload,email:'help-rate-blocked@example.test'})])),/rate limit/);
+});
+
+async function lifecycleRefund(suffix:string){
+ const customer=await createCustomer('Refund lifecycle '+suffix,'refund-life-'+suffix),quote=await createQuote(customer.id,'40.00');
+ const token=await value<string>('select public.send_quote($1)',[quote]);const job=(await acceptWithLogistics(token,{option_code:'dropoff_pickup'})).job_id;
+ const payment=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',40,'Final Balance') returning id",[unit,job]);await value('select public.confirm_payment_request($1)',[payment]);
+ const now=new Date().toISOString();const id=await rpc('create_refund_request',{request_key:await value('select gen_random_uuid()'),job_id:job,amount:'10.00',reason:'ToolTag error',issue_event:'Pickup',issue_event_at:now,reported_at:now});
+ const account=await value<string>('select account_id from public.transactions where id in (select transaction_id from public.collections where sale_id in (select transaction_id from public.sales where job_id=$1)) limit 1',[job]);return {id,job,account};
+}
+async function issueLifecycle(f:{id:string;job:string;account:string}){
+ const proof=await manualRefundProof(f.job,f.id);await rpc('refund_request_action',{id:f.id,action:'complete',method:'Zelle',proof_id:proof,account_id:f.account,reference:'MANUAL-'+f.id});
+ const path=await value<string>("select payload->>'action_path' from public.notifications where dedupe_key like $1",['manual-refund-completed:'+f.id+':%']);return {proof,token:path.split('/').at(-1)!};
+}
+test('Refund lifecycle enforces review and Owner/Manager approval, method screenshot, single manual ledger and customer acknowledgment',async()=>{
+ const f=await lifecycleRefund('ack');
+ await assert.rejects(rpc('refund_request_action',{id:f.id,action:'approve'}),/review/i);
+ await rpc('refund_request_action',{id:f.id,action:'review'});assert.equal(await value('select status from public.refund_requests where id=$1',[f.id]),'In Review');
+ await rpc('refund_request_action',{id:f.id,action:'confirm'});
+ const employee=await addStaff([],'refund-life-staff');const role=await value<string>("select public.rbac_save_role(null,'Refund lifecycle staff',array['payments.refund'])");await value("select public.rbac_save_user($1,'Refund staff',true,array[$2]::uuid[])",[employee,role]);
+ await staffAs(employee,async()=>{await assert.rejects(rpc('refund_request_action',{id:f.id,action:'approve'}),/Owner or Manager/);});
+ await assert.rejects(rpc('refund_request_action',{id:f.id,action:'complete'}),/approval/i);
+ const manager=await addStaff([],'refund-life-manager');let managerRole=await value<string>("select id from public.roles where unit_id=$1 and lower(name)='manager'",[unit]);managerRole=await value<string>("select public.rbac_save_role($1,'Manager',array['payments.refund'])",[managerRole]);await value("select public.rbac_save_user($1,'Refund Manager',true,array[$2]::uuid[])",[manager,managerRole]);
+ await staffAs(manager,async()=>{assert.equal(await value('select public.refund_can_approve()'),true);await rpc('refund_request_action',{id:f.id,action:'approve'});});
+ await db.query('update public.refund_requests set process_not_before=current_date-1 where id=$1',[f.id]);
+ const wrong=await manualRefundProof(f.job,f.id,'Check');await assert.rejects(rpc('refund_request_action',{id:f.id,action:'complete',method:'Zelle',account_id:f.account,reference:'WRONG-METHOD',proof_id:wrong}),/proof/);
+ const issued=await issueLifecycle(f);assert.match(issued.token,/^[a-f0-9]{64}$/);assert.equal(await value('select status from public.refund_requests where id=$1',[f.id]),'Issued');
+ const transactions=Number(await value("select count(*) from public.transactions where reference=$1 and type='REFUND'",['MANUAL-'+f.id]));await rpc('refund_request_action',{id:f.id,action:'complete'});assert.equal(Number(await value("select count(*) from public.transactions where reference=$1 and type='REFUND'",['MANUAL-'+f.id])),transactions);
+ assert.equal(Number(await value('select extract(epoch from acknowledgment_deadline-issued_at) from public.refund_requests where id=$1',[f.id])),5*86400);
+ await assert.rejects(value('select public.public_refund($1,false)',['f'.repeat(64)]),/unavailable/);
+ await assert.rejects(value('select public.refund_proof_access($1)',[issued.token]),/Worker/);
+ const before=await value<{status:string;method:string}>('select public.public_refund($1,false)',[issued.token]);assert.equal(before.status,'Issued');assert.equal(before.method,'Zelle');
+ await db.query("select set_config('request.jwt.claim.sub','',false)");await db.exec('set role anon');
+ try{await value('select public.public_refund($1,true)',[issued.token]);await value('select public.public_refund($1,true)',[issued.token]);}finally{await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
+ assert.equal(await value('select status from public.refund_requests where id=$1',[f.id]),'Completed');assert.equal(await value('select completion_reason from public.refund_requests where id=$1',[f.id]),'Customer confirmed');assert.equal(Number(await value("select count(*) from public.transactions where reference=$1 and type='REFUND'",['MANUAL-'+f.id])),transactions);
+});
+test('Issued refunds auto-complete after five calendar days exactly once without another payment or notification',async()=>{
+ const f=await lifecycleRefund('timeout');await confirmRefundWindow(f.id);await issueLifecycle(f);
+ const transactions=await value('select count(*) from public.transactions');const notices=await value('select count(*) from public.notifications');
+ await assert.rejects(value('select private.reconcile_issued_refunds()'),/Worker/);
+ await db.query("update public.refund_requests set acknowledgment_deadline=now()-interval '1 second' where id=$1",[f.id]);
+ await supportWorker(()=>value('select private.reconcile_issued_refunds()'));await supportWorker(()=>value('select private.reconcile_issued_refunds()'));
+ assert.equal(await value('select status from public.refund_requests where id=$1',[f.id]),'Completed');assert.equal(await value('select completion_reason from public.refund_requests where id=$1',[f.id]),'No response within 5 days');assert.equal(await value('select acknowledged_at from public.refund_requests where id=$1',[f.id]),null);
+ assert.equal(await value('select count(*) from public.transactions'),transactions);assert.equal(await value('select count(*) from public.notifications'),notices);assert.equal(await value("select position('reconcile_issued_refunds' in pg_get_functiondef('public.run_scheduled_tasks()'::regprocedure))>0"),true);
 });

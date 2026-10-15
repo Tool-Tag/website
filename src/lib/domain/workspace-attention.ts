@@ -45,7 +45,7 @@ export async function workspaceAttention(
         .from("refund_requests")
         .select("id,amount,processed_amount")
         .eq("unit_id", unit)
-        .eq("status", "Pending"),
+        .in("status", ["Pending","In Review","Approved","Issued"]),
       db.rpc("support_attention"),
       db.rpc("urgent_login_attention"),
     ]);
@@ -82,9 +82,7 @@ export async function workspaceAttention(
       (job) => job.status !== "Cancelled" && job.work_stage !== "Closed",
     );
 
-    const pendingRefunds = (refunds.data ?? []).filter(
-      (request) => Number(request.amount)>Number(request.processed_amount),
-    );
+    const pendingRefunds = refunds.data ?? [];
 
     const urgentRows=classifyAttention((urgent.data?.items??[]) as AttentionRecord[]);
     const supportBadge=categoryBadge(urgentRows,"problem"),refundBadge=categoryBadge(urgentRows,"refund"),lostBadge=categoryBadge(urgentRows,"lost");

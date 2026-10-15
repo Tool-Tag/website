@@ -6,7 +6,7 @@ export type RefundState = {
     ok?: boolean;
     error?: string;
 };
-export async function refundAction(kind: "create" | "confirm" | "complete" | "cancel", id: string, _state: RefundState, form: FormData): Promise<RefundState> {
+export async function refundAction(kind: "create" | "review" | "approve" | "confirm" | "complete" | "cancel", id: string, _state: RefundState, form: FormData): Promise<RefundState> {
     try {
         const { db } = await requirePermission("payments.refund");
         const fields = Object.fromEntries([...form.entries()].filter(([, v]) => typeof v === "string"));

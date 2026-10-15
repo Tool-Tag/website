@@ -4,7 +4,8 @@ import { requirePermission } from "@/lib/domain/context";
 import { can } from "@/lib/auth/permissions";
 import { Panel, Empty, Badge } from "@/components/ui";
 import { RefundCreate, RefundUpdate, type RefundJob } from "@/components/refund-forms";
-import { EvidenceUpload } from "@/components/evidence-upload";
+import {RefundProofUpload} from "@/components/refund-proof-upload";
+import {JobTabs} from "@/components/job-tabs";
 import { money } from "@/lib/domain/money";
 import { denverDateTime } from "@/lib/domain/time";
 export async function RefundsPanel({ jobId }: {
@@ -18,19 +19,17 @@ export async function RefundsPanel({ jobId }: {
     if (error || choiceError || accountError)
         throw new Error(error?.message ?? choiceError?.message ?? accountError?.message);
     const jobs = (choices ?? []) as RefundJob[];
+    const {data:approver}=await db.rpc("refund_can_approve");
     const manage = can(access, "payments.refund");
     const ids = (requests ?? []).map(r => r.id);
-    const { data: documents, error: docError } = ids.length ? await db.from("documents").select("id,file_name,refund_request_id,storage_status,type").eq("unit_id", unit).in("refund_request_id", ids) : { data: [], error: null };
+    const { data: documents, error: docError } = ids.length ? await db.from("documents").select("id,file_name,refund_request_id,storage_status,type,refund_method").eq("unit_id", unit).in("refund_request_id", ids) : { data: [], error: null };
     if (docError)
         throw new Error(docError.message);
-    return <div className="stack">
- {manage && <Panel title="New refund"><RefundCreate jobs={jobId ? jobs.filter(j => j.id === jobId) : jobs} jobId={jobId} requestKey={randomUUID()}/></Panel>}
- {(requests ?? []).length === 0 && <Empty>No refunds for this selection.</Empty>}
- {(requests ?? []).map(r => {
+    const render=(list:NonNullable<typeof requests>)=><div className="stack">{list.length===0&&<Empty>No refunds for this selection.</Empty>}{list.map(r => {
             const job = jobs.find(j => j.id === r.job_id);
             const files = (documents ?? []).filter(d => d.refund_request_id === r.id && d.storage_status === "stored");
             return <Panel key={r.id} title={`${job?.code ?? r.job_id} · ${money(r.amount)}`}>
- <Badge>{r.status}</Badge><p>{r.reason} · {r.source_kind} · Issued: {money(r.processed_amount)}</p><p>Original method: {r.original_method ?? "Unconfirmed"} · Refund method: {r.method ?? "Selection required"}</p>
+ <Badge>{r.status}</Badge>{r.approved_at&&<p>Approved: {denverDateTime(r.approved_at)}</p>}{r.status==="Issued"&&<p>Awaiting customer acknowledgment. Deadline: {denverDateTime(r.acknowledgment_deadline)}</p>}{r.status==="Completed"&&<p>Completed: {denverDateTime(r.completed_at||r.processed_at)} · {r.completion_reason||"Existing completed refund"}</p>}<p>{r.reason} · {r.source_kind} · Issued: {money(r.processed_amount)}</p><p>Original method: {r.original_method ?? "Unconfirmed"} · Refund method: {r.method ?? "Selection required"}</p>
  <p>Requested: {denverDateTime(r.requested_at)} · Reported: {denverDateTime(r.reported_at)}</p>
  {r.issue_event && <p>Issue event: {r.issue_event} · {denverDateTime(r.issue_event_at)}</p>}
  <p>Accounting period: {String(r.accounting_period).slice(0, 7)}</p>
@@ -39,13 +38,18 @@ export async function RefundsPanel({ jobId }: {
  {r.notes && <p>{r.notes}</p>}
  {files.map(f => <p key={f.id}><Link href={`/app/documents/${f.id}/download`} target="_blank">Proof: {f.file_name}</Link></p>)}
  {r.confirmation_snapshot && <p className="notice success">Confirmation: {money(r.confirmation_snapshot.amount)} · {r.confirmation_snapshot.method} · {denverDateTime(r.confirmation_snapshot.processed_at)} · {r.confirmation_snapshot.job_code} / {r.confirmation_snapshot.quote_code} · Reference {r.confirmation_snapshot.reference}</p>}
- {manage && r.status === "Pending" && <>
- {!r.confirmed_at && <RefundUpdate id={r.id} kind="confirm" review={r.requires_review}/>}
- <details><summary>Upload refund proof</summary><EvidenceUpload config={{ jobId: r.job_id, refundRequestId: r.id, type: "Refund Review Evidence", defaultVisibility: "internal", back: "/app/finance/refunds" }}/></details>
- {r.confirmed_at && <RefundUpdate id={r.id} kind="complete" method={r.method} proofs={files} accounts={accountChoices ?? []} originalAccount={job?.original_account_id}/>}
- <details><summary>Cancel refund request</summary><RefundUpdate id={r.id} kind="cancel"/></details>
+ {manage && ["Pending","In Review","Approved"].includes(r.status) && <>
+ {r.status==="Pending"&&<RefundUpdate id={r.id} kind="review"/>}
+ {r.status==="In Review"&&!r.confirmed_at && <RefundUpdate id={r.id} kind="confirm" review={r.requires_review}/>}
+ {r.status==="In Review"&&r.confirmed_at&&approver&&<RefundUpdate id={r.id} kind="approve"/>}{r.status==="In Review"&&r.confirmed_at&&!approver&&<p>Awaiting Owner or Manager approval.</p>}
+ {r.status==="Approved"&&<details><summary>Upload refund screenshot</summary><RefundProofUpload job={r.job_id} id={r.id} method={r.method}/></details>}
+ {r.status==="Approved" && <RefundUpdate id={r.id} kind="complete" method={r.method} proofs={files} accounts={accountChoices ?? []} originalAccount={job?.original_account_id}/>}
+
  </>}
  </Panel>;
         })}
  </div>;
+ const active=(requests??[]).filter(r=>["Pending","In Review","Approved","Issued"].includes(r.status));
+ const history=(requests??[]).filter(r=>r.status==="Completed");
+ return <JobTabs defaultTab="active" tabs={[{id:"active",label:`Active (${active.length})`,content:<>{manage&&<Panel title="New refund"><RefundCreate jobs={jobId?jobs.filter(j=>j.id===jobId):jobs} jobId={jobId} requestKey={randomUUID()}/></Panel>}{render(active)}</>},{id:"history",label:`History (${history.length})`,content:render(history)}]}/>;
 }
