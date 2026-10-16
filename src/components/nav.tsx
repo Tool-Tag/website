@@ -319,7 +319,7 @@ export function Nav({
           path: "refunds",
           label: "Refunds",
           count: liveAttention.refunds,
-          title: "Refunds waiting to be issued",
+          title: "Active refund cases",
           attentionKey: "refunds",
         },
         { path: "support", label: "Support", count: liveAttention.notifications, title: "Pending customer responses", attentionKey: "notifications" },

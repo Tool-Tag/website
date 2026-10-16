@@ -573,3 +573,15 @@ test('Refund issued mail shows secure proof and Confirm Receipt without signed s
  assert.ok(message.text.includes(link+'/proof'));assert.doesNotMatch(message.html,/supabase.co|object\/sign/);
  assert.throws(()=>renderNotification('Refund','Issued','test@example.test','REFUND_UPDATE',link,'Confirm Receipt','http://unsafe.example.test/proof'),/Secure proof/);
 });
+
+
+import {validateRefundIssueAmount,refundAmountRemaining} from "../src/lib/domain/refund-flow";
+test("Manual refund execution must record the approved unissued amount in exact cents",()=>{
+ assert.equal(validateRefundIssueAmount("9.99","19.99","10.00"),null);
+ assert.equal(validateRefundIssueAmount("10","10.00","0"),null);
+ assert.equal(refundAmountRemaining("0.30","0.10"),"0.20");
+ assert.match(validateRefundIssueAmount("10.00","19.99","10.00")!,/approved refund/);
+ assert.match(validateRefundIssueAmount("5.00","10.00","0")!,/approved refund/);
+ assert.match(validateRefundIssueAmount("0","10.00","10.00")!,/approved refund/);
+ for(const value of ["","-1","1e1","9.999","NaN"])assert.match(validateRefundIssueAmount(value,"10","0")!,/valid refund amount/);
+});

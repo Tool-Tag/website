@@ -1,4 +1,5 @@
 "use server";
+import {validateRefundIssueAmount} from "@/lib/domain/refund-flow";
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/domain/context";
 import { dispatchWorkerMail } from "@/lib/integrations/mail-dispatch";
@@ -8,8 +9,16 @@ export type RefundState = {
 };
 export async function refundAction(kind: "create" | "review" | "approve" | "confirm" | "complete" | "cancel" | "reject" | "acknowledge" | "note", id: string, _state: RefundState, form: FormData): Promise<RefundState> {
     try {
-        const { db } = await requirePermission("payments.refund");
+        const { db, unit } = await requirePermission("payments.refund");
         const fields = Object.fromEntries([...form.entries()].filter(([, v]) => typeof v === "string"));
+        if (kind === "complete") {
+            const {data: request,error: lookupError}=await db.from("refund_requests").select("status,amount,processed_amount").eq("unit_id",unit).eq("id",id).single();
+            if (lookupError||!request) return {error:"Refund not found."};
+            if (request.status === "Approved") {
+                const amountError=validateRefundIssueAmount(String(form.get("amount")??""),String(request.amount),String(request.processed_amount));
+                if (amountError) return {error:amountError};
+            }
+        }
         const { data, error } = await db.rpc(kind === "create" ? "create_refund_request" : "refund_request_action", { p: { ...fields, id, action: kind, reviewed: form.get("reviewed") === "on", request_key: id } });
         if (error)
             return { error: error.message };

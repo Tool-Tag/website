@@ -155,7 +155,7 @@ export function MovementForm({
           </label>
         )}
       </div>
-      {type === "REFUND" && <p className="notice">Customer refunds must be linked to a Job. <Link href="/app/finance/refunds">Open Finance Refunds</Link></p>}
+      {type === "REFUND" && <p className="notice">Customer refunds must be linked to a Job. <Link href="/app/refunds">Open refund case management</Link></p>}
       <Form
         key={`${type}:${subtype}:${paidBy}`}
         operation="movement"
