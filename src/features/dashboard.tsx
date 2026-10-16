@@ -8,13 +8,17 @@ export async function Dashboard() {
   const ready = isConfigured();
   const ctx = ready ? await context() : null;
   const finance = Boolean(ctx && can(ctx.access,"payments.view"));
-  const [summaries, review, activity] = ready
+  const [summaries, review] = ready
     ? await Promise.all([
         finance ? rows("finance_summary") : Promise.resolve([]),
         rows("review_items"),
-        ctx?.access.owner ? rows("recent_activity", { order: "created_at", limit: 10 }) : Promise.resolve([]),
       ])
-    : [[], [], []];
+    : [[], []];
+  const activityResult=ctx?.access.owner
+    ? await ctx.db.rpc("dashboard_recent_activity",{p_unit:ctx.unit})
+    : {data:[],error:null};
+  if(activityResult.error)console.error("Dashboard recent activity unavailable",{code:activityResult.error.code,message:activityResult.error.message});
+  const activity=Array.isArray(activityResult.data)?activityResult.data as {id:string;entity:string;changed_fields:string;created_at:string}[]:[];
   const { data: stats } = ctx && finance
     ? await ctx.db.rpc("dashboard_stats", { p_unit: ctx.unit })
     : { data: null };
@@ -91,7 +95,7 @@ export async function Dashboard() {
         </div>
       </Panel>
       </PermissionGate><PermissionGate owner><Panel title="Recent Activity">
-        {activity.length ? (
+        {activityResult.error ? <p className="notice" role="status">Recent activity is temporarily unavailable. Refresh to retry.</p> : activity.length ? (
           <Table headers={["Record", "Change", "Date"]}>
             {activity.map((a) => (
               <tr key={a.id}>

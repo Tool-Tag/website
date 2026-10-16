@@ -1670,3 +1670,7 @@ body:has(.get-tagged-react-dialog[open]) {
 .workspace-user-dropdown {position:absolute;right:0;top:calc(100% + 8px);z-index:100;width:min(240px,calc(100vw - 36px));padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px #0008;}
 .workspace-user-dropdown a {display:block;padding:12px;border-radius:6px;white-space:nowrap;}
 .workspace-user-dropdown a:hover,.workspace-user-dropdown a:focus-visible {background:var(--bg);outline:2px solid var(--line);}
+
+.support-controls {display:flex;flex-direction:column;gap:12px;margin-bottom:20px;min-width:0;max-width:100%;}
+.support-control-row {display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:10px;max-width:100%;min-width:0;overflow-x:auto;padding:2px;}
+.support-control-row > .button,.support-control-row > button {flex:0 0 auto;width:auto;white-space:nowrap;}
