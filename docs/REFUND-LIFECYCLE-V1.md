@@ -2,9 +2,9 @@
 
 ## Operator workflow
 
-The dedicated sidebar **Refunds** page (`/app/refunds`) and the Job refund panel have two tabs:
+The dedicated sidebar **Refunds** page (`/app/refunds`) and the Job refund panel have status tabs:
 
-- **Active:** Pending, In Review, Approved, Issued.
+- **Pending**, **In Review**, **Approved**, **Issued**: each status has its own urgency-sorted list. The former Active tab is removed.
 - **History:** Completed and Rejected, read-only.
 
 Pending means a new obligation arrived, including existing route/cancellation/missed-pickup sources. Staff with `payments.refund` starts review and confirms eligibility. Approval requires an active **Owner** or an assigned custom **Manager** role, as well as refund access. A normal refund specialist cannot approve their own request merely by having the refund permission. No new Manager role or permissions are automatically assigned.
@@ -38,7 +38,7 @@ Active refunds appear as clickable rows. Opening a Pending case in the details m
 
 History now contains **Completed and Rejected only**, without edit controls. Staff may reject an In Review case with a required reason; it records actor/time, releases the unpaid reservation and cannot be reopened by later source reconciliation. Completed source records are also frozen. Legacy Cancelled records stay stored and are not rewritten or replayed.
 
-Active rows sort red → orange → green, then longest wait and oldest request. The clock uses **business days from eligibility confirmation**, Denver calendar dates: 1–2 green, 3–4 orange, 5+ red (including overdue cases). An unconfirmed case has no running processing clock and displays zero days / awaiting confirmation. The workspace badge uses the same confirmation origin.
+Rows inside each status tab sort red → orange → green, then longest wait and oldest request. The clock uses **business days from eligibility confirmation**, Denver calendar dates: 1–2 green, 3–4 orange, 5+ red (including overdue cases). An unconfirmed case has no running processing clock and displays zero days / awaiting confirmation. The workspace badge uses the same confirmation origin.
 
 The modal header shows customer, Job, amount, status, wait and urgency dot. Its sections contain origin event/date, the 14-calendar-day reporting check, original/refund methods, requested/issued/unissued amounts, screenshots, contextual actions and notes. New screenshots/notes are blocked for History; final records retain their audit details.
 
@@ -52,3 +52,6 @@ Additional migration: `20261015032625_refund_rejection_staff_completion.sql`. Ap
 - **Refunds** in the sidebar opens `/app/refunds` directly (no redirect to Finance). It owns case creation/review/approval/rejection, urgency, customer/staff acknowledgment and read-only History. Approved cases link to their execution card in Finance; no issuance/upload form appears in case management or the Job case panel.
 - **Finance → Refunds** (`/app/finance/refunds`) queries only **Approved** cases. It has no Active/History tabs, case creation, review, rejection or receipt controls. Staff records the actual payment method, approved unissued amount, funding account, reference and method-tagged screenshot. It stays manual: the action records a refund already sent outside ToolTag. The entered amount must match the approved balance; it cannot silently change an approval. Successful issuance removes the case from this queue and revalidates case management and the Job panel.
 - Both views reuse the existing authorized RPC, payment caps, proof requirements, lifecycle and mail flow. No additional migration is needed for this division.
+
+
+Status-tab dialogs stay mounted across Pending → In Review, so starting review does not dismiss the open modal or lose its refreshed actions. History remains Completed/Rejected and read-only; Finance still displays only Approved for manual execution.

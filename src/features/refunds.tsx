@@ -7,7 +7,7 @@ import {Panel, Empty, Badge} from "@/components/ui";
 import {RefundCaseModal} from "@/components/refund-case-modal";
 import {RefundCreate, RefundUpdate, type RefundJob} from "@/components/refund-forms";
 import {RefundProofUpload} from "@/components/refund-proof-upload";
-import {JobTabs} from "@/components/job-tabs";
+import {RefundStatusTabs} from "@/components/refund-status-tabs";
 import {money} from "@/lib/domain/money";
 import {denverDateTime} from "@/lib/domain/time";
 import {compareRefundUrgency,refundAttention,refundEligibility,refundCompletionLabel,refundAmountRemaining} from "@/lib/domain/refund-flow";
@@ -24,7 +24,7 @@ export async function RefundsPanel({jobId,view="cases"}:{jobId?:string;view?:"ca
  const {data:documents,error:docError}=ids.length?await db.from("documents").select("id,file_name,refund_request_id,storage_status,type,refund_method,mime_type").eq("unit_id",unit).in("refund_request_id",ids):{data:[],error:null};
  if(docError)throw new Error(docError.message);
  const render=(list:NonNullable<typeof requests>,modal=false)=><div className="stack">
-  {list.length===0&&<Empty>{view==="execution"?"No approved refunds awaiting manual issuance.":"No refunds for this selection."}</Empty>}
+  {list.length===0&&!modal&&<Empty>{view==="execution"?"No approved refunds awaiting manual issuance.":"No refunds for this selection."}</Empty>}
   {list.map(r=>{
    const job=jobs.find(j=>j.id===r.job_id),title=`${job?.code??r.job_id} · ${money(r.amount)}`;
    const files=(documents??[]).filter(d=>d.refund_request_id===r.id&&d.storage_status==="stored");
@@ -82,8 +82,7 @@ export async function RefundsPanel({jobId,view="cases"}:{jobId?:string;view?:"ca
  if(view==="execution")return <><p>Only approved refunds are shown here. After issuance, follow customer confirmation in <Link href="/app/refunds">Refunds</Link>.</p>{render(requests??[])}</>;
  const active=(requests??[]).filter(r=>["Pending","In Review","Approved","Issued"].includes(r.status)).sort((a,b)=>compareRefundUrgency(a,b,now));
  const history=(requests??[]).filter(r=>["Completed","Rejected"].includes(r.status)).sort((a,b)=>Date.parse(b.completed_at||b.rejected_at||b.processed_at||b.requested_at)-Date.parse(a.completed_at||a.rejected_at||a.processed_at||a.requested_at));
- return <JobTabs defaultTab="active" tabs={[
-  {id:"active",label:`Active (${active.length})`,content:<>{manage&&<details className="panel"><summary>New refund</summary><RefundCreate jobs={jobId?jobs.filter(j=>j.id===jobId):jobs} jobId={jobId} requestKey={randomUUID()}/></details>}{render(active,true)}</>},
-  {id:"history",label:`History (${history.length})`,content:render(history)},
- ]}/>;
+ return <RefundStatusTabs counts={{Pending:active.filter(r=>r.status==="Pending").length,"In Review":active.filter(r=>r.status==="In Review").length,Approved:active.filter(r=>r.status==="Approved").length,Issued:active.filter(r=>r.status==="Issued").length}} historyCount={history.length}
+  create={manage&&<details className="panel"><summary>New refund</summary><RefundCreate jobs={jobId?jobs.filter(j=>j.id===jobId):jobs} jobId={jobId} requestKey={randomUUID()}/></details>}
+  history={render(history)}>{render(active,true)}</RefundStatusTabs>;
 }

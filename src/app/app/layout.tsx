@@ -17,6 +17,9 @@ export default async function AppLayout({
 }) {
   const ctx = isConfigured() ? await context() : null;
   if (ctx && driverOnly(ctx.access)) redirect("/pick-return");
+  const {data: staffProfile} = ctx ? await ctx.db.from("staff_access").select("display_name").eq("unit_id",ctx.unit).eq("user_id",ctx.user.id).maybeSingle() : {data:null};
+  const metadata=ctx?.user.user_metadata;
+  const userName=[staffProfile?.display_name,metadata?.full_name,metadata?.name].find((name):name is string=>typeof name==="string"&&name.trim().length>0)?.trim() || "Team member";
   const attention = ctx ? await workspaceAttention(ctx.db, ctx.unit) : undefined;
   return (
     <PermissionProvider access={ctx?.access ?? {owner:false,blocks:[]}}>{ctx && <><SessionTimeout expiresAt={ctx.session.expires_at} serverNow={ctx.session.server_now}/><StaffLoginAttention db={ctx.db} sessionId={ctx.session.session_id}/></>}<div className="shell">
@@ -47,8 +50,6 @@ export default async function AppLayout({
       </aside>
       <div className="workspace">
         <header className="topbar">
-          {ctx && canAny(ctx.access,["support.inbox"]) && <Link className="button secondary" href="/app/support">Support</Link>}
-          {ctx && canAny(ctx.access,["pr.routes.plan","pr.routes.live","pr.receiving","pr.returns","pr.reschedule"]) && <Link className="button secondary" href="/app/pick-return">Pick up &amp; Return</Link>}
           {ctx && canAny(ctx.access,["customers.view"]) && <form action="/app/customers">
             <input
               name="q"
@@ -57,7 +58,7 @@ export default async function AppLayout({
             />
           </form>}
           <span className="muted user">
-            {ctx?.user.email ?? "Initial setup"}
+            {ctx ? `User: ${userName}` : "Initial setup"}
           </span>
           {ctx && (
             <form action={logout}>
