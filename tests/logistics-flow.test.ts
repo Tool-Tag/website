@@ -2545,3 +2545,44 @@ test('Refund urgency uses confirmation and rejected source obligations do not re
  await db.query("update public.route_compensations set status='ManualRequired' where id=(select source_id from public.refund_requests where id=$1)",[completed]);
  assert.deepEqual(await value('select row_to_json(r) from public.refund_requests r where id=$1',[completed]),frozen);
 });
+
+import {SHOP_BOARD_ORDER_KEYS} from '../src/lib/domain/shop-board-data';
+test('Shop board pagination orders by the actual primary key on every loaded table',async()=>{
+ await staffAs(admin,async()=>{
+  for(const [table,key] of Object.entries(SHOP_BOARD_ORDER_KEYS)) {
+   const columns=(await db.query<{column_name:string}>("select column_name from information_schema.columns where table_schema='public' and table_name=$1",[table])).rows.map(c=>c.column_name);
+   assert.ok(columns.includes(key),`${table} must expose paging key ${key}`);
+   await db.query(`select * from public.${table} where unit_id=$1 order by ${key} limit 0`,[unit]);
+  }
+ });
+ assert.equal(SHOP_BOARD_ORDER_KEYS.pick_return_orders,'job_id');
+ assert.equal(SHOP_BOARD_ORDER_KEYS.quote_logistics,'quote_id');
+});
+
+test('Dashboard activity checks Owner once, returns only ten grouped tenant events and rejects other access',async()=>{
+ const ids:string[]=[];
+ for(let i=0;i<12;i++) {
+  const entity=await value<string>('select gen_random_uuid()');ids.push(entity);
+  await db.query("insert into public.audit_log(unit_id,actor_id,entity,entity_id,field,created_at) values($1,$2,'dashboard-test',$3,'status','2199-01-01'::timestamptz+$4*interval '1 minute'),($1,$2,'dashboard-test',$3,'notes','2199-01-01'::timestamptz+$4*interval '1 minute')",[unit,admin,entity,i]);
+ }
+ await staffAs(admin,async()=>{
+  const activity=await value<{unit_id:string;entity_id:string;changed_fields:string}[]>('select public.dashboard_recent_activity($1)',[unit]);
+  assert.equal(activity.length,10);
+  assert.deepEqual(activity.map(a=>a.entity_id),ids.slice(2).reverse());
+  assert.ok(activity.every(a=>a.unit_id===unit&&a.changed_fields==='notes, status'));
+  const other=await value<string>('select id from public.business_units where id<>$1 limit 1',[unit]);
+  await assert.rejects(value('select public.dashboard_recent_activity($1)',[other]),/Owner access/);
+ });
+ const employee=await addStaff(['Employee'],'dashboard-activity-employee');
+ await staffAs(employee,async()=>{
+  await assert.rejects(value('select public.dashboard_recent_activity($1)',[unit]),/Owner access/);
+  await assert.rejects(value('select private.dashboard_recent_activity($1)',[unit]),/Owner access/);
+ });
+ assert.equal(await value("select has_function_privilege('anon','public.dashboard_recent_activity(uuid)','execute')"),false);
+ assert.equal(await value("select has_function_privilege('anon','private.dashboard_recent_activity(uuid)','execute')"),false);
+ const created=await value<string>('select created_at from auth.sessions where id=$1',[admin]);
+ try {
+  await db.query("update auth.sessions set created_at=now()-interval '5 hours' where id=$1",[admin]);
+  await staffAs(admin,async()=>{await assert.rejects(value('select public.dashboard_recent_activity($1)',[unit]),/Owner access/);});
+ } finally {await db.query('update auth.sessions set created_at=$2 where id=$1',[admin,created]);}
+});

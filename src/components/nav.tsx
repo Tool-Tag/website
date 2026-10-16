@@ -70,16 +70,14 @@ function parseAttention(value: unknown): WorkspaceAttention | null {
 }
 
 export function Nav({
-  bottom = false,
   attention,
   access = { owner: false, blocks: [] },
 }: {
   access?: Access;
-  bottom?: boolean;
   attention?: WorkspaceAttention;
 }) {
   const path = usePathname();
-  const enabled = !bottom && attention !== undefined;
+  const enabled = attention !== undefined;
   const [liveAttention, setLiveAttention] = useState<WorkspaceAttention>(
     attention ?? EMPTY_ATTENTION,
   );
@@ -283,12 +281,7 @@ export function Nav({
     [],
   );
 
-  const links: LinkSpec[] = bottom
-    ? [
-        { path: "finance-hub", label: "Finance Hub" },
-        { path: "settings", label: "Settings" },
-      ]
-    : [
+  const links: LinkSpec[] = [
         { path: "", label: "Dashboard" },
         {
           path: "get-tagged",

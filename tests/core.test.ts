@@ -585,3 +585,11 @@ test("Manual refund execution must record the approved unissued amount in exact 
  assert.match(validateRefundIssueAmount("0","10.00","10.00")!,/approved refund/);
  for(const value of ["","-1","1e1","9.999","NaN"])assert.match(validateRefundIssueAmount(value,"10","0")!,/valid refund amount/);
 });
+
+
+import {shopBoardLeg} from "../src/lib/domain/shop-board-data";
+test("Shop board defaults to a leg the staff member is permitted to operate",()=>{
+ assert.deepEqual(shopBoardLeg({owner:false,blocks:['pr.returns']}),{pickup:false,delivery:true,leg:'Return'});
+ assert.deepEqual(shopBoardLeg({owner:false,blocks:['pr.receiving']},'Delivery'),{pickup:true,delivery:false,leg:'Pickup'});
+ assert.equal(shopBoardLeg({owner:true,blocks:[]},'Delivery').leg,'Return');
+});
