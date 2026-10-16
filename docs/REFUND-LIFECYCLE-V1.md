@@ -2,7 +2,7 @@
 
 ## Operator workflow
 
-Finance → Refunds and the Job refund panel have two tabs:
+The dedicated sidebar **Refunds** page (`/app/refunds`) and the Job refund panel have two tabs:
 
 - **Active:** Pending, In Review, Approved, Issued.
 - **History:** Completed and Rejected, read-only.
@@ -45,3 +45,10 @@ The modal header shows customer, Job, amount, status, wait and urgency dot. Its 
 Issued email provides **Confirm Receipt** and a private screenshot link. A refund staff member can also record a customer's Phone/Email confirmation with required notes. This transitions only Issued to Completed, records staff identity/channel and never creates additional ledger entries, provider calls or email. After the five-calendar-day deadline, completion is recorded as **Auto-completed, no response** rather than claiming a customer acknowledgment. History distinguishes **Client confirmed** (including staff-recorded channel) from automatic completion. Existing completion/worker locks and idempotency remain intact.
 
 Additional migration: `20261015032625_refund_rejection_staff_completion.sql`. Apply after `20261015024134_refund_approval_issuance_acknowledgment.sql`, only with separate production authorization. Neither has been applied by this implementation task.
+
+
+## Workspace division
+
+- **Refunds** in the sidebar opens `/app/refunds` directly (no redirect to Finance). It owns case creation/review/approval/rejection, urgency, customer/staff acknowledgment and read-only History. Approved cases link to their execution card in Finance; no issuance/upload form appears in case management or the Job case panel.
+- **Finance → Refunds** (`/app/finance/refunds`) queries only **Approved** cases. It has no Active/History tabs, case creation, review, rejection or receipt controls. Staff records the actual payment method, approved unissued amount, funding account, reference and method-tagged screenshot. It stays manual: the action records a refund already sent outside ToolTag. The entered amount must match the approved balance; it cannot silently change an approval. Successful issuance removes the case from this queue and revalidates case management and the Job panel.
+- Both views reuse the existing authorized RPC, payment caps, proof requirements, lifecycle and mail flow. No additional migration is needed for this division.

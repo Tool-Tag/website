@@ -1,3 +1,4 @@
+import {cents,decimal} from "./money";
 import {queueDays, urgency} from "./urgent-attention";
 import {TOOLTAG_TIMEZONE} from "./time";
 
@@ -28,4 +29,18 @@ export function refundCompletionLabel(reason:string|null,channel?:string|null) {
  if(reason==="Customer confirmed")return "Client confirmed";
  if(reason==="Staff confirmed receipt")return `Client confirmed — recorded by staff${channel?` via ${channel}`:""}`;
  return reason || "Completed (legacy record)";
+}
+
+export function refundAmountRemaining(approved:string,processed:string) {
+ return decimal(cents(approved)-cents(processed));
+}
+
+/** Issuance records the approved amount, never a silently changed amount. */
+export function validateRefundIssueAmount(entered:string,approved:string,processed:string) {
+ try {
+  const expected=cents(approved)-cents(processed);
+  return expected>0n && cents(entered)===expected ? null : "The amount must match the approved refund amount remaining to issue.";
+ } catch {
+  return "Enter a valid refund amount with at most two decimal places.";
+ }
 }

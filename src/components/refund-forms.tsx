@@ -51,9 +51,10 @@ export function RefundCreate({ jobs, jobId, requestKey }: {
  <Feedback state={state} pending={pending} label="Create pending refund"/>
  </form>;
 }
-export function RefundUpdate({ id, kind, method, proofs, review, accounts, originalAccount }: {
+export function RefundUpdate({ id, kind, amount, method, proofs, review, accounts, originalAccount }: {
     id: string;
     kind: "review" | "approve" | "confirm" | "complete" | "cancel" | "reject" | "acknowledge" | "note";
+    amount?: string;
     method?: string | null;
     proofs?: {
         id: string;
@@ -70,7 +71,7 @@ export function RefundUpdate({ id, kind, method, proofs, review, accounts, origi
     const [state, action, pending] = useActionState(refundAction.bind(null, kind, id), {});
     return <form action={action} className="formgrid">
  {kind === "confirm" && review && <label><input type="checkbox" name="reviewed" required/> I reviewed payment eligibility and prior provider activity; no refund will be duplicated.</label>}
- {kind === "complete" && <><p className="notice wide">Manual processing only. Issue the money outside ToolTag first, then record its reference and proof here. This button does not transfer funds.</p><label>Method<select name="method" defaultValue={method ?? ""} required><option value="">Electronic method or Check…</option>{methods.map(m => <option key={m}>{m}</option>)}</select></label><label>Account that funded the refund<select name="account_id" defaultValue={originalAccount ?? ""} required><option value="">Select account…</option>{accounts?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label>Reference<input name="reference" required maxLength={200}/></label><label>Stored screenshot (must match the selected method)<select name="proof_id" required><option value="">Select proof…</option>{proofs?.map(p => <option key={p.id} value={p.id}>{p.file_name}{p.refund_method?` · ${p.refund_method}`:""}</option>)}</select></label><label className="wide">Processing notes<textarea name="notes" maxLength={2000}/></label></>}
+ {kind === "complete" && <><p className="notice wide">Manual processing only. Issue the money outside ToolTag first, then record its reference and proof here. This button does not transfer funds.</p><label>Amount (USD)<input name="amount" type="number" min="0.01" step="0.01" required defaultValue={amount}/><small>Approved amount to issue: ${amount}. The entered amount must match this approval.</small></label><label>Method<select name="method" defaultValue={method ?? ""} required><option value="">Electronic method or Check…</option>{methods.map(m => <option key={m}>{m}</option>)}</select></label><label>Account that funded the refund<select name="account_id" defaultValue={originalAccount ?? ""} required><option value="">Select account…</option>{accounts?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label>Reference<input name="reference" required maxLength={200}/></label><label>Stored screenshot (must match the selected method)<select name="proof_id" required><option value="">Select proof…</option>{proofs?.map(p => <option key={p.id} value={p.id}>{p.file_name}{p.refund_method?` · ${p.refund_method}`:""}</option>)}</select></label><label className="wide">Processing notes<textarea name="notes" maxLength={2000}/></label></>}
  {kind === "reject" && <label className="wide">Rejection reason<textarea name="reason" required maxLength={2000}/></label>}
  {kind === "acknowledge" && <><p className="muted wide">Record that the customer confirmed receipt by phone or email. This does not issue another refund.</p><label>Confirmation channel<select name="channel" required><option value="">Select…</option><option>Phone</option><option>Email</option></select></label><label className="wide">Customer confirmation notes<textarea name="notes" required maxLength={2000}/></label></>}
  {kind === "note" && <label className="wide">Add an internal note<textarea name="notes" required maxLength={2000}/></label>}
