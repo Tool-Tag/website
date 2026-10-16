@@ -1660,3 +1660,13 @@ body:has(.get-tagged-react-dialog[open]) {
 .support-case-modal {width:min(94vw,760px);max-height:94dvh;overflow:auto;background:#10151c;color:#f5f7fa;border:1px solid #445064;border-radius:16px;padding:20px;}.support-case-modal::backdrop {background:rgba(0,0,0,.75);}.support-case-header {display:flex;gap:12px;justify-content:space-between;align-items:flex-start;}.support-case-header h2 {margin:0;}.support-thread {height:clamp(180px,32dvh,320px);overflow-y:auto;border:1px solid #394454;border-radius:8px;padding:12px;margin:12px 0;}.support-close-confirm {position:sticky;bottom:0;background:#182230;border:2px solid #e6b04b;border-radius:12px;padding:16px;}.support-case-modal textarea {max-height:140px;}.support-case-modal .support-message pre {overflow-wrap:anywhere;white-space:pre-wrap;}@media(max-width:600px){.support-case-header {flex-direction:column;}.support-case-modal {padding:14px;}}
 .support-close-confirm {position:fixed;inset:0;width:min(90vw,480px);height:fit-content;max-height:80dvh;overflow:auto;color:#f5f7fa;margin:auto;}.support-close-confirm::backdrop {background:rgba(0,0,0,.65);}
 .help-consent {font-size:11px;color:#acb8cb;}.help-honeypot {position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;}
+
+/* User utilities live in the header; the sidebar stays focused on operations. */
+.workspace-topbar {flex-wrap:wrap;}
+.workspace-user-actions {display:flex;align-items:center;gap:12px;margin-left:auto;max-width:100%;}
+.topbar .workspace-sign-out {flex:0 0 auto;}
+.workspace-user-menu {position:relative;min-width:0;}
+.workspace-user-trigger {max-width:min(26rem,calc(100vw - 9rem));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.workspace-user-dropdown {position:absolute;right:0;top:calc(100% + 8px);z-index:100;width:min(240px,calc(100vw - 36px));padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px #0008;}
+.workspace-user-dropdown a {display:block;padding:12px;border-radius:6px;white-space:nowrap;}
+.workspace-user-dropdown a:hover,.workspace-user-dropdown a:focus-visible {background:var(--bg);outline:2px solid var(--line);}

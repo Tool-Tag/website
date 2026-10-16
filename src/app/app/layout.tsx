@@ -1,7 +1,8 @@
 import { StaffLoginAttention } from "@/components/staff-login-attention";
 import { SessionTimeout } from "@/components/session-timeout";
 import { PermissionProvider } from "@/components/permission-provider";
-import { canAny, driverOnly } from "@/lib/auth/permissions";
+import {WorkspaceUserMenu, type UserMenuLink} from "@/components/workspace-user-menu";
+import { canAny, driverOnly, sectionPermissions } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
 import { BackNavigation } from "@/components/back-navigation";
 import Link from "next/link";
@@ -20,6 +21,13 @@ export default async function AppLayout({
   const {data: staffProfile} = ctx ? await ctx.db.from("staff_access").select("display_name").eq("unit_id",ctx.unit).eq("user_id",ctx.user.id).maybeSingle() : {data:null};
   const metadata=ctx?.user.user_metadata;
   const userName=[staffProfile?.display_name,metadata?.full_name,metadata?.name].find((name):name is string=>typeof name==="string"&&name.trim().length>0)?.trim() || "Team member";
+  const userLinks:UserMenuLink[]=[
+    ...(ctx&&canAny(ctx.access,sectionPermissions("finance-hub"))?[{label:"Finance Hub",href:"/app/finance-hub"}]:[]),
+    ...(ctx?.access.owner?[{label:"Settings",href:"/app/settings"}]:[]),
+    ...(ctx&&canAny(ctx.access,["driver.routes","pr.routes.live","pr.routes.plan","pr.receiving","pr.returns","pr.reschedule"])?[{label:"Pick & Return Mode",href:"/pick-return"}]:[]),
+    {label:"Public Site",href:"/"},
+    {label:"Falcon & Times",href:"/hub"},
+  ];
   const attention = ctx ? await workspaceAttention(ctx.db, ctx.unit) : undefined;
   return (
     <PermissionProvider access={ctx?.access ?? {owner:false,blocks:[]}}>{ctx && <><SessionTimeout expiresAt={ctx.session.expires_at} serverNow={ctx.session.server_now}/><StaffLoginAttention db={ctx.db} sessionId={ctx.session.session_id}/></>}<div className="shell">
@@ -31,25 +39,9 @@ export default async function AppLayout({
           </small>
         </Link>
         <Nav attention={attention} access={ctx?.access} />
-        <div className="sidebar-bottom">
-          <Nav bottom access={ctx?.access} />
-          {ctx && canAny(ctx.access,["driver.routes","pr.routes.live","pr.routes.plan","pr.receiving","pr.returns","pr.reschedule"]) && <p>
-            <Link className="muted" href="/pick-return">
-              Pick & Return Mode ↗
-            </Link>
-          </p>}
-          <p>
-            <Link className="muted" href="/">
-              ↗ Public Site
-            </Link>
-          </p>
-          <Link className="muted" href="/hub">
-            Falcon & Times ↗
-          </Link>
-        </div>
       </aside>
       <div className="workspace">
-        <header className="topbar">
+        <header className="topbar workspace-topbar">
           {ctx && canAny(ctx.access,["customers.view"]) && <form action="/app/customers">
             <input
               name="q"
@@ -57,14 +49,14 @@ export default async function AppLayout({
               aria-label="Search customer or record"
             />
           </form>}
-          <span className="muted user">
-            {ctx ? `User: ${userName}` : "Initial setup"}
-          </span>
+          <div className="workspace-user-actions">
+          <WorkspaceUserMenu name={ctx?userName:"Initial setup"} links={userLinks}/>
           {ctx && (
-            <form action={logout}>
+            <form action={logout} className="workspace-sign-out">
               <button className="secondary">Sign Out</button>
             </form>
           )}
+          </div>
         </header>
         <main className="content">
           {!ctx && (
