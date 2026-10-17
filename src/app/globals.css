@@ -1717,3 +1717,18 @@ body:has(.get-tagged-react-dialog[open]) {
 .dashboard-attention-modal-header h2 {margin:0;}
 .dashboard-attention-modal .dashboard-attention-list {margin-top:16px;}
 .dashboard-attention-link {overflow-wrap:anywhere;}
+
+/* Shop folder tabs share the panel edge; the selected folder bridges the seam. */
+.shop-folder-tabs {gap:4px;margin-bottom:0;padding-bottom:0;border-bottom:0;position:relative;z-index:1;overflow-y:hidden;}
+.shop-folder-tabs .folder-tab {margin-bottom:0;border-bottom:1px solid var(--line);}
+.shop-folder-tabs .folder-tab.active {border-bottom-color:var(--panel);}
+.shop-folder-panel {position:relative;margin-top:-1px;padding:20px;border:1px solid var(--line);border-radius:0 0 10px 10px;background:var(--panel);min-width:0;}
+.shop-folder-panel > .panel {margin:0;border:0;padding:0;}
+@media(max-width:600px){.shop-folder-panel {padding:14px;}}
+
+.shop-receiving-list {display:flex;flex-direction:column;gap:0;}
+.shop-receiving-row {display:flex;justify-content:flex-start;flex-wrap:wrap;gap:12px;align-items:center;width:100%;padding:14px 12px;min-height:48px;text-align:left;background:transparent;color:var(--ink);border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;font-weight:400;}
+.shop-receiving-row:hover {filter:none;}
+.shop-receiving-modal {width:min(720px,calc(100vw - 32px));max-height:85dvh;overflow:auto;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:20px;}
+.shop-receiving-modal::backdrop {background:#000b;}
+.shop-receiving-checklist .checkbox {margin:12px 0;}
