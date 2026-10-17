@@ -40,8 +40,11 @@ export function resolveSmsConfig(stored: SmsStoredConfig, env: Env = process.env
   if (!credentials || !/^[a-z]{2}(-[a-z]+)+-\d+$/.test(region) || !/^\+[1-9]\d{7,14}$/.test(originationNumber)) return null;
   return { ...credentials, region, originationNumber, testPhone: env.TOOLTAG_SMS_TEST_PHONE || stored.test_phone || "", enabled: Boolean(stored.enabled) };
 }
-export function smsNetworkAllowed(env: Env = process.env) {
-  return ["test", "live"].includes(env.TOOLTAG_SMS_MODE ?? "preview") && (env.VERCEL_ENV === "production" || env.TOOLTAG_SMS_ALLOW_LOCAL_LIVE === "true");
+export function smsMode(env:Env,enabled=false) {
+  return env.TOOLTAG_SMS_MODE ?? (enabled&&env.VERCEL_ENV==="production"?"live":"preview");
+}
+export function smsNetworkAllowed(env: Env = process.env,enabled=false) {
+  return ["test", "live"].includes(smsMode(env,enabled)) && (env.VERCEL_ENV === "production" || env.TOOLTAG_SMS_ALLOW_LOCAL_LIVE === "true");
 }
 export class SmsFailure extends Error {
   constructor(public code: string, public status: "Failed" | "Unknown" | "Skipped") { super(code); }
@@ -55,8 +58,8 @@ export class SnsSmsTransport {
     this.client = client ?? new SNSClient({ region: config.region, credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey, sessionToken: config.sessionToken }, maxAttempts: 1 });
   }
   async send(phone: string, message: string, test = false, verification = false) {
-    if (!smsNetworkAllowed(this.env)) throw new SmsFailure("SMS_NETWORK_DISABLED", "Skipped");
-    if ((verification && this.env.PHONE_VERIFICATION_ENABLED !== "true") || (!test && ((!verification && !this.config.enabled) || this.env.TOOLTAG_SMS_MODE !== "live")) || (test && phone !== this.config.testPhone)) throw new SmsFailure("SMS_MODE_BLOCKED", "Skipped");
+    if (!smsNetworkAllowed(this.env,this.config.enabled)) throw new SmsFailure("SMS_NETWORK_DISABLED", "Skipped");
+    if ((verification && this.env.PHONE_VERIFICATION_ENABLED !== "true") || (!test && ((!verification && !this.config.enabled) || smsMode(this.env,this.config.enabled) !== "live")) || (test && phone !== this.config.testPhone)) throw new SmsFailure("SMS_MODE_BLOCKED", "Skipped");
     if (normalizeSmsPhone(phone) !== phone || !message.trim() || message.length > 1000) throw new SmsFailure("SMS_INPUT_INVALID", "Failed");
     let optedOut: boolean | undefined;
     try { optedOut = (await this.client.send(new CheckIfPhoneNumberIsOptedOutCommand({ phoneNumber: phone }), { abortSignal: AbortSignal.timeout(8000) })).isOptedOut; }
@@ -78,6 +81,9 @@ export class SnsSmsTransport {
   }
 }
 const SMS_EVENT_STAGE: Record<string, string> = {
+ QUOTE_REVISION:"Quote Revision",REVISION_REQUIRES_ACCEPTANCE:"Quote Revision",JOB_READY_FOR_DELIVERY:"Ready for Delivery",
+ REFUND_UPDATE:"Refund Update",CUSTOMER_REPORTED_ISSUE:"Issue Received",FINAL_COMPLETION:"Completed",ADMINISTRATIVE_COMPLETION:"Completed",
+ REQUEST_REJECTED:"Request Rejected",GET_TAGGED_RECEIVED:"Request Received",
  LOST_REPLACEMENT_READY: "Replacement Ready - Free Delivery Available",
  LOST_REPLACEMENT_UPDATE: "Replacement Delivery Update",
  LOST_RESOLUTION: "Lost Item Resolution",
@@ -87,8 +93,8 @@ const SMS_EVENT_STAGE: Record<string, string> = {
  PICKUP_EN_ROUTE: "Driver En Route", RETURN_EN_ROUTE: "Driver En Route",
  PICKUP_DRIVER_NEARBY: "3 Stops Away", RETURN_DRIVER_NEARBY: "3 Stops Away",
  PICKUP_ARRIVED: "Driver Arrived", RETURN_ARRIVED: "Driver Arrived",
- PICKUP_SCHEDULED: "Pickup Scheduled", RETURN_SCHEDULED: "Return Scheduled",
- PICKUP_RESCHEDULED: "Pickup Rescheduled", RETURN_RESCHEDULED: "Return Rescheduled",
+ PICKUP_SCHEDULED: "Pickup Scheduled", RETURN_SCHEDULED: "Delivery Scheduled",
+ PICKUP_RESCHEDULED: "Pickup Rescheduled", RETURN_RESCHEDULED: "Delivery Rescheduled",
  PICKUP_MISSED: "Pickup Missed", RETURN_MISSED: "Delivery Pending",
  PAYMENT_DUE: "Payment Due", PAYMENT_CUTOFF_REMINDER: "Payment Reminder",
  PICKUP_FEE_REQUIRED: "Pickup Fee Due", AGREEMENT_ACCEPTED_COPY: "Agreement Accepted",
@@ -101,7 +107,7 @@ const SMS_EVENT_STAGE: Record<string, string> = {
 const SMS_WORK_STAGE: Record<string,string> = {
  "Authorized":"Confirmed","Scheduled":"Scheduled","Receiving":"Receiving","In Process":"In Process",
  "Pickup Scheduled":"Pickup Scheduled","Pickup In Progress":"Pickup In Progress","Picked Up":"Picked Up",
- "Return Scheduled":"Return Scheduled","Out for Delivery":"Out for Delivery","Delivered":"Delivered",
+ "Return Scheduled":"Delivery Scheduled","Out for Delivery":"Out for Delivery","Delivered":"Delivered",
  "Pending Agreement":"Agreement Pending","Issue / Review":"Review","Ready":"Ready",
  "Not Started":"Scheduled","Receiving Evidence":"Receiving","Receiving Documentation":"Receiving",
  "Received at Shop":"Received at Shop","Preparing":"Preparation","Engraving":"Engraving",
@@ -121,5 +127,5 @@ export function renderSms(event: string, payload: Record<string, unknown>, origi
  if(!/^[A-Z0-9][A-Z0-9/-]{0,63}$/.test(code)||!/^\/(status|review|lost)\/[A-Za-z0-9-]{8,200}$/.test(path))throw new Error("SMS_CONTEXT_UNAVAILABLE");
  const url=new URL(path,site);if(url.origin!==site.origin)throw new Error("SMS_CONTEXT_UNAVAILABLE");
  // Keep capability links intact; plain English/ASCII avoids UCS-2 segmentation.
- return "ToolTag: Your order "+code+" moved to "+stage+". Details: "+url.href;
+ return "ToolTag: Your order "+code+" moved to "+stage+". Details: "+url.href+(normalized==="GET_TAGGED_RECEIVED"?" Welcome! Reply HELP for help or STOP to opt-out.":"");
 }

@@ -17,7 +17,7 @@ export default async function PickupFeePage({
   if (error || !data) {
     return (
       <main className="public">
-        <p className="eyebrow">ToolTag · Pickup & Return</p>
+        <p className="eyebrow">ToolTag · Pickup & Delivery</p>
         <h1>This Pickup payment link is unavailable.</h1>
       </main>
     );
@@ -28,7 +28,7 @@ export default async function PickupFeePage({
 
   return (
     <main className="public">
-      <p className="eyebrow">ToolTag · Pickup & Return</p>
+      <p className="eyebrow">ToolTag · Pickup & Delivery</p>
       <h1>{data.job_code}</h1>
       <p className="muted">
         Pickup scheduling is unlocked only after the Pickup Service Fee is confirmed.
@@ -69,7 +69,7 @@ export default async function PickupFeePage({
       )}
 
       <section className="panel">
-        <h2>Pickup & Return Disclaimer</h2>
+        <h2>Pickup & Delivery Disclaimer</h2>
         <p>
           ToolTag Pickup service is normally scheduled on Saturdays between
           <strong> 8:00 AM and 12:00 PM</strong>.

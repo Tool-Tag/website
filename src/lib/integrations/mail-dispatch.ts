@@ -55,9 +55,11 @@ export async function dispatchQuoteMail(db: SupabaseClient, quoteId?: string) {
   } catch { return "Email pending. You can copy the link."; }
 }
 export async function dispatchWorkerMail() {
+ try {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!key || !url) return;
   const db = createClient(url, key, {auth:{persistSession:false,autoRefreshToken:false}});
   await Promise.allSettled([mailEnabled() ? dispatchQuoteMail(db) : Promise.resolve(), dispatchSms(db)]);
+ } catch {console.error("OPTIONAL_NOTIFICATION_DISPATCH_UNAVAILABLE");}
 }

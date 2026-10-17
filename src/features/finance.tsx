@@ -17,6 +17,7 @@ import {
   FinanceTabs,
 } from "@/components/ui";
 import { Form } from "@/components/form";
+import {MovementDialog} from "@/components/movement-dialog";
 import { MovementForm } from "@/components/movement-form";
 import { cents, decimal, money } from "@/lib/domain/money";
 import { EvidenceUpload } from "@/components/evidence-upload";
@@ -24,7 +25,9 @@ import { legacyDriveUrl } from "@/lib/storage/files";
 export async function Movement({
   saleId,
   type,
+  modal=false,
 }: {
+  modal?: boolean;
   saleId?: string;
   type?: string;
 }) {
@@ -44,8 +47,9 @@ export async function Movement({
         value: x.id,
         label: `${x.transaction_date} · ${x.description} · ${money(x.amount)}`,
       }));
+  const Component=modal?MovementDialog:MovementForm;
   return (
-    <MovementForm
+    <Component
       requestId={randomUUID()}
       vendors={vendors.map((v) => v.name)}
       accounts={accounts.map((a) => ({ value: a.id, label: "Main Account" }))}
@@ -85,9 +89,7 @@ export async function Finance({
         title="ToolTag Finance"
         subtitle="Sales, cash, and owner contributions, each recorded in the right place."
       >
-        <Link className="button" href="/app/finance/transactions/new">
-          + Record Transaction
-        </Link>
+        {(await context()).access.owner&&<Movement modal/>}
       </Heading>
       <FinanceTabs />
     </>

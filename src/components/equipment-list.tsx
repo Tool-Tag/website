@@ -38,7 +38,7 @@ export function EquipmentList({assets, categories, expenses, expense}: {
   const closeRegistration = () => {registration.current?.close(); setRegistering(false);};
   const closeDetail = () => {detail.current?.close(); setSelected(null);};
   return <>
-    {allowed && <div className="actions"><button type="button" onClick={() => setRegistering(true)}>Register Equipment</button></div>}
+    {allowed && <div className="actions"><button type="button" className="menu-link-blue-electric" onClick={() => setRegistering(true)}>Register Equipment</button></div>}
     <Panel>{assets.length ? <Table headers={["Equipment Name", "Category", "Serial Number", "Warranty Expiration", "Cost"]}>
       {assets.map(asset => <tr key={asset.id} className="equipment-list-row" tabIndex={0}
         aria-label={`View ${asset.name}`} onClick={() => setSelected(asset)}
@@ -50,11 +50,11 @@ export function EquipmentList({assets, categories, expenses, expense}: {
       </tr>)}
     </Table> : <Empty>No equipment registered yet.</Empty>}</Panel>
     <dialog ref={registration} className="equipment-registration-modal" aria-labelledby={registrationTitle} onClose={() => setRegistering(false)}>
-      <header className="pagehead"><h2 id={registrationTitle}>Register Equipment</h2><button type="button" className="secondary" onClick={closeRegistration}>Close</button></header>
+      <header className="pagehead"><h2 id={registrationTitle}>Register Equipment</h2><button type="button" className="secondary modal-close" onClick={closeRegistration} aria-label="Close dialog">×</button></header>
       {registering && allowed && <AssetForm categories={categories} expenses={expenses} expense={expense} back="" onSaved={() => {closeRegistration(); router.refresh();}}/>}
     </dialog>
     <dialog ref={detail} className="equipment-registration-modal" aria-labelledby={detailTitle} onClose={() => setSelected(null)}>
-      <header className="pagehead"><h2 id={detailTitle}>{selected?.name ?? "Equipment details"}</h2><button type="button" className="secondary" onClick={closeDetail}>Close</button></header>
+      <header className="pagehead"><h2 id={detailTitle}>{selected?.name ?? "Equipment details"}</h2><button type="button" className="secondary modal-close" onClick={closeDetail} aria-label="Close dialog">×</button></header>
       {selected && <dl className="equipment-detail-grid">
         <dt>Equipment ID</dt><dd>{selected.id}</dd>
         <dt>Category</dt><dd>{selected.category}</dd>

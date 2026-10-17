@@ -1,10 +1,10 @@
-import {routeProgress,type CustomerRoute,type CustomerRouteStop} from "@/lib/domain/customer-route-tracking";
+import {stopStatusLabel,routeProgress,type CustomerRoute,type CustomerRouteStop} from "@/lib/domain/customer-route-tracking";
 import {TOOLTAG_TIMEZONE} from "@/lib/domain/time";
 function local(value:string|null){return value?new Date(value).toLocaleString("en-US",{timeZone:TOOLTAG_TIMEZONE,month:"short",day:"numeric",hour:"numeric",minute:"2-digit",timeZoneName:"short"}):"—";}
 export function CustomerRouteTimeline({routes}:{routes:CustomerRoute[]}){
  return <div className="customer-routes">{routes.map(route=>{
   const progress=routeProgress(route.stops);
-  const stop=(s:CustomerRouteStop)=><li key={s.position} className={`customer-route-stop${s.is_customer?" own-stop":""}`}><span className="status-dot" aria-hidden="true">{progress.done.includes(s)?"✓":progress.current.includes(s)?"●":"○"}</span><div><strong>Stop {s.position}{s.is_customer?" · Your stop":""}</strong><span>{s.status==="Completed"?(route.leg==="Pickup"?"Picked Up":"Delivered"):s.status}</span></div></li>;
+  const stop=(s:CustomerRouteStop)=><li key={s.position} className={`customer-route-stop${s.is_customer?" own-stop":""}`}><span className="status-dot" aria-hidden="true">{progress.done.includes(s)?"✓":progress.current.includes(s)?"●":"○"}</span><div><strong>Stop {s.position}{s.is_customer?" · Your stop":""}</strong><span>{s.status==="Completed"?(route.leg==="Pickup"?"Picked Up":"Delivered"):stopStatusLabel[s.status]??s.status}</span></div></li>;
   return <section className="panel customer-route" key={`${route.leg}:${route.date}`} aria-label={`Route · ${route.leg==="Pickup"?"Pickup":"Delivery"}`}>
    <p className="status-kicker">Route tracking</p><h2>{route.leg==="Pickup"?"Pickup":"Delivery"}</h2>
    <p>{new Date(route.date+"T12:00:00Z").toLocaleDateString("en-US",{timeZone:TOOLTAG_TIMEZONE,weekday:"long",month:"long",day:"numeric"})}</p>

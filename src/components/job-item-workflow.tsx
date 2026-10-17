@@ -66,7 +66,7 @@ export function JobItemWorkflow({
           <p>All approved items have finished evidence and are marked Finished.</p>
           {pickupReturn && (
             <p className="notice success">
-              The Job is ready to continue through the Return flow in Pick &amp; Return.
+              The Job is ready to continue through the Return flow in Pick up &amp; Delivery.
             </p>
           )}
         </Panel>

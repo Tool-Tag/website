@@ -1,6 +1,6 @@
 import {transactionFilters,TRANSACTION_PAGE_SIZE,type TransactionSearch} from "./transaction-filters";
 import {TOOLTAG_TIMEZONE} from "./time";
-export type FinanceSearch=TransactionSearch&{paid_by?:string;receipt?:string;kind?:string;method?:string;reason?:string;state?:string};
+export type FinanceSearch=TransactionSearch&{view?:string;paid_by?:string;receipt?:string;kind?:string;method?:string;reason?:string;state?:string};
 export type FinanceSelect={name:keyof FinanceSearch;label:string;options:string[]};
 export function financeFilters(input:FinanceSearch,selects:FinanceSelect[]){
  const basic=transactionFilters(input),values:Record<string,string>={q:basic.q,from:basic.from,to:basic.to};

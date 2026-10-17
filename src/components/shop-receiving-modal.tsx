@@ -8,7 +8,7 @@ export function ShopReceivingModal({job,customer,count,children}:{job:string;cus
    <strong>{job}</strong><span>{customer}</span><span>{count} {count===1?"piece":"pieces"} awaiting verification</span><span aria-hidden="true">↗</span>
   </button>
   <dialog ref={dialog} className="shop-receiving-modal" aria-label={`Receiving verification: ${job}`}>
-   <header className="actions" style={{justifyContent:"space-between"}}><div><h2>{job}</h2><p>{customer}</p></div><button type="button" className="secondary" onClick={()=>dialog.current?.close()}>Close</button></header>
+   <header className="actions" style={{justifyContent:"space-between"}}><div><h2>{job}</h2><p>{customer}</p></div><button type="button" className="secondary modal-close" onClick={()=>dialog.current?.close()} aria-label="Close dialog">×</button></header>
    {children}
   </dialog>
  </>;

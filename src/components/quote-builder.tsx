@@ -1,4 +1,5 @@
 "use client";
+import {DialogClose} from "./dialog-close";
 import { useAccess } from "./permission-provider";
 import { can } from "@/lib/auth/permissions";
 import { useState, useActionState, useRef } from "react";
@@ -239,12 +240,10 @@ export function QuoteBuilder({
             </h2>
             <button
               type="button"
-              className="secondary"
+              className="secondary modal-close"
               aria-label="Close"
               onClick={() => dialog.current?.close()}
-            >
-              Close
-            </button>
+            >×</button>
           </div>
           {confirming ? (
             <>
@@ -490,7 +489,7 @@ export function QuoteBuilder({
         ref={paintDialog}
         className="quote-dialog"
         aria-labelledby="paint-title"
-      >
+      ><DialogClose/>
         <form
           onSubmit={(e) => {
             e.preventDefault();

@@ -42,7 +42,7 @@ export function CancellationLookupForm() {
       <h2>Find Your Active Services</h2>
       <p className="muted">
         Enter the same contact information used with ToolTag. We’ll check for active
-        Quotes, Jobs, and Pickup & Return services.
+        Quotes, Jobs, and Pick up & Delivery services.
       </p>
 
       <form action={action} className="stack">

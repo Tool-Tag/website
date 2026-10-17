@@ -2,7 +2,7 @@
   'use strict';
   const config = window.TOOLTAG_GALLERY || {};
   const photos = (Array.isArray(config.photos) ? config.photos : []).filter(p =>
-    p && p.real === true && typeof p.src === 'string' && p.src.trim() && p.alt?.en && p.alt?.es);
+    p && p.real === true && typeof p.src === 'string' && p.src.trim() && p.alt?.en);
   const limit = Math.max(4, Math.min(6, Number(config.homeLimit) || 4));
   const featured = photos.filter(p => p.featured !== false).slice(0, limit);
   const section = document.querySelector('#work');
@@ -17,9 +17,9 @@
   const error = document.querySelector('#work-error');
   const controls = modal.querySelector('.work-controls');
   const more = document.querySelector('#work-more');
-  let lang = document.documentElement.lang === 'es' ? 'es' : 'en';
+  const lang = 'en';
   let selected = 0, mode = 'photo', opener, previousOverflow, previousPadding, scrollY;
-  const words = () => lang === 'es' ? {title:'Así dejamos tu marca.',close:'Cerrar galería',prev:'Foto anterior',next:'Foto siguiente',more:'Ver más trabajos',open:'Ampliar foto',error:'No se pudo cargar esta foto.'} : {title:'See the Mark.',close:'Close gallery',prev:'Previous photo',next:'Next photo',more:'View More',open:'Enlarge photo',error:'This photo could not be loaded.'};
+  const words = () => ({title:'See the Mark.',close:'Close gallery',prev:'Previous photo',next:'Next photo',more:'View More',open:'Enlarge photo',error:'This photo could not be loaded.'});
   const localized = value => value?.[lang] || value?.en || '';
   function tile(photo, parent) {
     const item = document.createElement('div'); item.className='work-item'; item.setAttribute('role','listitem');
@@ -75,6 +75,6 @@
     more.textContent=w.more;more.hidden=!(config.enableViewMore===true&&photos.length>featured.length);
     if(modal.open&&mode==='photo')showPhoto();
   }
-  document.addEventListener('tooltag:language',e=>{lang=e.detail==='es'?'es':'en';translate();});
+  document.addEventListener('tooltag:language',()=>translate());
   expanded.setAttribute('role','list');translate();section.hidden=false;
 })();

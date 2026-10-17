@@ -20,17 +20,17 @@ export default async function PickReturnPage({searchParams}:{searchParams:Promis
  if(pickups.error)throw new Error("Could not load confirmed Pickups");
  const confirmedPickups=new Set((pickups.data??[]).map(p=>p.job_id));
  return <section className="driver-landing">
-  <p className="eyebrow">TOOLTAG / ON THE ROAD</p><h1>Pick up & Return</h1><p className="muted">Choose your route. One stop at a time.</p>
+  <p className="eyebrow">TOOLTAG / ON THE ROAD</p><h1>Pick up & Delivery</h1><p className="muted">Choose your route. One stop at a time.</p>
   <form className="driver-date" action="/pick-return"><label htmlFor="route-day">View another day<input id="route-day" type="date" name="date" defaultValue={dates.selected} required /></label><button className="secondary">View routes</button></form>
   <div className="driver-cards">{(["pickup","return"] as const).map(leg=>{
    const date=dates[leg];const routeIds=new Set((routes??[]).filter(r=>r.leg===(leg==="pickup"?"Pickup":"Return")&&r.route_date===date).map(r=>r.id));
    const stops=(result.data??[]).filter(s=>routeIds.has(s.route_id)&&s.status!=="Cancelled"&&(leg!=="pickup"||confirmedPickups.has(s.job_id))); const done=stops.filter(s=>s.status==="Completed").length;
    return <Link className={`driver-card driver-${leg}`} href={`/pick-return/${leg}?date=${date}`} key={leg}>
-    <div className="driver-card-heading"><span className="driver-icon" aria-hidden="true">{leg==="pickup"?"↗":"↙"}</span><h2>{leg==="pickup"?"Pick up":"Return"}</h2><span aria-hidden="true">→</span></div>
+    <div className="driver-card-heading"><span className="driver-icon" aria-hidden="true">{leg==="pickup"?"↗":"↙"}</span><h2>{leg==="pickup"?"Pick up":"Delivery"}</h2><span aria-hidden="true">→</span></div>
     <p className="driver-route-date">{routeDateLabel(date)}</p><p className="driver-window">Starts {leg==="pickup"?"8:00 AM":"2:00 PM"} <span>Denver time</span></p>
     <div className="driver-stats"><strong>{stops.length} stops</strong><span>{done}/{stops.length} completed</span></div>
     <progress value={done} max={stops.length||1} aria-label={`${leg} route progress`} />
-    <span className="driver-open">Open {leg==="pickup"?"pickup":"Return"} route <span aria-hidden="true">→</span></span>
+    <span className="driver-open">Open {leg==="pickup"?"pickup":"Delivery"} route <span aria-hidden="true">→</span></span>
    </Link>;
   })}</div>
  </section>;

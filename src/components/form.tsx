@@ -1,4 +1,5 @@
 "use client";
+import {useActionModal} from "./action-modal";
 import { useActionPermission } from "./permission-provider";
 import { PhoneVerification } from "./phone-verification";
 import { useActionState, useState, useEffect, useRef } from "react";
@@ -38,13 +39,14 @@ export function Form({
   submitDisabled?: boolean;
 }) {
   const allowed = useActionPermission(operation);
+  const closeModal=useActionModal();
   const [customerPhone, setCustomerPhone] = useState(fields.find(f=>f.name==="phone")?.value??"");
   const [state, action, pending] = useActionState<ActionState, FormData>(
-    mutate.bind(null, operation, back),
+    mutate.bind(null, operation, closeModal?"":back),
     {},
   );
   const handled = useRef<ActionState|null>(null);
-  useEffect(()=>{if(state.ok && onSaved && handled.current!==state){handled.current=state;onSaved(state.data);}},[state,onSaved]);
+  useEffect(()=>{if(state.ok && handled.current!==state){handled.current=state;onSaved?.(state.data);closeModal?.();}},[state,onSaved,closeModal]);
   if (!allowed) return null;
   return (
     <form action={action} className="formgrid">

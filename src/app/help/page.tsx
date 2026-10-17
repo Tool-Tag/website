@@ -18,7 +18,7 @@ export default function HelpPage() {
       <section className="panel">
         <h2>Cancel a Service</h2>
         <p className="muted">
-          Review eligible active Quotes, Jobs, and Pickup & Return services before
+          Review eligible active Quotes, Jobs, and Pick up & Delivery services before
           confirming a cancellation.
         </p>
         <Link className="button" href="/help/cancel">
@@ -41,7 +41,7 @@ export default function HelpPage() {
         <h2>Existing Job</h2>
         <p className="muted">
           Use the private Job Status link ToolTag sent you. That page shows live
-          progress, documents, Pickup & Return details, and cancellation options
+          progress, documents, Pick up & Delivery details, and cancellation options
           when the service is still eligible.
         </p>
       </section>

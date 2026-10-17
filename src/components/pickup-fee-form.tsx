@@ -57,7 +57,7 @@ export function PickupFeeForm({
         Amount due before Pickup scheduling: <strong>{money(amount)}</strong>
       </p>
       <p className="muted">
-        This fee must be paid and confirmed by ToolTag before the Pickup & Return
+        This fee must be paid and confirmed by ToolTag before the Pick up & Delivery
         process can be scheduled or started.
       </p>
 
@@ -116,7 +116,7 @@ export function PickupFeeForm({
         </div>
 
         <div className="notice">
-          <strong>Pickup & Return Terms v{termsVersion ?? "2.0"}</strong>
+          <strong>Pick up & Delivery Terms v{termsVersion ?? "2.0"}</strong>
           <p>
             The Pickup Service Fee is subject to the Pickup cancellation terms you
             accepted with your ToolTag Agreement, including the applicable Friday

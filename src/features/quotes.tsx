@@ -126,7 +126,7 @@ export async function Quotes({
 
               {service.method === "Pickup" && (
                 <div className="notice">
-                  Pickup & Return · Agreement v{service.agreement_version ?? 2} ·
+                  Pick up & Delivery · Agreement v{service.agreement_version ?? 2} ·
                   Pickup Service Fee ${Number(service.pickup_fee ?? 10).toFixed(2)}
                   <br />
                   The Agreement version shown to the customer with this Request is
@@ -196,7 +196,7 @@ export async function Quotes({
             <SendQuote id={id} sent={Boolean(q.sent_at)} lastRequestedAt={latestMail?.mail_attempted_at || latestMail?.created_at || q.sent_at} email={delivery?.recipient || contact?.email} companyEmail={delivery?.recipient ? undefined : contact?.company_email} />
           </Panel>
         )}
-        {can(access,"payments.view")&&<SmsCosts quoteId={id}/>}
+        {!needsIntakeReview&&can(access,"payments.view")&&<SmsCosts quoteId={id}/>}
         <AcceptedDocuments quoteId={id} />
         {q.status === "Accepted" && (
           <p>
@@ -233,7 +233,7 @@ export async function Quotes({
   );
   const historyQuotes = list.filter(
     (q) =>
-      ["Declined", "Expired", "Revised"].includes(q.status) ||
+      ["Declined", "Expired", "Revised", "Rejected"].includes(q.status) ||
       (q.status === "Accepted" && hasClosedJob(q.id)),
   );
 

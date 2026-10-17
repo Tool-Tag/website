@@ -91,6 +91,6 @@ export async function RefundsPanel({jobId,view="cases",requestIds}:{jobId?:strin
  const active=(requests??[]).filter(r=>["Pending","In Review","Approved","Issued"].includes(r.status)).sort((a,b)=>compareRefundUrgency(a,b,now));
  const history=(requests??[]).filter(r=>["Completed","Rejected"].includes(r.status)).sort((a,b)=>Date.parse(b.completed_at||b.rejected_at||b.processed_at||b.requested_at)-Date.parse(a.completed_at||a.rejected_at||a.processed_at||a.requested_at));
  return <RefundStatusTabs counts={{Pending:active.filter(r=>r.status==="Pending").length,"In Review":active.filter(r=>r.status==="In Review").length,Approved:active.filter(r=>r.status==="Approved").length,Issued:active.filter(r=>r.status==="Issued").length}} historyCount={history.length}
-  create={manage&&<details className="panel"><summary>New refund</summary><RefundCreate jobs={jobId?jobs.filter(j=>j.id===jobId):jobs} jobId={jobId} requestKey={randomUUID()}/></details>}
+  create={manage&&<RefundCreate jobs={jobId?jobs.filter(j=>j.id===jobId):jobs} jobId={jobId} requestKey={randomUUID()}/>}
   history={render(history)}>{render(active,true)}</RefundStatusTabs>;
 }

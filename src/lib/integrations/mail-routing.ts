@@ -17,7 +17,7 @@ export function mailSender(event: string, env: Env = process.env) {
 
   const department = quotes.includes(normalized)
     ? "QUOTES"
-    : normalized === "GENERAL_CONTACT"
+    : ["GENERAL_CONTACT","REQUEST_REJECTED"].includes(normalized)
       ? "HELLO"
       : "NOTIFICATIONS";
 

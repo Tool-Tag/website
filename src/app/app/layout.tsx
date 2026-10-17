@@ -24,7 +24,7 @@ export default async function AppLayout({
   const userLinks:UserMenuLink[]=[
     ...(ctx&&canAny(ctx.access,sectionPermissions("finance-hub"))?[{label:"Finance Hub",href:"/app/finance-hub"}]:[]),
     ...(ctx?.access.owner?[{label:"Settings",href:"/app/settings"}]:[]),
-    ...(ctx&&canAny(ctx.access,["driver.routes","pr.routes.live","pr.routes.plan","pr.receiving","pr.returns","pr.reschedule"])?[{label:"Pick & Return Mode",href:"/pick-return"}]:[]),
+    ...(ctx&&canAny(ctx.access,["driver.routes","pr.routes.live","pr.routes.plan","pr.receiving","pr.returns","pr.reschedule"])?[{label:"Pick up & Delivery Mode",href:"/pick-return"}]:[]),
     {label:"Public Site",href:"/"},
     {label:"Falcon & Times",href:"/hub"},
   ];

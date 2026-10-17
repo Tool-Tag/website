@@ -7,11 +7,11 @@ export function routeProgress(stops:CustomerRouteStop[]){
  const upcoming=stops.filter(s=>!resolvedStop(s.status)&&!["En Route","Arrived"].includes(s.status));
  return {done,current,upcoming,percentage:stops.length?Math.round(done.length/stops.length*100):0};
 }
-export const spanishStopStatus:Record<string,string>={Requested:"Reserva pendiente",Scheduled:"Programada","En Route":"En camino",Arrived:"El conductor llegó",Completed:"Completada",Failed:"Intento sin completar",Cancelled:"Cancelada"};
 
-export const spanishTrackingStage:Record<string,string>={"Pending Delivery":"Entrega pendiente","Shop Pickup":"Recogida en taller","Pickup Fee":"Pago de recolección","Pickup Scheduled":"Recolección programada","Pickup In Progress":"Recolección en curso","Picked Up":"Piezas recolectadas","In Process":"En preparación",Engraving:"Grabado","Final Details":"Detalles finales","Delivery In Progress":"Entrega en preparación","Return Scheduled":"Entrega programada","Out for Delivery":"En camino para entrega",Delivered:"Entregado",Cancelled:"Cancelado","Cancellation Balance":"Saldo de cancelación",Completed:"Terminado","Receiving Evidence":"Registro de recepción",Preparation:"Preparación"};
 export function jobTimelineProgress(steps:string[],current:string){
  const operational=["Pending Delivery","Shop Pickup"].includes(current)?"Delivery In Progress":current;
  const index=Math.max(0,steps.indexOf(operational));const completed=current==="Completed"?steps.length:index;
  return {done:steps.slice(0,completed),upcoming:current==="Completed"?[]:steps.slice(index+1),percentage:steps.length?Math.round(completed/steps.length*100):0};
 }
+
+export const stopStatusLabel:Record<string,string>={Requested:"Pending reservation",Scheduled:"Scheduled","En Route":"En route",Arrived:"Driver arrived",Completed:"Completed",Failed:"Attempt not completed",Cancelled:"Cancelled"};

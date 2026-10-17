@@ -1,4 +1,5 @@
 "use client";
+import {DialogClose} from "./dialog-close";
 import {DriverLossOwnerControls} from "./driver-loss-owner-controls";
 import {MovementForm} from "./movement-form";
 import Link from "next/link";
@@ -29,9 +30,9 @@ function LostCaseRow({row,canApprove,expenseOptions}:{row:LostCase;canApprove:bo
  <button type="button" className="lost-case-row blue-electric" aria-haspopup="dialog" onClick={()=>{setError("");if(status==="In Process"&&!row.customer_choice)waiting.current?.showModal();else dialog.current?.showModal();}}>
   <strong>{row.job}</strong><span>{row.customer}</span><span>{denverDateTime(row.reported_at)}</span><span>{status}</span>
  </button>
- <dialog ref={waiting} className="lost-case-modal" aria-label="Waiting for customer response"><h2>Waiting for customer response</h2><p>The customer has not chosen a resolution yet.</p><button type="button" className="secondary" onClick={()=>waiting.current?.close()}>Close</button></dialog>
+ <dialog ref={waiting} className="lost-case-modal" aria-label="Waiting for customer response"><h2>Waiting for customer response</h2><p>The customer has not chosen a resolution yet.</p><button type="button" className="secondary modal-close" onClick={()=>waiting.current?.close()} aria-label="Close dialog">×</button></dialog>
  <dialog ref={dialog} className="lost-case-modal" aria-labelledby={id}>
-  <header className="actions" style={{justifyContent:"space-between"}}><h2 id={id}>{row.job} · {row.customer}</h2><button type="button" className="secondary" disabled={pending} onClick={()=>dialog.current?.close()}>Close</button></header>
+  <header className="actions" style={{justifyContent:"space-between"}}><h2 id={id}>{row.job} · {row.customer}</h2><button type="button" className="secondary modal-close" disabled={pending} onClick={()=>dialog.current?.close()} aria-label="Close dialog">×</button></header>
   <p>Lost ID: {row.id}</p><p>Status: {status}</p><p>Customer phone: {row.phone||"Not provided"}</p>
   <p>Driver: {row.driver} {row.driver_id?`· ${row.driver_id}`:""}</p><p>Driver contact: {row.driver_email||"Not provided"}</p>
   <p>Route: {row.route_date} · Reported: {denverDateTime(row.reported_at)}</p>
@@ -56,7 +57,7 @@ function LostCaseRow({row,canApprove,expenseOptions}:{row:LostCase;canApprove:bo
   {status==="History"&&<><p>Completed: {denverDateTime(row.finalized_at)}</p><p>{row.resolution_notes}</p><p>This record is read-only.</p></>}
   {error&&<p className="notice error" role="alert">{error}</p>}
  </dialog>
- <dialog ref={confirmation} className="lost-case-modal" aria-label="Confirm replacement at shop"><h2>Make sure the replacement is already at the shop</h2><p>Do not continue until the replacement is physically at the shop.</p><div className="actions"><button type="button" disabled={pending} onClick={()=>{setError("");start(async()=>{const result=await lostStaffAction(row.id,"confirm-replacement");if(result.error)setError(result.error);else{confirmation.current?.close();expense.current?.showModal();router.refresh();}});}}>Confirmed</button><button type="button" className="secondary" disabled={pending} onClick={()=>confirmation.current?.close()}>Not yet</button></div>{error&&<p role="alert" className="notice error">{error}</p>}</dialog>
- <dialog ref={expense} className="lost-case-modal" aria-label="Record replacement expense"><header className="actions" style={{justifyContent:"space-between"}}><h2>Record replacement expense · {row.job}</h2><button type="button" className="secondary" onClick={()=>expense.current?.close()}>Close</button></header>{expenseOptions&&<MovementForm requestId={row.id} lostCaseId={row.id} defaultType="EXPENSE" accounts={expenseOptions.accounts} categories={expenseOptions.categories} vendors={expenseOptions.vendors} sales={[]} expenses={[]} collections={[]} destinationAccounts={[]} onSaved={()=>{expense.current?.close();router.refresh();}}/>}</dialog>
+ <dialog ref={confirmation} className="lost-case-modal" aria-label="Confirm replacement at shop"><DialogClose/><h2>Make sure the replacement is already at the shop</h2><p>Do not continue until the replacement is physically at the shop.</p><div className="actions"><button type="button" disabled={pending} onClick={()=>{setError("");start(async()=>{const result=await lostStaffAction(row.id,"confirm-replacement");if(result.error)setError(result.error);else{confirmation.current?.close();expense.current?.showModal();router.refresh();}});}}>Confirmed</button><button type="button" className="secondary" disabled={pending} onClick={()=>confirmation.current?.close()}>Not yet</button></div>{error&&<p role="alert" className="notice error">{error}</p>}</dialog>
+ <dialog ref={expense} className="lost-case-modal" aria-label="Record replacement expense"><header className="actions" style={{justifyContent:"space-between"}}><h2>Record replacement expense · {row.job}</h2><button type="button" className="secondary modal-close" onClick={()=>expense.current?.close()} aria-label="Close dialog">×</button></header>{expenseOptions&&<MovementForm requestId={row.id} lostCaseId={row.id} defaultType="EXPENSE" accounts={expenseOptions.accounts} categories={expenseOptions.categories} vendors={expenseOptions.vendors} sales={[]} expenses={[]} collections={[]} destinationAccounts={[]} onSaved={()=>{expense.current?.close();router.refresh();}}/>}</dialog>
  </div>;
 }

@@ -228,7 +228,8 @@ export async function mutate(
         break;
       case "get-tagged-reject":
         name = "reject_get_tagged";
-        args = { p_id: p.id, p_reason: p.reason ?? null };
+        if(!String(p.reason??"").trim()||String(p.reason).trim().length>2000)return {error:"Enter a rejection reason (up to 2000 characters)."};
+        args = { p_id: p.id, p_reason: String(p.reason).trim() };
         break;
       case "send-quote":
         name = form.get("resend") === "true" ? "resend_quote" : "send_quote_to";
@@ -318,18 +319,19 @@ export async function mutate(
     }
     revalidatePath("/app", "layout");
     if (operation === "movement" && p.lost_id) {await dispatchWorkerMail();return {ok:true,data};}
+    if (["movement","mileage"].includes(operation) && back === "") return {ok:true,data};
     if (operation === "send-quote" || operation === "resend-quote") return { mailRequestedAt: new Date().toISOString(), link: `/review/${data}`, mailStatus: await dispatchQuoteMail(db, String(p.id)) };
     if (["route-cash","shop-handover","route-confirm","job","job-item","complete-job-work","complete-production","pick-return-schedule","pick-return-stop","document","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment","cancellation-refund"].includes(operation)) await dispatchWorkerMail();
     if (operation === "extension-send") return {link:`/extension/${data}`};
     if ((operation === "job" || operation === "complete-job-work") && data) return { link: `/completion/${data}` };
     if (operation === "get-tagged-approve" && data) destination = `/app/quotes/${data}`;
-    else if (operation === "get-tagged-reject") destination = "/app/get-tagged";
+    else if (operation === "get-tagged-reject") {await dispatchWorkerMail();return {ok:true};}
     else if (operation === "get-tagged-review") destination = back;
     else if (operation === "customer") destination = `/app/customers/${data}`;
     else if (operation === "request-extension") destination=`/app/job-extensions/${data}`;
     else if (operation === "extension-scope") destination=`/app/job-extensions/${data}`;
     else if (operation === "quote") destination = `/app/quotes/${data}`;
-    else if (operation === "movement" && p.type === "EXPENSE")
+    else if (operation === "movement" && p.type === "EXPENSE" && back !== "")
       destination = `/app/finance/expenses?created=${data}`;
     else if (back.startsWith("/app") || back.startsWith("/pick-return")) destination = back;
   } catch (e) {

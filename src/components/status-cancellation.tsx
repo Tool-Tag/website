@@ -1,4 +1,5 @@
 "use client";
+import {DialogClose} from "./dialog-close";
 
 import { useActionState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -63,7 +64,7 @@ export function StatusCancellation({ token }: { token: string }) {
         </p>
       )}
 
-      <dialog ref={dialogRef} className="cancel-dialog">
+      <dialog ref={dialogRef} className="cancel-dialog"><DialogClose/>
         {assessment && (
           <div className="stack">
             <div>
@@ -101,7 +102,7 @@ export function StatusCancellation({ token }: { token: string }) {
                     : "PICKUP FEE: NOT ELIGIBLE FOR A REFUND"}
                 </strong>
                 <p>
-                  Pickup & Return Terms v{pickup.terms_version ?? "2.0"} apply. The Pickup
+                  Pick up & Delivery Terms v{pickup.terms_version ?? "2.0"} apply. The Pickup
                   Service Fee becomes non-refundable after the applicable Friday 6:00 PM
                   cancellation deadline or when ToolTag arrives and the scheduled items are
                   unavailable for Pickup.

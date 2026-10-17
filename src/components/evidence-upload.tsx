@@ -46,11 +46,11 @@ export function EvidenceUpload({
         <input ref={input} onClick={(event) => {if(warn && !approved.current){event.preventDefault(); setWarning(choice ?? "file");}}} onChange={event=>{if(config.expenseProof){const file=event.target.files?.[0];const error=file?expenseProofError(file):null;setFileError(error??"");if(error)event.target.value="";}}} name="file" type="file" required accept={accept} capture={choice === "camera" ? "environment" : undefined} />
       </div>
       {warning && <div className="delivery-ack-backdrop"><section className="delivery-ack-panel" role="dialog" aria-modal="true" aria-labelledby="photo-warning-title">
-        <h2 id="photo-warning-title">Evidencia de las piezas</h2>
-        <p>Toma fotos claras de todos los ángulos de cada pieza, incluyendo daños existentes y detalles del trabajo.</p>
-        <p className="notice">Si no registras las fotos, pueden aplicarse cargos conforme a las políticas del servicio. Verifica la evidencia antes de continuar.</p>
-        <button type="button" onClick={() => {setWarning(null); window.setTimeout(openPicker, 0);}}>Entendido · continuar</button>
-        <button type="button" className="secondary" onClick={() => setWarning(null)}>Cancelar</button>
+        <button type="button" className="modal-close" aria-label="Close photo guidance" onClick={()=>setWarning(null)}>×</button><h2 id="photo-warning-title">Item evidence</h2>
+        <p>Take clear photos of every side of each item, including existing damage and work details.</p>
+        <p className="notice">Missing photos may result in charges under the service policies. Review the evidence before continuing.</p>
+        <button type="button" onClick={() => {setWarning(null); window.setTimeout(openPicker, 0);}}>Understood · continue</button>
+        <button type="button" className="secondary" onClick={() => setWarning(null)}>Cancel</button>
       </section></div>}
 
       {config.expenseProof ? <input type="hidden" name="visibility" value="internal"/> : <label>

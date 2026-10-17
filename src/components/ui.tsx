@@ -1,4 +1,4 @@
-import Link from "next/link";
+import {displayLabel} from "@/lib/domain/ui-labels";
 import { money } from "@/lib/domain/money";
 export function Heading({
   title,
@@ -63,7 +63,7 @@ export function Empty({
   return <p className="empty">{children}</p>;
 }
 export function Badge({ children }: { children: React.ReactNode }) {
-  return <span className="badge">{children}</span>;
+  return <span className="badge">{typeof children==="string"?displayLabel(children):children}</span>;
 }
 export function Table({
   headers,
@@ -87,24 +87,4 @@ export function Table({
     </div>
   );
 }
-export function FinanceTabs({includeGeneral=true}:{includeGeneral?:boolean}={}) {
-  return (
-    <nav className="tabs">
-      {[
-        ["", "Overview"],
-        ["transactions", "Transactions"],
-        ["sales", "Sales"],
-        ["expenses", "Expenses"],
-        ["refunds", "Refunds"],
-        ["sms", "SMS Costs"],
-        ["reports", "Monthly Closes"],
-        ["review", "Review"],
-        ["about", "About"],
-      ].filter(([p])=>includeGeneral||p==="refunds").map(([p, n]) => (
-        <Link key={p} href={`/app/finance${p ? "/" + p : ""}`}>
-          {n}
-        </Link>
-      ))}
-    </nav>
-  );
-}
+export {FinanceTabs} from "./finance-tabs";

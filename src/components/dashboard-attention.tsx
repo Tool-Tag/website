@@ -27,10 +27,10 @@ export function DashboardAttention({ items }: { items: AttentionItem[] }) {
     <dialog ref={dialog} className="dashboard-attention-modal" aria-labelledby={titleId}>
       <header className="actions dashboard-attention-modal-header">
         <h2 id={titleId}>Needs Attention</h2>
-        <button type="button" className="secondary" onClick={() => dialog.current?.close()}>Close</button>
+        <button type="button" className="secondary modal-close" onClick={() => dialog.current?.close()} aria-label="Close dialog">×</button>
       </header>
       {rows(items.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE), true)}
-      <footer className="actions dashboard-attention-pagination">
+      <footer className="actions pagination dashboard-attention-pagination">
         <button type="button" className="secondary" disabled={current === 0} onClick={() => setPage(current - 1)}>Previous</button>
         <span role="status" aria-live="polite">Page {current + 1} of {pages}</span>
         <button type="button" className="secondary" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>Next</button>

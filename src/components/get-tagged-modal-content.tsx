@@ -45,9 +45,7 @@ export function GetTaggedModalContent() {
             Agreement are accepted.
           </p>
         </section>
-        <button type="button" onClick={requestGetTaggedClose}>
-          Close
-        </button>
+        <button type="button" onClick={requestGetTaggedClose} aria-label="Close dialog" className="modal-close">×</button>
       </main>
     );
   }

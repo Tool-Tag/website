@@ -179,9 +179,7 @@ export function EvidenceGallery({
                 </p>
               )}
 
-            <button type="button" onClick={() => dialog.current?.close()}>
-              Close
-            </button>
+            <button type="button" onClick={() => dialog.current?.close()} aria-label="Close dialog" className="modal-close">×</button>
           </>
         )}
       </dialog>

@@ -24,7 +24,7 @@ export function QuoteImageInput({value,onChange}:{value:string;onChange:(url:str
   {value&&<div style={{position:"relative",maxWidth:280,marginBlock:12,border:"1px solid #39414c",borderRadius:8,padding:12}}>
    {/* eslint-disable-next-line @next/next/no-img-element */}
    <img src={value} alt="Engraving Preview" referrerPolicy="no-referrer" style={{display:"block",width:"100%",height:160,objectFit:"contain"}}/>
-   <button type="button" aria-label="Remove engraving image" title="Remove image" onClick={()=>{sequence.current++;setBusy(false);setError("");onChange("");}} style={{position:"absolute",top:4,right:4,width:36,height:36,padding:0,borderRadius:"50%"}}>×</button>
+   <button type="button" aria-label="Remove engraving image" title="Remove image" onClick={()=>{sequence.current++;setBusy(false);setError("");onChange("");}} style={{position:"absolute",top:4,right:4,width:36,height:36,padding:0,borderRadius:"50%"}} className="modal-close">×</button>
   </div>}
   <label>Image or Logo Link<input type="url" pattern="https?://.*" required value={value} disabled={busy} placeholder="https://…" onChange={e=>onChange(e.target.value)}/></label>
  </div>;

@@ -371,7 +371,7 @@ export async function Jobs({ id }: { id?: string }) {
             </p>
           )}
           <Link className="button" href="/pick-return">
-            Open Pick & Return
+            Open Pick up & Delivery
           </Link>
         </Panel>
       )}
@@ -444,7 +444,7 @@ export async function Jobs({ id }: { id?: string }) {
       )}
 
       {stage === "Not Started" && logisticsPaymentReady && pickupRequired && pickupReturn && (
-        <Panel title={logistics ? "ToolTag Pickup" : "Pickup & Return"}>
+        <Panel title={logistics ? "ToolTag Pickup" : "Pick up & Delivery"}>
           <p>
             Logistics fee: <strong>{money(pickupReturn.fee_amount)}</strong> ·{" "}
             {pickupReturn.fee_status}

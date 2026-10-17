@@ -1,4 +1,5 @@
 "use client";
+import {ActionModal} from "./action-modal";
 import {createContext, useContext, useState, type ReactNode} from "react";
 
 export const REFUND_CASE_STATUSES = ["Pending", "In Review", "Approved", "Issued"] as const;
@@ -19,11 +20,10 @@ export function RefundStatusTabs({counts,historyCount,create,history,children}:{
  const slug=(tab:RefundTab)=>tab.toLowerCase().replaceAll(" ","-");
  const count=selected==="History"?historyCount:counts[selected];
  return <RefundTabContext.Provider value={selected}><div className="job-tabs">
-  <nav className="job-tab-list no-print" role="tablist" aria-label="Refund status">
+  <div className="tabs-with-action"><nav className="job-tab-list no-print" role="tablist" aria-label="Refund status">
    {tabs.map(tab=><button key={tab} type="button" role="tab" id={`refund-tab-${slug(tab)}`} aria-selected={selected===tab} aria-controls={`refund-panel-${slug(tab)}`} className={selected===tab?"job-tab active":"job-tab"} onClick={()=>setSelected(tab)}>{tab}<span className="tab-count">{tab==="History"?historyCount:counts[tab]}</span></button>)}
-  </nav>
+  </nav>{create&&<ActionModal title="New refund" label="New refund">{create}</ActionModal>}</div>
   <section role="tabpanel" id={`refund-panel-${slug(selected)}`} aria-labelledby={`refund-tab-${slug(selected)}`} className="job-tab-panel">
-   <div hidden={selected!=="Pending"}>{create}</div>
    {selected!=="History"&&count===0&&<p className="empty">No {selected.toLowerCase()} refunds.</p>}
    {children}
    <div hidden={selected!=="History"}>{history}</div>

@@ -1,5 +1,6 @@
 "use client";
-import { useActionState, useState } from "react";
+import {useActionModal} from "./action-modal";
+import { useActionState, useState, useEffect } from "react";
 import { refundAction, type RefundState } from "@/app/refund-actions";
 export type RefundJob = {
     id: string;
@@ -33,17 +34,19 @@ export function RefundCreate({ jobs, jobId, requestKey }: {
     jobId?: string;
     requestKey: string;
 }) {
+    const closeModal=useActionModal();
     const [selected, setSelected] = useState(jobId ?? "");
     const job = jobs.find(j => j.id === selected);
     const [event, setEvent] = useState("Pickup");
     const [amount, setAmount] = useState("5.00");
     const [state, action, pending] = useActionState(refundAction.bind(null, "create", requestKey), {});
+    useEffect(()=>{if(state.ok)closeModal?.();},[state,closeModal]);
     return <form action={action} className="formgrid">
  <label>Job<select name="job_id" required value={selected} onChange={e => setSelected(e.target.value)}><option value="">Select Job…</option>{jobs.map(j => <option key={j.id} value={j.id}>{j.code} · {j.quote_code}</option>)}</select></label>
  <label>Amount (USD)<div className="actions"><button type="button" className="secondary" onClick={() => setAmount("5.00")}>$5</button><button type="button" className="secondary" onClick={() => setAmount("10.00")}>$10</button></div><input name="amount" type="number" step="0.01" min="0.01" required value={amount} onChange={e => setAmount(e.target.value)}/><small>Available, after pending refunds: ${Number(job?.available ?? 0).toFixed(2)}</small></label>
  <label>Reason<select name="reason" required>{reasons.map(r => <option key={r}>{r}</option>)}</select></label>
  <label>Refund method<select key={selected} name="method" defaultValue={methods.includes(job?.original_method ?? "") ? job!.original_method! : ""}><option value="">Choose before processing…</option>{methods.map(m => <option key={m}>{m}</option>)}</select><small>Original: {job?.original_method ?? "No confirmed payment"}. Cash refunds are not allowed.</small></label>
- <label>Issue event<select name="issue_event" required value={event} onChange={e => setEvent(e.target.value)}>{["Pickup", "Return", "Delivery", "Completion notice"].map(x => <option key={x}>{x}</option>)}</select></label>
+ <label>Issue event<select name="issue_event" required value={event} onChange={e => setEvent(e.target.value)}>{["Pickup", "Return", "Delivery", "Completion notice"].map(x => <option key={x} value={x}>{x==="Return"?"Delivery attempt":x}</option>)}</select></label>
  <RefundDate name="issue_event_at" label="Event date/time (your local time)" fixedDate={job?.issue_events?.[event]}/>
  <RefundDate name="reported_at" label="Issue reported date/time (your local time)"/>
  <label className="wide">Notes<textarea name="notes" maxLength={5000}/></label>

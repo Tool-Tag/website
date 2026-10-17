@@ -1,4 +1,5 @@
 "use client";
+import {DialogClose} from "./dialog-close";
 
 import { useActionState, useEffect, useRef } from "react";
 import {
@@ -145,7 +146,7 @@ export function CancellationServiceCard({
             </button>
           </form>
 
-          <dialog ref={dialog} className="cancel-dialog">
+          <dialog ref={dialog} className="cancel-dialog"><DialogClose/>
             {assessment && (
               <div className="stack">
                 <div>
@@ -188,7 +189,7 @@ export function CancellationServiceCard({
                         : "PICKUP FEE: NOT ELIGIBLE FOR A REFUND"}
                     </strong>
                     <p>
-                      Pickup & Return Terms v{pickup.terms_version ?? "2.0"} apply.
+                      Pick up & Delivery Terms v{pickup.terms_version ?? "2.0"} apply.
                       The Pickup Service Fee is non-refundable after the applicable
                       Friday 6:00 PM cancellation deadline or if ToolTag arrives and
                       the scheduled items are unavailable for Pickup.

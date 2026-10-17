@@ -1,3 +1,4 @@
+import {paginateList} from "@/lib/domain/list-pagination";
 import {denverDateTime} from "@/lib/domain/time";
 import Link from "next/link";
 import { requirePermission } from "@/lib/domain/context";
@@ -15,9 +16,10 @@ type GetTaggedAttentionRow = {
   matching: string;
 };
 
-export default async function GetTaggedRequestsPage() {
+export default async function GetTaggedRequestsPage({searchParams}:{searchParams:Promise<{tab?:string;page?:string}>}) {
+  const search=await searchParams,history=search.tab==="history";
   const { db } = await requirePermission("quotes.view");
-  const { data, error } = await db.rpc("get_tagged_attention");
+  const { data, error } = await db.rpc(history?"get_tagged_history":"get_tagged_attention");
 
   if (error) {
     return (
@@ -30,6 +32,8 @@ export default async function GetTaggedRequestsPage() {
 
   const requests = (Array.isArray(data) ? data : []) as GetTaggedAttentionRow[];
 
+  const paging=paginateList(requests,search.page);
+  const pageUrl=(page:number)=>`/app/get-tagged?tab=${history?"history":"pending"}&page=${page}`;
   return (
     <>
       <Heading
@@ -37,9 +41,10 @@ export default async function GetTaggedRequestsPage() {
         subtitle="Review public requests before a Customer and Quote are created."
       />
 
+      <nav className="main-tab-list" aria-label="Request status"><Link href="/app/get-tagged" className={`main-tab ${history?"":"active"}`}>Pending</Link><Link href="/app/get-tagged?tab=history" className={`main-tab ${history?"active":""}`}>History</Link></nav>
       {requests.length ? (
         <div className="stack">
-          {requests.map((request) => (
+          {paging.items.map((request) => (
             <Panel key={request.id}>
               <div className="pick-return-row">
                 <div>
@@ -65,6 +70,7 @@ export default async function GetTaggedRequestsPage() {
       ) : (
         <Empty>No Get Tagged requests need attention.</Empty>
       )}
+      <nav className="actions pagination" aria-label="Request pages">{paging.page>1?<Link className="button menu-link-gold" href={pageUrl(paging.page-1)}>Previous</Link>:<button disabled>Previous</button>}<span>Page {paging.page} of {paging.pages}</span>{paging.page<paging.pages?<Link className="button menu-link-gold" href={pageUrl(paging.page+1)}>Next</Link>:<button disabled>Next</button>}</nav>
     </>
   );
 }
