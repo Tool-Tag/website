@@ -1799,3 +1799,18 @@ body:has(.get-tagged-react-dialog[open]) {
 }
 .equipment-registration-modal::backdrop { background: #000b; }
 .equipment-registration-modal .pagehead { gap: 12px; margin-bottom: 16px; }
+
+/* Equipment: list first; registration and full details stay in dialogs. */
+.equipment-list-row { cursor: pointer; }
+.equipment-list-row:hover, .equipment-list-row:focus-visible { background: #142033; }
+.equipment-list-row:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+.equipment-name-button { border: 0; background: transparent; color: inherit; text-align: left; padding: 0; }
+.equipment-name-button:hover { background: transparent; color: #d9b366; }
+.equipment-detail-grid { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr); gap: 12px 20px; }
+.equipment-detail-grid dt { color: var(--muted); }
+.equipment-detail-grid dd { margin: 0; overflow-wrap: anywhere; }
+.equipment-notes { white-space: pre-wrap; }
+@media (max-width: 520px) {
+  .equipment-detail-grid { grid-template-columns: 1fr; gap: 6px; }
+  .equipment-detail-grid dd { margin-bottom: 10px; }
+}

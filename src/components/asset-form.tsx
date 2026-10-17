@@ -7,6 +7,7 @@ export function AssetForm({
   expense,
   lockedExpense = false,
   defaultName,
+  onSaved,
   back = "/app/equipment",
 }: {
   categories: { value: string; label: string }[];
@@ -14,6 +15,7 @@ export function AssetForm({
   expense?: string;
   lockedExpense?: boolean;
   defaultName?: string;
+  onSaved?: (data: unknown) => void;
   back?: string;
 }) {
   const [origin, setOrigin] = useState("Purchased");
@@ -63,6 +65,7 @@ export function AssetForm({
       <Form
         key={origin}
         operation="asset"
+        onSaved={onSaved}
         hidden={{ origin, ...(lockedExpense && expense ? {source_expense_id:expense} : {}) }}
         fields={fields}
         back={back}

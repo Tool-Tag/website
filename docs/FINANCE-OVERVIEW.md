@@ -50,3 +50,9 @@ Sales, Expenses, Finance Refunds and SMS Costs now use the same GET search/filte
 - SMS Costs: quote/Job/posting-error search; Accumulating/Closed/Needs attention/Unconfirmed acceptance; updated-date range. The embedded Job/Quote SMS table is preserved.
 
 Timestamp ranges use inclusive Denver dates and an exclusive next-day boundary, including 23/25-hour DST days. No new migration or production write is needed for list filters.
+
+## Equipment list and dialogs (Block 6)
+
+Equipment opens as a list with Equipment Name, Category, Serial Number, Warranty Expiration and Cost. Donated equipment explicitly labels its informational estimated value. Clicking a row (or using Enter/Space) opens a read-only detail dialog with the source, dates, status, notes and original Finance expense link.
+
+Register Equipment opens the existing registration form in a dialog, using the same permission gate and server action. A successful save closes the dialog and refreshes the list. Linked-purchase deep links remain supported. The existing automatic registration dialog after an Equipment expense is unchanged. No database migration is required.
