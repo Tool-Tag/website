@@ -1,3 +1,4 @@
+import { DashboardAttention } from "@/components/dashboard-attention";
 import { can } from "@/lib/auth/permissions";
 import { PermissionGate } from "@/components/permission-provider";
 import Link from "next/link";
@@ -59,11 +60,7 @@ export async function Dashboard() {
       <div className="grid two">
         <Panel title="Needs Attention">
           {review.length ? (
-            review.slice(0, 8).map((r, i) => (
-              <p key={i}>
-                <Link className="blue-electric menu-link-blue-electric dashboard-attention-link" href={r.path}>↗ {r.kind}</Link>
-              </p>
-            ))
+            <DashboardAttention items={review.map(r => ({path:r.path,kind:r.kind}))}/>
           ) : (
             <Empty>
               {ready
