@@ -56,7 +56,7 @@ export default async function AppPage({
       return path[1] === "equipment" ? (
         <Equipment expense={q.expense} />
       ) : (
-        <Finance section={path[1]} id={path[2]} created={q.created} />
+        <Finance section={path[1]} id={path[2]} created={q.created} search={q} />
       );
     case "settings":
       return <Settings tab={q.tab} />;

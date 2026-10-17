@@ -1,3 +1,9 @@
+import {FinanceQuarterRollover} from "@/components/finance-quarter-rollover";
+import {EquipmentRegistrationModal} from "@/components/equipment-registration-modal";
+import {FinanceListFrame} from "@/components/finance-list-frame";
+import {FinanceTransactions} from "@/features/finance-transactions";
+import type {TransactionSearch} from "@/lib/domain/transaction-filters";
+import {salesTaxSummary} from "@/lib/domain/sales-tax-summary";
 import {SmsExpenseTrace} from "@/components/sms-expense-trace";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
@@ -13,7 +19,7 @@ import {
 } from "@/components/ui";
 import { Form } from "@/components/form";
 import { MovementForm } from "@/components/movement-form";
-import { money } from "@/lib/domain/money";
+import { cents, decimal, money } from "@/lib/domain/money";
 import { EvidenceUpload } from "@/components/evidence-upload";
 import { legacyDriveUrl } from "@/lib/storage/files";
 export async function Movement({
@@ -67,10 +73,12 @@ export async function Finance({
   section,
   id,
   created,
+  search,
 }: {
   section?: string;
   id?: string;
   created?: string;
+  search?: TransactionSearch;
 }) {
   const heading = (
     <>
@@ -96,11 +104,27 @@ export async function Finance({
               Funds attributed to ToolTag based on recorded movements. It does not represent the
               full balance of the shared bank account.
             </dd>
+            <dt>Expenses</dt>
+            <dd>
+              All recorded money leaving any ToolTag account, including expenses,
+              customer refunds, owner reimbursements and withdrawals, and transfers
+              out of ToolTag. Voided movements are excluded. Incoming refunds do
+              not reduce this total; owner-paid expenses count only when reimbursed.
+            </dd>
             <dt>Net Profit</dt>
             <dd>
-              Sales minus customer refunds and net operating expenses.
-              Collecting a sale does not create income again. Equipment is shown
-              separately; depreciation is not calculated.
+              Registered sales revenue minus all outgoing funds shown in Expenses.
+              Sales tax and owner contributions are not revenue. Customer refunds
+              are counted once, within Expenses. Collecting a sale does not create
+              income again.
+            </dd>
+            <dt>Sales Tax</dt>
+            <dd>
+              Tax on registered sales, less the tax portion of customer refunds,
+              using the tax amounts recorded with each transaction. The current
+              quarter follows the annual start dates configured in Settings → Prices
+              and uses Denver time. Accumulated tax retains the full history;
+              this is not a balance of tax payments or filings.
             </dd>
             <dt>Equipment Investment</dt>
             <dd>
@@ -125,8 +149,7 @@ export async function Finance({
           </dl>
           <p>
             Receipt review applies the approved internal rule:
-            required at $75 and above and always for lodging. Missing receipts may be saved and
-            reviewed later.
+            required at $75 and above. Upload a receipt image before saving any expense of $75 or more.
           </p>
         </Panel>
       </>
@@ -299,8 +322,7 @@ export async function Finance({
   if (section === "sales") {
     const sales = await rows("sale_balances");
     return (
-      <>
-        {heading}
+      <FinanceListFrame header={heading}>
         <Panel>
           {sales.length ? (
             <Table
@@ -326,22 +348,20 @@ export async function Finance({
             <Empty>Sales are created when a Quote and terms are accepted.</Empty>
           )}
         </Panel>
-      </>
+      </FinanceListFrame>
     );
   }
   if (section === "expenses") {
     const expenses = await rows("expense_details");
-    const saved = expenses.find((e) => e.transaction_id === created);
+    const validCreated = typeof created === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(created);
+    const saved = validCreated ? (await rows("expense_details",{field:"transaction_id",value:created}))[0] : undefined;
+    const canRegister = (await context()).access.owner;
+    const equipmentCategories = saved?.is_equipment && !saved.linked_asset_id && canRegister
+      ? (await rows("categories")).filter(c=>c.kind==="asset"&&c.active).map(c=>({value:c.id,label:c.name})) : [];
     return (
-      <>
-        {heading}
-        {saved?.is_equipment && !saved.linked_asset_id && (
-          <div className="notice success">
-            Purchase saved.{" "}
-            <Link href={`/app/equipment?expense=${created}`}>
-              Create Linked Equipment →
-            </Link>
-          </div>
+      <FinanceListFrame header={heading}>
+        {saved?.is_equipment && !saved.linked_asset_id && canRegister && (
+          <EquipmentRegistrationModal key={saved.transaction_id} categories={equipmentCategories} expense={{id:saved.transaction_id,description:saved.description,amount:String(saved.amount),vendor:saved.vendor??"",date:saved.transaction_date}}/>
         )}
         <Panel title="Expenses">
           {expenses.length ? (
@@ -398,7 +418,7 @@ export async function Finance({
             back="/app/finance/expenses"
           />
         </details>
-      </>
+      </FinanceListFrame>
     );
   }
   if (section === "review") {
@@ -491,46 +511,54 @@ export async function Finance({
       </>
     );
   }
-  if (section === "transactions") {
-    const tx = await rows("transactions", { order: "transaction_date" });
-    return (
-      <>
-        {heading}
-        <Panel>
-          {tx.length ? (
-            <Table
-              headers={["Date", "Transaction", "Type", "Amount", "Status"]}
-            >
-              {tx.map((t) => (
-                <tr key={t.id}>
-                  <td>{t.transaction_date}</td>
-                  <td>
-                    <Link href={`/app/finance/transactions/${t.id}`}>
-                      {t.description}
-                    </Link>
-                  </td>
-                  <td>{t.type}</td>
-                  <td>{money(t.amount)}</td>
-                  <td>
-                    <Badge>{t.status}</Badge>
-                  </td>
-                </tr>
-              ))}
-            </Table>
-          ) : (
-            <Empty />
-          )}
-        </Panel>
-      </>
-    );
+  if (section === "transactions") return <FinanceTransactions search={search} header={heading}/>;
+  const { db, unit } = await context();
+  const [summary,quarterSettings] = await Promise.all([rows("finance_summary"),db.rpc("tax_quarter_dates")]);
+  if(quarterSettings.error || !quarterSettings.data)throw new Error("Unable to load Sales Tax reporting dates.");
+  const s = summary[0];
+  // Read every ledger effect, across all TT accounts, without rows()'s
+  // 200-record cap. Voided movements are excluded by the existing ledger.
+  // Positive revenue represents registered sales, excluding sales tax. Negative
+  // revenue (customer refunds) is not deducted again: it is already an outflow.
+  const taxTransactions = new Map<string, {type:string;amount:string}>();
+  for (let offset = 0; ; offset += 500) {
+    const {data,error} = await db.from("transactions").select("id,type,amount")
+      .eq("unit_id",unit).neq("status","Voided").in("type",["SALE","REFUND"])
+      .order("id").range(offset,offset+499);
+    if (error) throw new Error(`Unable to load recorded sales tax: ${error.message}`);
+    for (const row of data ?? []) taxTransactions.set(row.id,{type:row.type,amount:String(row.amount)});
+    if ((data?.length ?? 0) < 500) break;
   }
-  const s = (await rows("finance_summary"))[0];
+  const taxRecords: Parameters<typeof salesTaxSummary>[0] = [];
+  let outgoingCents = 0n;
+  let salesCents = 0n;
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await db.from("financial_effects")
+      .select("id,cash,revenue,transaction_date").eq("unit_id", unit)
+      .order("id").range(offset, offset + 499);
+    if (error) throw new Error(`Unable to load ToolTag financial totals: ${error.message}`);
+    for (const effect of data ?? []) {
+      const cash = String(effect.cash);
+      const revenue = String(effect.revenue);
+      const transaction = taxTransactions.get(effect.id);
+      if (transaction) taxRecords.push({...transaction,revenue,date:effect.transaction_date});
+      if (cash.startsWith("-")) outgoingCents += cents(cash.slice(1));
+      if (!revenue.startsWith("-")) salesCents += cents(revenue);
+    }
+    if ((data?.length ?? 0) < 500) break;
+  }
+  const salesTax = salesTaxSummary(taxRecords,new Date(),quarterSettings.data);
+  const totalExpenses = decimal(outgoingCents);
+  const netProfitCents = salesCents - outgoingCents;
+  const netProfit = decimal(netProfitCents);
+  const netProfitTone = netProfitCents > 0n ? "positive" : netProfitCents < 0n ? "negative" : undefined;
   return (
     <>
       {heading}
       <div className="grid">
         {[
           ["operating_balance", "Main Account"],
+          ["expenses", "Expenses"],
           ["net_profit", "Net Profit"],
           ["equipment_investment", "Equipment Investment"],
           ["owner_injection", "Owner Injection"],
@@ -541,14 +569,26 @@ export async function Finance({
           <Metric
             key={k}
             label={l}
-            value={s?.[k]}
+            tone={k === "net_profit" ? netProfitTone : undefined}
+            value={k === "expenses" ? totalExpenses : k === "net_profit" ? netProfit : s?.[k]}
             help={
-              k === "available_balance"
+              k === "expenses"
+                ? "All recorded outgoing money across every ToolTag account; voided movements excluded."
+                : k === "net_profit"
+                ? "Registered sales revenue minus total outgoing funds. Sales tax and owner contributions are excluded from revenue."
+                : k === "available_balance"
                 ? "Attributed funds minus expenses still owed to the owner."
                 : undefined
             }
           />
         ))}
+        <FinanceQuarterRollover starts={quarterSettings.data} currentStart={salesTax.quarter.start}/>
+        <div className="metric" aria-label="Sales Tax">
+          <span className="muted">Sales Tax</span>
+          <section aria-label="Accumulated sales tax"><small>Total accumulated</small><strong>{money(salesTax.accumulated)}</strong></section>
+          <section aria-label="Current quarter sales tax"><small>Current quarter · {salesTax.quarter.label}</small><strong>{money(salesTax.current)}</strong></section>
+          <small>Registered sales tax, less customer refund tax. Current quarter resets automatically on the configured start dates (Denver time).</small>
+        </div>
       </div>
       <Link className="button secondary" href="/app/finance/about">
         How Each Number Is Calculated →

@@ -1740,3 +1740,62 @@ body:has(.get-tagged-react-dialog[open]) {
 .lost-case-row:hover {filter:none;}
 .lost-case-modal {width:min(720px,calc(100vw - 32px));max-height:85dvh;overflow:auto;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:20px;}
 .lost-case-modal::backdrop {background:#000b;}
+
+/* Financial result: neutral at zero; green profit and red loss. */
+.metric.metric-positive { border-top-color: #6bdfa0; }
+.metric.metric-positive strong { color: #6bdfa0; }
+.metric.metric-negative { border-top-color: #ff7575; }
+.metric.metric-negative strong { color: #ff7575; }
+
+/* Finance lists keep their title, primary actions and filter bar together while
+   the results scroll; no hardcoded header heights or overlapping sticky rows. */
+.finance-list-workspace { min-width: 0; }
+.finance-list-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg);
+  padding-top: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
+}
+.finance-list-sticky .pagehead { margin-bottom: 12px; }
+.finance-list-sticky .tabs { margin-bottom: 12px; }
+.transaction-filter-panel {
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  min-width: 0;
+}
+.transaction-filter-panel h2 { margin-bottom: 10px; }
+.transaction-filter-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.transaction-filter-form > label { flex: 0 0 140px; min-width: 0; }
+.transaction-filter-form > label:first-child { flex: 1 0 240px; }
+.transaction-filter-form > .actions { flex: 0 0 auto; flex-wrap: nowrap; }
+.transaction-filter-form input, .transaction-filter-form select { min-width: 0; }
+@media (max-width: 520px) {
+  .transaction-filter-panel { padding: 12px; }
+  .transaction-filter-form > label { flex-basis: 130px; }
+  .finance-list-sticky .pagehead { gap: 10px; }
+}
+
+.equipment-registration-modal {
+  width: min(720px, calc(100vw - 32px));
+  max-height: 85dvh;
+  overflow: auto;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+}
+.equipment-registration-modal::backdrop { background: #000b; }
+.equipment-registration-modal .pagehead { gap: 12px; margin-bottom: 16px; }

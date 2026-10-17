@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
+import {EvidenceUpload} from "./evidence-upload";
 import { Form, type Field } from "./form";
 type Option = { value: string; label: string };
 export function MovementForm({
@@ -30,6 +31,8 @@ export function MovementForm({
   saleId?: string;
   vendors: string[];
 }) {
+  const [amount,setAmount]=useState("");
+  const [proofId,setProofId]=useState("");
   const [type, setType] = useState(defaultType);
   const [subtype, setSubtype] = useState("Personal Draw");
   const [paidBy, setPaidBy] = useState("Business");
@@ -160,13 +163,17 @@ export function MovementForm({
         )}
       </div>
       {type === "REFUND" && <p className="notice">Customer refunds must be linked to a Job. <Link href="/app/refunds">Open refund case management</Link></p>}
+      {type==="EXPENSE"&&<section className="panel"><h3>Expense receipt</h3><p>A receipt image is required for expenses of $75 or more. Take a photo or choose an image, then upload it before recording the expense.</p>{proofId?<><p role="status">Receipt image ready.</p><button type="button" className="secondary" onClick={()=>setProofId("")}>Replace receipt</button></>:<EvidenceUpload config={{type:"Other",expenseProof:true,photoOnly:true,defaultVisibility:"internal"}} accept="image/png,image/jpeg,image/webp" button="Upload receipt image" onStored={setProofId}/>}</section>}
       <Form
+        onFieldChange={(name,value)=>{if(name==="amount")setAmount(value);}}
+        submitDisabled={type==="EXPENSE"&&Number(amount)>=75&&!proofId}
         key={`${type}:${subtype}:${paidBy}`}
         operation="movement"
         onSaved={onSaved}
         fields={fields}
         hidden={{
           request_id: requestId,
+          ...(type==="EXPENSE"&&proofId?{proof_id:proofId}:{}),
           ...(lostCaseId ? {lost_id:lostCaseId} : {}),
           type,
           subtype,

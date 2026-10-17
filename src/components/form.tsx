@@ -24,6 +24,8 @@ export function Form({
   back = "/app",
   children,
   onSaved,
+  onFieldChange,
+  submitDisabled = false,
 }: {
   operation: string;
   fields: Field[];
@@ -32,6 +34,8 @@ export function Form({
   back?: string;
   children?: React.ReactNode;
   onSaved?: (data:unknown)=>void;
+  onFieldChange?: (name:string,value:string)=>void;
+  submitDisabled?: boolean;
 }) {
   const allowed = useActionPermission(operation);
   const [customerPhone, setCustomerPhone] = useState(fields.find(f=>f.name==="phone")?.value??"");
@@ -80,7 +84,7 @@ export function Form({
               <input
                 list={f.suggestions ? `suggest-${f.name}` : undefined}
                 name={f.name}
-                onChange={operation==="customer" && f.name==="phone" ? e=>setCustomerPhone(e.target.value) : undefined}
+                onChange={e=>{if(operation==="customer"&&f.name==="phone")setCustomerPhone(e.target.value);onFieldChange?.(f.name,e.target.value);}}
                 type={f.type ?? "text"}
                 required={f.required}
                 defaultValue={f.value}
@@ -126,7 +130,7 @@ export function Form({
       )}
       {state.mailStatus && <p className="notice wide">{state.mailStatus}</p>}
       {state.ok && <div className="notice success wide">Saved.</div>}
-      <button disabled={pending}>{pending ? "Saving…" : button}</button>
+      <button disabled={pending||submitDisabled}>{pending ? "Saving…" : button}</button>
     </form>
   );
 }

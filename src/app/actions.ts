@@ -1,4 +1,5 @@
 "use server";
+import {validateTaxQuarters} from "@/lib/domain/sales-tax-summary";
 import { smsGrantAllowed } from "@/lib/integrations/sms-policy";
 import { canMutate, driverOnly } from "@/lib/auth/permissions";
 import { stripeTestCustomer } from "@/lib/payments/stripe-test-customer";
@@ -203,6 +204,7 @@ export async function mutate(
         }
         break;
       case "movement":
+        if(p.type==="EXPENSE"&&cents(String(p.amount))>=7500n&&!p.proof_id)return {error:"Upload a receipt image before saving an expense of $75 or more."};
         cents(String(p.amount));
         name = p.lost_id ? "record_lost_replacement_expense" : "record_movement";
         break;
@@ -281,6 +283,11 @@ export async function mutate(
         break;
       case "sms-cost-settings":
         name="save_sms_cost_settings"; args={p_rate:p.sms_unit_cost,p_account:p.sms_expense_account_id}; break;
+      case "sales-tax-quarter-settings": {
+        const starts = [1,2,3,4].map(n => `${String(p[`q${n}_month`] ?? "").padStart(2,"0")}-${String(p[`q${n}_day`] ?? "").padStart(2,"0")}`);
+        validateTaxQuarters(starts);
+        name="save_tax_quarters";args={p_starts:starts};break;
+      }
       case "sales-tax-settings":
         name="save_sales_tax_rate"; args={p_rate:p.sales_tax_rate}; break;
       case "workspace-profile":

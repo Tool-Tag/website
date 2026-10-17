@@ -623,3 +623,53 @@ test("Lost payment details validate methods and use authenticated encryption wit
   delete process.env.TOOLTAG_PAYMENT_DETAILS_ENCRYPTION_KEY;assert.throws(()=>encryptLostPaymentDetails(clean,"lost-test"),/not configured/);
  }finally{if(previous===undefined)delete process.env.TOOLTAG_PAYMENT_DETAILS_ENCRYPTION_KEY;else process.env.TOOLTAG_PAYMENT_DETAILS_ENCRYPTION_KEY=previous;}
 });
+
+test("Sales Tax quarters reset at Denver calendar boundaries and retain accumulated recorded tax", async () => {
+  const {salesTaxQuarter,salesTaxSummary} = await import("../src/lib/domain/sales-tax-summary");
+  assert.equal(salesTaxQuarter(new Date("2027-01-01T06:59:59Z")).label,"Q4 2026");
+  assert.equal(salesTaxQuarter(new Date("2027-01-01T07:00:00Z")).label,"Q1 2027");
+  assert.equal(salesTaxQuarter(new Date("2026-04-01T05:59:59Z")).label,"Q1 2026");
+  assert.equal(salesTaxQuarter(new Date("2026-04-01T06:00:00Z")).label,"Q2 2026");
+  const records = [
+    {type:"SALE",amount:"107.45",revenue:"100.00",date:"2026-09-30"},
+    {type:"SALE",amount:"214.90",revenue:"200.00",date:"2026-10-01"},
+    {type:"REFUND",amount:"53.73",revenue:"-50.00",date:"2026-10-02"},
+    {type:"REFUND",amount:"25.00",revenue:"0.00",date:"2026-10-03"},
+    {type:"SALE",amount:"10.00",revenue:"10.00",date:"2026-10-04"},
+  ];
+  const q4=salesTaxSummary(records,new Date("2026-10-17T12:00:00Z"));
+  assert.equal(q4.accumulated,"18.62");assert.equal(q4.current,"11.17");
+  const q1=salesTaxSummary(records,new Date("2027-01-01T07:00:00Z"));
+  assert.equal(q1.accumulated,"18.62");assert.equal(q1.current,"0.00");
+});
+
+test("Sales Tax uses configurable annual quarter dates, including fiscal-year rollover", async () => {
+  const {salesTaxQuarter,validateTaxQuarters,salesTaxSummary} = await import("../src/lib/domain/sales-tax-summary");
+  const starts=["10-15","01-15","04-15","07-15"];
+  assert.equal(salesTaxQuarter(new Date("2027-01-15T06:59:59Z"),starts).label,"Q1 2026");
+  assert.equal(salesTaxQuarter(new Date("2027-01-15T07:00:00Z"),starts).label,"Q2 2027");
+  assert.deepEqual(salesTaxQuarter(new Date("2026-10-17T12:00:00Z"),starts),{start:"2026-10-15",end:"2027-01-15",label:"Q1 2026"});
+  for (const invalid of [["01-01","01-01","07-01","10-01"],["02-29","04-01","07-01","10-01"],["02-30","04-01","07-01","10-01"],["01-01","10-01","07-01","04-01"]]) assert.throws(()=>validateTaxQuarters(invalid));
+  const records=[{type:"SALE",amount:"107.45",revenue:"100.00",date:"2026-10-14"}];
+  assert.equal(salesTaxSummary(records,new Date("2026-10-17T12:00:00Z"),starts).current,"0.00");
+  assert.equal(salesTaxSummary(records,new Date("2026-10-17T12:00:00Z"),starts).accumulated,"7.45");
+});
+
+test("Transactions validate filters and preserve them across twenty-record pages",async()=>{
+  const {transactionFilters,transactionPageUrl,TRANSACTION_PAGE_SIZE}=await import("../src/lib/domain/transaction-filters");
+  assert.equal(TRANSACTION_PAGE_SIZE,20);
+  const filters=transactionFilters({q:"TEST- drill",type:"EXPENSE",status:"Active",from:"2026-10-01",to:"2026-10-31",page:"2"});
+  const url=new URL(transactionPageUrl(filters,3),"https://example.test");
+  assert.equal(url.searchParams.get("q"),"TEST- drill");assert.equal(url.searchParams.get("type"),"EXPENSE");assert.equal(url.searchParams.get("from"),"2026-10-01");assert.equal(url.searchParams.get("page"),"3");
+  const bad=transactionFilters({q:'abc%,status.eq.Voided(*)',type:"unknown",status:"unknown",from:"2026-02-30",account:"not-a-uuid",page:"-2"});
+  assert.equal(bad.type,"");assert.equal(bad.status,"");assert.equal(bad.from,"");assert.equal(bad.account,"");assert.equal(bad.page,1);assert.equal(/[,*()%]/.test(bad.q),false);
+});
+
+test("Expense proof rejects oversized, unsupported and mislabeled files before registration",async()=>{
+ const {expenseProofError}=await import("../src/lib/domain/expense-proof");
+ assert.equal(expenseProofError({size:3,type:"image/jpeg"},new Uint8Array([255,216,255])),null);
+ assert.ok(expenseProofError({size:4*1024*1024,type:"image/jpeg"}));
+ assert.ok(expenseProofError({size:20,type:"application/pdf"}));
+ assert.ok(expenseProofError({size:3,type:"image/png"},new Uint8Array([255,216,255])));
+ assert.ok(expenseProofError({size:0,type:"image/jpeg"}));
+});
