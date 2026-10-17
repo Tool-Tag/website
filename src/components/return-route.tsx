@@ -1,3 +1,4 @@
+import {DriverBlockAgreement,type BlockAgreement} from "./driver-block-agreement";
 import { RouteDeparture } from "@/components/route-departure";
 import {RouteItemVerification} from "@/components/route-item-verification";
 import {RouteExceptionControls} from "@/components/route-exception-controls";
@@ -14,11 +15,12 @@ import {StatusRefresh} from "@/components/status-refresh";
 export async function ReturnRoute({date}:{date:string}){
  const {db,unit}=await context();
  const {data:routes,error}=await db.from("pick_return_routes").select("*").eq("unit_id",unit).eq("leg","Return").eq("route_date",date);
- if(error)throw new Error("Could not load Return routes");
+ if(error)throw new Error("Could not load Delivery routes");
+ const agreements=await Promise.all((routes??[]).filter(r=>r.operator_id&& !r.departed_at&& !["Completed","Cancelled"].includes(r.status)).map(async r=>{const result=await db.rpc("driver_block_agreement",{p_route:r.id});if(result.error)throw new Error("Could not load block acceptance agreement");return result.data as BlockAgreement;}));
  const ids=(routes??[]).map(r=>r.id);
  const liveChannels=await Promise.all(ids.map(async id=>(await db.rpc("route_live_channel",{p_route:id})).data));
  const {data:stops,error:stopError}=ids.length?await db.from("pick_return_stops").select("*").eq("unit_id",unit).in("route_id",ids).order("sequence"):{data:[],error:null};
- if(stopError)throw new Error("Could not load Return stops");
+ if(stopError)throw new Error("Could not load Delivery stops");
  const {data:incidents,error:incidentError}=ids.length?await db.from("route_incidents").select("id,route_id,status,deadline").eq("unit_id",unit).in("route_id",ids):{data:[],error:null};
  if(incidentError)throw new Error("Could not load route exceptions");
  const {data:replacements,error:replacementError}=await db.from("lost_replacement_deliveries").select("id,item_ids").eq("unit_id",unit);if(replacementError)throw new Error("Could not load replacement manifests");
@@ -34,15 +36,16 @@ export async function ReturnRoute({date}:{date:string}){
  db.from("job_extensions").select("job_id,status").eq("unit_id",unit).in("job_id",jobIds),
  Promise.all(ids.map(id=>db.rpc("driver_route_balances",{p_route:id}))).then(responses=>({data:responses.flatMap(r=>r.data??[]),error:responses.find(r=>r.error)?.error??null}))
  ]):[];
- if(results.some(r=>r.error))throw new Error("Could not load Return details");
+ if(results.some(r=>r.error))throw new Error("Could not load Delivery details");
  const [orders,jobs,logistics,items,documents,flows,customers,extensions,balances]=results.map(r=>r.data??[]);
  const allowed=new Set((orders??[]).filter(o=>o.return_status=== "Delivery In Progress" || (o.return_window_start&&new Date(o.return_window_start).toLocaleDateString("en-CA",{timeZone:"America/Denver"})===date)).map(o=>o.job_id));
  const visible=(stops??[]).filter(s=>s.status!=="Cancelled"&&s.status!=="Failed"&&jobs?.some(j=>j.id===s.job_id&&(!j.is_lost||s.lost_replacement_id))&&(Boolean(s.lost_replacement_id)||allowed.has(s.job_id))&&(items??[]).some(i=>i.job_id===s.job_id)&&(Boolean(s.lost_replacement_id)||(items??[]).filter(i=>i.job_id===s.job_id).every(i=>["Finished","Cancelled"].includes(i.stage))||(extensions??[]).some(x=>x.job_id===s.job_id&&["Requested","Draft","Sent","Approved"].includes(x.status))));
  return <section className="return-route driver-landing"><RouteDeparture/><StatusRefresh channels={liveChannels.filter((value):value is string=>typeof value==="string")} />
- <Link className="button secondary" href="/pick-return">← All routes</Link><p className="eyebrow">SUNDAY / RETURN</p><h1>{routeDateLabel(date)}</h1><p className="driver-window">2:00 PM–6:00 PM · Denver time</p><p>{visible.filter(s=>s.status==="Completed").length}/{visible.length} delivered</p>
+ <Link className="button secondary" href="/pick-return">← All routes</Link><p className="eyebrow">SUNDAY / DELIVERY</p><h1>{routeDateLabel(date)}</h1><p className="driver-window">2:00 PM–6:00 PM · Denver time</p><p>{visible.filter(s=>s.status==="Completed").length}/{visible.length} delivered</p>
+ {agreements.map(a=><DriverBlockAgreement key={a.snapshot.route_id} agreement={a}/>)}
  {(routes??[]).map(route=><RouteNotificationControls key={route.id} leg="Return" route={route.id} departed={route.departed_at} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}
  {(routes??[]).map(route=><RouteExceptionControls key={route.id} arrived={(stops??[]).some(s=>s.route_id===route.id&&s.status==="Arrived")} route={route.id} leg="Return" incident={(incidents??[]).find(i=>i.route_id===route.id)} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}
- {!visible.length&&<div className="panel"><h2>No ready Returns</h2><p>Only completed jobs with a delivery leg appear here.</p></div>}
+ {!visible.length&&<div className="panel"><h2>No ready deliveries</h2><p>Only completed jobs with a delivery leg appear here.</p></div>}
  {visible.map((stop,index)=>{
  const job=(jobs??[]).find(j=>j.id===stop.job_id);if(!job)return null;
  const flow=(flows??[]).find(f=>f.id===job.flow_id);const customer=(customers??[]).find(c=>c.id===flow?.customer_id);
@@ -51,7 +54,7 @@ export async function ReturnRoute({date}:{date:string}){
  const replacement=Boolean(stop.lost_replacement_id);
  const paused=(incidents??[]).some(i=>i.route_id===stop.route_id&&i.status==="Open");
  const blocked=paused||(!replacement&&(job.status==="Cancelled"||/Cancellation Requested|Production Hold/.test(job.work_stage??"")||(extensions??[]).some(x=>x.job_id===job.id&&["Requested","Draft","Sent"].includes(x.status))||pieces.some(i=>i.stage!=="Finished")));
- return <article id={`return-stop-${stop.id}`} className="driver-card return-stop" key={stop.id}><div className="driver-card-heading"><span className="driver-icon">{index+1}</span><div><h2>{customer?.name??"Customer"}</h2><p>{job.code} · {stop.status==="Completed"?"Delivered":stop.status==="Requested"?"Pending · second Return payment":stop.status==="Scheduled"?"Return Scheduled":stop.status==="En Route"?"Return En Route":stop.status}</p></div></div>
+ return <article id={`return-stop-${stop.id}`} className="driver-card return-stop" key={stop.id}><div className="driver-card-heading"><span className="driver-icon">{index+1}</span><div><h2>{customer?.name??"Customer"}</h2><p>{job.code} · {stop.status==="Completed"?"Delivered":stop.status==="Requested"?"Pending · second delivery payment":stop.status==="Scheduled"?"Delivery Scheduled":stop.status==="En Route"?"Delivery En Route":stop.status}</p></div></div>
  {customer?.phone&&<a className="button secondary" href={`tel:${customer.phone.replace(/[^+0-9]/g,"")}`}>{customer.phone}</a>}
  <p className="return-address">{stop.address||(logistics??[]).find(l=>l.quote_id===job.quote_id)?.delivery_address||"Delivery address unavailable"}</p><p>Window: 2:00 PM–6:00 PM</p>{stop.approximate_eta&&<p><strong>ETA aprox.: {denverTime(stop.approximate_eta)}</strong></p>}{stop.eta&&<p><strong>ETA: {denverTime(stop.eta)}</strong></p>}
  {replacement&&<p className="badge">TOP PRIORITY · FREE REPLACEMENT</p>}<h3>{pieces.length} pieces</h3><ul>{[...summary].map(([name,count])=><li key={name}>{count} × {name}</li>)}</ul>

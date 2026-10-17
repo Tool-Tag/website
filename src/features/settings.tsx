@@ -11,7 +11,7 @@ import { Form } from "@/components/form";
 
 const TABS = [
   ["general", "General"],
-  ["pick-return", "Pick & Return"],
+  ["pick-return", "Pick up & Delivery"],
   ["notifications", "Notifications"],
   ["prices", "Prices"],
   ["users", "Users and roles"],
@@ -192,10 +192,10 @@ export async function Settings({ tab }: { tab?: string }) {
   }
   if (active === "pick-return") return <>{heading}
     <Panel title="Route Days and Capacity">
-      <p className="notice">If you change or add Pickup or Return days, review the Customer Agreement and update it as needed before offering the new schedule. ToolTag does not edit or republish the Agreement automatically.</p>
+      <p className="notice">If you change or add Pickup or Delivery days, review the Customer Agreement and update it as needed before offering the new schedule. ToolTag does not edit or republish the Agreement automatically.</p>
       <Form operation="settings" hidden={{ pickup_route_iso_weekdays_present: "1", return_route_iso_weekdays_present: "1" }} fields={[
-        ...(["pickup", "return"] as const).map(leg => ({ name: `${leg}_route_iso_weekdays`, label: leg === "pickup" ? "Pickup Route Days" : "Return Route Days", value: (s?.[`${leg}_route_iso_weekdays`] ?? [leg === "pickup" ? 6 : (s?.delivery_route_iso_weekday ?? 7)]).join(","), multiple: true, options: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((label, index) => ({ value: String(index + 1), label })), help: "Select at least one day. New availability updates automatically; existing bookings stay unchanged." })),
-        { name: "max_delivery_stops_per_sunday", label: "Maximum Stops per Return Route Day", type: "number", value: String(s?.max_delivery_stops_per_sunday ?? 20), help: "13 reservable ETAs; multiple Return stops may share an ETA." },
+        ...(["pickup", "return"] as const).map(leg => ({ name: `${leg}_route_iso_weekdays`, label: leg === "pickup" ? "Pickup Route Days" : "Delivery Route Days", value: (s?.[`${leg}_route_iso_weekdays`] ?? [leg === "pickup" ? 6 : (s?.delivery_route_iso_weekday ?? 7)]).join(","), multiple: true, options: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((label, index) => ({ value: String(index + 1), label })), help: "Select at least one day. New availability updates automatically; existing bookings stay unchanged." })),
+        { name: "max_delivery_stops_per_sunday", label: "Maximum Stops per Delivery Route Day", type: "number", value: String(s?.max_delivery_stops_per_sunday ?? 20), help: "13 reservable ETAs; multiple delivery stops may share an ETA." },
         { name: "max_pickup_stops_per_saturday", label: "Maximum Stops per Pickup Route Day", type: "number", required: true, value: String(s?.max_pickup_stops_per_saturday ?? 10), help: "Review & Accept hides Pickup days once this capacity is reached." },
       ]} back="/app/settings?tab=pick-return" button="Save Route Settings" />
     </Panel>
@@ -203,7 +203,7 @@ export async function Settings({ tab }: { tab?: string }) {
       <p className="muted">This address is shown to the driver as a departure reference. Approximate ETA still uses the driver&apos;s live location; saving it does not reschedule stops.</p>
       <Form operation="workspace-profile" fields={[{ name: "route_departure_address", label: "Shop / Route Departure Address", type: "textarea", wide: true, value: s?.route_departure_address ?? "" }]} back="/app/settings?tab=pick-return" button="Save Departure Point" />
     </Panel>
-    <Panel title="Route Windows"><p>Pickup: 8:00 AM–12:00 PM · America/Denver.</p><p>Return: 2:00 PM–6:00 PM · America/Denver.</p><p className="muted">These are the current fixed scheduling windows. Changing route days preserves these windows and existing bookings.</p></Panel>
+    <Panel title="Route Windows"><p>Pickup: 8:00 AM–12:00 PM · America/Denver.</p><p>Delivery: 2:00 PM–6:00 PM · America/Denver.</p><p className="muted">These are the current fixed scheduling windows. Changing route days preserves these windows and existing bookings.</p></Panel>
   </>;
   return <>{heading}
     <Panel title="Engraving Pricing"><p>Base service price is reviewed manually for each quote item.</p><p>The first engraving is included; each additional engraving costs $5 per physical piece.</p><p>Paint fill costs $2 per colored physical piece, once per piece.</p><p>Falcon image/logo preparation costs $3 per unique image/logo, once per quote.</p><p className="muted">These are the existing pricing rules. This page does not change accepted quote snapshots or pricing calculations.</p></Panel>
@@ -217,7 +217,7 @@ export async function Settings({ tab }: { tab?: string }) {
       ])} back="/app/settings?tab=prices" button="Save Quarter Dates" />
     </Panel>
     <Panel title="Logistics Fees"><Table headers={["Service", "Fee"]}>{LOGISTICS_OPTIONS.map(option => <tr key={option.code}><td>{option.name}</td><td>{money(option.fee.toFixed(2))}</td></tr>)}</Table></Panel>
-    <Panel title="Payment Accounts and Return Retry">
+    <Panel title="Payment Accounts and Delivery Retry">
       <p className="muted">Identifiers belong to ToolTag. Confirmed Venmo: @boftbuild — Bandits of the Framing.</p>
       <p>Card provider: <strong>{process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET ? "Stripe configured" : "Stripe not configured"}</strong></p>
       <p>Final in-person payments: Cash, Zelle, Venmo. Review logistics fees: Card, Zelle or Venmo only · no cash.</p>

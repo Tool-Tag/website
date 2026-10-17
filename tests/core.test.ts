@@ -285,12 +285,12 @@ test("Driver defaults choose the nearest of multiple configured route days",()=>
  assert.equal(driverDates("2026-10-13",new Date(),[3,7],[2,6]).pickup,"2026-10-13");
 });
 
-import {routeProgress,jobTimelineProgress,spanishStopStatus} from "../src/lib/domain/customer-route-tracking";
+import {routeProgress,jobTimelineProgress,stopStatusLabel} from "../src/lib/domain/customer-route-tracking";
 test("Customer route timeline resolves failed stops without claiming delivery, and separates current/upcoming",()=>{
  const stops=[{position:1,status:"Completed",is_customer:false},{position:2,status:"Failed",is_customer:false},{position:3,status:"Arrived",is_customer:true},{position:4,status:"Requested",is_customer:false}];
  const result=routeProgress(stops);
  assert.equal(result.percentage,50);assert.equal(result.done.length,2);assert.equal(result.current[0].is_customer,true);assert.equal(result.upcoming[0].status,"Requested");
- assert.equal(spanishStopStatus.Failed,"Intento sin completar");assert.equal(routeProgress([]).percentage,0);
+ assert.equal(stopStatusLabel.Failed,"Attempt not completed");assert.equal(routeProgress([]).percentage,0);
  assert.equal(routeProgress(stops.map(s=>({...s,status:"Completed"}))).percentage,100);
 });
 test("Completed job timeline has no upcoming stages and all stages are Done",()=>{
@@ -709,4 +709,19 @@ test("List pagination keeps urgency order, twenty cases per page and safe stale-
  assert.deepEqual(paginateList(cases,"999").items,cases.slice(40));
  for(const invalid of [undefined,"-1","0","1.5","NaN","Infinity"])assert.equal(paginateList(cases,invalid).page,1);
  assert.deepEqual(paginateList([],"4"),{items:[],total:0,pages:1,page:1,start:0,end:0});
+});
+
+test("SMS activation is production-only, explicitly overridable, and safe without configuration",async()=>{
+ const {smsMode}=await import("../src/lib/integrations/sms");
+ assert.equal(smsMode({},true),"preview");assert.equal(smsMode({VERCEL_ENV:"preview"},true),"preview");
+ assert.equal(smsMode({VERCEL_ENV:"production"},false),"preview");assert.equal(smsMode({VERCEL_ENV:"production"},true),"live");
+ assert.equal(smsMode({VERCEL_ENV:"production",TOOLTAG_SMS_MODE:"preview"},true),"preview");
+ assert.equal(smsNetworkAllowed({VERCEL_ENV:"production"},true),true);
+ const {dispatchSms}=await import("../src/lib/integrations/sms-dispatch");
+ const calls:string[]=[];
+ const db={rpc:async(name:string)=>{calls.push(name);return {data:{enabled:false},error:null};}};
+ const result=await dispatchSms(db as unknown as Parameters<typeof dispatchSms>[0]);
+ assert.deepEqual(result,{sent:0,skipped:0,failed:0});assert.deepEqual(calls,["sms_runtime_config"]);
+ const broken={rpc:async()=>{throw new Error("offline");}};
+ assert.deepEqual(await dispatchSms(broken as unknown as Parameters<typeof dispatchSms>[0]),{sent:0,skipped:0,failed:0});
 });

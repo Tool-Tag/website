@@ -55,9 +55,9 @@ export async function DriverRoute({leg,date,routeId}:{leg:"pickup"|"return";date
       <div className="pick-return-head">
         <div>
           <p className="eyebrow">ToolTag · Operations Mode</p>
-          <h1>Pick & Return</h1>
+          <h1>Pick up & Delivery</h1>
           <p className="muted">
-            Dedicated Pickup and Return workflow. Jobs, customers, evidence, and payments remain connected to the Workspace.
+            Dedicated Pickup and Delivery workflow. Jobs, customers, evidence, and payments remain connected to the Workspace.
           </p>
         </div>
         <Link className="button secondary" href="/app">
@@ -65,7 +65,7 @@ export async function DriverRoute({leg,date,routeId}:{leg:"pickup"|"return";date
         </Link>
       </div>
 
-      {mode && <section className="panel"><h2>{mode} routes</h2><div className="stack">{(routes ?? []).filter(r=>r.leg===mode).sort((a,b)=>a.route_date.localeCompare(b.route_date)).map(r=><div className="item" key={r.id}><Link href={`/pick-return?mode=${mode.toLowerCase()}&route=${r.id}`}>{r.route_date} · {r.status}</Link>{!r.confirmed_at && (stops ?? []).some(s=>s.route_id===r.id && ["Completed","Failed"].includes(s.status)) && !(stops ?? []).some(s=>s.route_id===r.id && !["Completed","Failed","Cancelled"].includes(s.status)) && <Form operation="route-confirm" hidden={{route_id:r.id}} fields={[]} back={`/pick-return?mode=${mode.toLowerCase()}`} button={mode === "Pickup" ? "Confirm arrival at shop" : "Confirm all delivered"} />}</div>)}</div></section>}
+      {mode && <section className="panel"><h2>{mode==="Return"?"Delivery":mode} routes</h2><div className="stack">{(routes ?? []).filter(r=>r.leg===mode).sort((a,b)=>a.route_date.localeCompare(b.route_date)).map(r=><div className="item" key={r.id}><Link href={`/pick-return?mode=${mode.toLowerCase()}&route=${r.id}`}>{r.route_date} · {r.status}</Link>{!r.confirmed_at && (stops ?? []).some(s=>s.route_id===r.id && ["Completed","Failed"].includes(s.status)) && !(stops ?? []).some(s=>s.route_id===r.id && !["Completed","Failed","Cancelled"].includes(s.status)) && <Form operation="route-confirm" hidden={{route_id:r.id}} fields={[]} back={`/pick-return?mode=${mode.toLowerCase()}`} button={mode === "Pickup" ? "Confirm arrival at shop" : "Confirm all delivered"} />}</div>)}</div></section>}
       <section className="panel">
         <h2>Service Queue</h2>
         {(orders ?? []).length ? (
@@ -84,7 +84,7 @@ export async function DriverRoute({leg,date,routeId}:{leg:"pickup"|"return";date
                     </div>
                     <div className="actions">
                       <Badge>Pickup: {order.pickup_status}</Badge>
-                      <Badge>Return: {order.return_status}</Badge>
+                      <Badge>Delivery: {order.return_status}</Badge>
                     </div>
                   </div>
 
@@ -105,7 +105,7 @@ export async function DriverRoute({leg,date,routeId}:{leg:"pickup"|"return";date
 
                   {["Delivery In Progress", "Scheduled"].includes(order.return_status) && (
                     <details open={order.return_status === "Delivery In Progress"}>
-                      <summary>Schedule / reschedule Return</summary>
+                      <summary>Schedule / reschedule Delivery</summary>
                       <RouteCalendar job={order.job_id} leg="Return" />
                     </details>
                   )}
@@ -114,7 +114,7 @@ export async function DriverRoute({leg,date,routeId}:{leg:"pickup"|"return";date
             })}
           </div>
         ) : (
-          <Empty>No Pickup & Return Jobs are currently active.</Empty>
+          <Empty>No Pickup & Delivery Jobs are currently active.</Empty>
         )}
       </section>
 
@@ -129,7 +129,7 @@ export async function DriverRoute({leg,date,routeId}:{leg:"pickup"|"return";date
             const isPickup = route.leg === "Pickup";
             const evidenceType = isPickup ? "Receiving Evidence" : "Delivery Evidence";
             const evidence = evidenceFor(stop.id, evidenceType);
-            const evidenceLabel = isPickup ? "Pickup receiving photos" : "Return delivery photos";
+            const evidenceLabel = isPickup ? "Pickup receiving photos" : "Delivery photos";
 
             return (
               <Panel
@@ -190,7 +190,7 @@ export async function DriverRoute({leg,date,routeId}:{leg:"pickup"|"return";date
                       <EvidenceGallery files={evidence} />
                       {canAny(access,["driver.routes","pr.routes.live"]) && (
                         <details open={!evidence.length}>
-                          <summary>{isPickup ? "Add Pickup Receiving Evidence" : "Add Return Delivery Evidence"}</summary>
+                          <summary>{isPickup ? "Add Pickup Receiving Evidence" : "Add Delivery Evidence"}</summary>
                           <EvidenceCapture
                             config={{
                               jobId: job.id,

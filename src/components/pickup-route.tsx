@@ -1,3 +1,4 @@
+import {DriverBlockAgreement,type BlockAgreement} from "./driver-block-agreement";
 import { RouteDeparture } from "@/components/route-departure";
 import {RouteExceptionControls} from "@/components/route-exception-controls";
 import {RouteNotificationControls} from "@/components/route-notification-controls";
@@ -14,6 +15,7 @@ export async function PickupRoute({date}:{date:string}){
  const {db,unit}=await context();
  const {data:routes,error}=await db.from("pick_return_routes").select("*").eq("unit_id",unit).eq("leg","Pickup").eq("route_date",date);
  if(error)throw new Error("Could not load Pickup routes");
+ const agreements=await Promise.all((routes??[]).filter(r=>r.operator_id&& !r.departed_at&& !["Completed","Cancelled"].includes(r.status)).map(async r=>{const result=await db.rpc("driver_block_agreement",{p_route:r.id});if(result.error)throw new Error("Could not load block acceptance agreement");return result.data as BlockAgreement;}));
  const ids=(routes??[]).map(r=>r.id);
  const liveChannels=await Promise.all(ids.map(async id=>(await db.rpc("route_live_channel",{p_route:id})).data));
  const {data:stops,error:stopError}=ids.length?await db.from("pick_return_stops").select("*").eq("unit_id",unit).in("route_id",ids).order("sequence"):{data:[],error:null};
@@ -35,6 +37,7 @@ export async function PickupRoute({date}:{date:string}){
  const visible=(stops??[]).filter(s=>s.status!=="Cancelled"&&allowed.has(s.job_id));
  return <section className="pickup-route driver-landing"><RouteDeparture/><StatusRefresh channels={liveChannels.filter((value):value is string=>typeof value==="string")} />
  <Link className="button secondary" href="/pick-return">← All routes</Link><p className="eyebrow">SATURDAY / PICK UP</p><h1>{routeDateLabel(date)}</h1><p className="driver-window">8:00 AM–12:00 PM · Denver time</p><p>{visible.filter(s=>s.status==="Completed").length}/{visible.length} picked up</p>
+ {agreements.map(a=><DriverBlockAgreement key={a.snapshot.route_id} agreement={a}/>)}
  {(routes??[]).map(route=><RouteNotificationControls key={route.id} leg="Pickup" route={route.id} departed={route.departed_at} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}
  {(routes??[]).map(route=><RouteExceptionControls key={route.id} arrived={(stops??[]).some(s=>s.route_id===route.id&&s.status==="Arrived")} route={route.id} leg="Pickup" incident={(incidents??[]).find(i=>i.route_id===route.id)} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}
  {!visible.length&&<div className="panel"><h2>No confirmed pickups</h2><p>Only scheduled Pickup services with confirmed payment appear here.</p></div>}

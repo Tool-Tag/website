@@ -55,7 +55,7 @@ export function CancellationBalanceForm({
       <h2>{money(amount)} due</h2>
       <p className="muted">
         This is the remaining amount due under the cancellation terms you accepted.
-        If ToolTag already has your items, Return remains on hold until this payment
+        If ToolTag already has your items, delivery remains on hold until this payment
         is confirmed.
       </p>
 
@@ -115,7 +115,7 @@ export function CancellationBalanceForm({
         <div className="payment-method-panel">
           {method === "Cash" && (
             <p className="muted">
-              Pay cash directly to ToolTag. Return remains on hold until ToolTag
+              Pay cash directly to ToolTag. Delivery remains on hold until ToolTag
               confirms the cash was received.
             </p>
           )}

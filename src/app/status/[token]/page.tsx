@@ -285,7 +285,7 @@ export default async function JobStatusPage({
                 <h2>{money(cancellationFinance.balance_remaining)} pending verification</h2>
                 <p className="notice">
                   ToolTag received your {cancellationFinance.payment.method} payment
-                  submission. If ToolTag has your items, Return remains on hold until
+                  submission. If ToolTag has your items, delivery remains on hold until
                   the payment is verified.
                 </p>
               </section>
@@ -306,7 +306,7 @@ export default async function JobStatusPage({
               <p className="notice success">
                 Cancellation balance paid and confirmed.
                 {pickup?.pickup_status === "Picked Up"
-                  ? " ToolTag can continue the Return process."
+                  ? " ToolTag can continue the delivery process."
                   : ""}
               </p>
             )}

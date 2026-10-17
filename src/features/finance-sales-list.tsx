@@ -17,5 +17,5 @@ export async function FinanceSalesList({header,search={}}:{header:ReactNode;sear
  },page);
  return <FinanceListFrame header={header} controls={<FinanceListControls path={path} title="Sales" placeholder="Sale number" values={values} selects={selects}/>}><Panel>
  {result.rows.length?<Table headers={["Sale","Total","Collected","Balance Due","Status"]}>{result.rows.map(s=><tr key={s.transaction_id}><td><Link href={`${path}/${s.transaction_id}`}>{s.code}</Link></td><td>{money(s.amount)}</td><td>{money(s.collected)}</td><td>{money(s.balance_due)}</td><td><Badge>{s.status}</Badge></td></tr>)}</Table>:<Empty>No sales match these filters.</Empty>}
- <FinancePagination path={path} values={values} {...result}/></Panel></FinanceListFrame>;
+ </Panel><FinancePagination path={path} values={values} {...result}/></FinanceListFrame>;
 }

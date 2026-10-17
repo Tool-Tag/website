@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/domain/context";
 import { Heading, Panel, Empty, Badge } from "@/components/ui";
+import {RejectRequest} from "@/components/reject-request";
 import { Form } from "@/components/form";
 
 export const dynamic = "force-dynamic";
@@ -149,29 +150,12 @@ export default async function GetTaggedRequestDetail({
             />
           )}
 
-          <Panel title="Reject Request">
-            <Form
-              operation="get-tagged-reject"
-              hidden={{ id }}
-              back="/app/get-tagged"
-              fields={[
-                {
-                  name: "reason",
-                  label: "Reason",
-                  type: "textarea",
-                  wide: true,
-                },
-              ]}
-              button="Reject Request"
-            />
-          </Panel>
+          {!request.quote_id&&<RejectRequest id={id}/>}
         </div>
       )}
 
       {request.quote_id && (
-        <Link className="button" href={`/app/quotes/${request.quote_id}`}>
-          Open Quote
-        </Link>
+        <div className="actions"><Link className="button" href={`/app/quotes/${request.quote_id}`}>Open Quote</Link>{request.request_status!=="Rejected"&&<RejectRequest id={id}/>}</div>
       )}
     </>
   );

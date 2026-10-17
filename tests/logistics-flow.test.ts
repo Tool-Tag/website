@@ -1,3 +1,5 @@
+import {DRIVER_POLICIES} from "../src/lib/domain/driver-policies";
+import {DRIVER_BLOCK_TERMS} from "../src/lib/domain/driver-block-terms";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
@@ -1858,7 +1860,8 @@ test("Get Tagged records explicit consent on its Draft Quote flow, never auto-op
  assert.equal(await value("select granted from private.sms_consents where flow_id=$1",[flow]),true);assert.equal(await value("select phone from private.sms_consents where flow_id=$1",[flow]),"+13852142163");
  assert.match(await value<string>("select disclosure from private.sms_consent_events where flow_id=$1",[flow]),/Privacy Policy: https:\/\/tooltag.example\/privacy/);
  await db.query("update private.get_tagged_receipts set quote_id=quote_id where id=$1",[receipt]);assert.equal(Number(await value("select count(*) from private.sms_consent_events where flow_id=$1",[flow])),1);
- assert.equal(Number(await value("select count(*) from private.sms_deliveries")),deliveries);
+ assert.equal(Number(await value("select count(*) from private.sms_deliveries")),deliveries+1);
+ assert.equal(await value("select d.status from private.sms_deliveries d join public.notifications n on n.id=d.notification_id where n.entity_id=$1 and n.event='GET_TAGGED_RECEIVED'",[receipt]),"Skipped");
  const other=await createQuote(customer.id);const otherFlow=await value<string>("select flow_id from public.quotes where id=$1",[other]);
  await value("select private.record_web_sms_consent($1,$2::jsonb,'get-tagged')",[otherFlow,JSON.stringify({...fixtureSmsConsent,granted:false})]);assert.equal(Number(await value("select count(*) from private.sms_consents where flow_id=$1",[otherFlow])),0);
  await assert.rejects(value("select private.record_web_sms_consent($1,$2::jsonb,'get-tagged')",[otherFlow,JSON.stringify({...fixtureSmsConsent,privacy_url:""})]),/published policy links/);
@@ -2635,6 +2638,7 @@ test('Lost notify freezes market value, deduplicates mail/SMS, scopes bearer res
  const expensePayload={proof_id:await storedExpenseProof(),lost_id:f.lost,amount:'475.00',account_id:account,category_id:category,description:'Test replacement purchase',vendor:'Test supplier',paid_by:'Business'};
  await assert.rejects(value('select public.record_lost_replacement_expense($1)',[expensePayload]),/at the shop first/);
  await value('select public.lost_staff_action($1)',[{id:f.lost,action:'confirm-replacement'}]);
+ await assert.rejects(value('select public.record_lost_replacement_expense($1)',[{...expensePayload,proof_id:undefined}]),/receipt image/);
  await staffAs(employee,async()=>{await assert.rejects(value('select public.record_lost_replacement_expense($1)',[expensePayload]),/Owner access/);});
  const expense=await value<string>('select public.record_lost_replacement_expense($1)',[expensePayload]);
  assert.equal(await value('select public.record_lost_replacement_expense($1)',[expensePayload]),expense);
@@ -2801,4 +2805,68 @@ test('Manual expenses require a stored image receipt at $75, bind atomically and
  assert.equal(await value('select receipt_status from public.expense_details where transaction_id=$1',[expense]),'Receipt Attached');
  await assert.rejects(rpc('record_movement',{...payload,request_id:await value('select gen_random_uuid()'),proof_id:proof}),/previously linked/);
  await rpc('record_movement',{...payload,amount:'74.99',request_id:await value('select gen_random_uuid()')});
+});
+
+test("Request rejection requires a reason, preserves accepted work and queues exactly one customer email",async()=>{
+ const customer=await createCustomer("TEST-Rejection","request-rejection"),quote=await createQuote(customer.id);
+ const id=await value<string>("insert into private.get_tagged_receipts(id,fingerprint,details,matching,candidates,quote_id,customer_id) values(gen_random_uuid(),repeat('b',64),$1::jsonb,'created','{}',$2,$3) returning id",[JSON.stringify({contact:{name:"TEST-Rejection",email:"request-rejection@example.test",phone:customer.phone}}),quote,customer.id]);
+ await assert.rejects(value('select public.reject_get_tagged($1,$2)',[id,'  ']),/rejection reason/);
+ await value('select public.reject_get_tagged($1,$2)',[id,'We cannot engrave this material safely.']);
+ assert.equal(await value('select status from public.quotes where id=$1',[quote]),'Rejected');
+ assert.equal(await value('select request_status from private.get_tagged_receipts where id=$1',[id]),'Rejected');
+ const mail=await value<{text:string}>('select payload from public.notifications where dedupe_key=$1',['request-rejected:'+id]);
+ assert.match(mail.text,/cannot engrave this material/);
+ await value('select public.reject_get_tagged($1,$2)',[id,'Another reason']);
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",['request-rejected:'+id])),1);
+ const history=await value<{id:string}[]>('select public.get_tagged_history()');assert.ok(history.some(r=>r.id===id));
+ const other=await createQuote(customer.id);await db.query("update public.quotes set status='Accepted' where id=$1",[other]);
+ const otherId=await value<string>("insert into private.get_tagged_receipts(id,fingerprint,details,matching,candidates,quote_id,customer_id) values(gen_random_uuid(),repeat('c',64),$1::jsonb,'created','{}',$2,$3) returning id",[JSON.stringify({contact:{name:"TEST-Rejection",email:"request-rejection@example.test"}}),other,customer.id]);
+ await assert.rejects(value('select public.reject_get_tagged($1,$2)',[otherId,'Invalid rejection']),/unsent Draft/);
+ assert.equal(await value('select status from public.quotes where id=$1',[other]),'Accepted');
+});
+
+test("Block agreements are driver-bound, immutable, invalidate on manifest edits and require valid vehicle documents",async()=>{
+ const driver=await addStaff(['Driver'],'block-agreement-driver'),other=await addStaff(['Driver'],'block-agreement-other');
+ const route=await value<string>("insert into public.pick_return_routes(unit_id,leg,route_date,operator_id) values($1,'Pickup',current_date+400,$2) returning id",[unit,driver]);
+ const dates=await value<string>("select (current_date+500)::text");
+ const agreement=await value<{key:string;snapshot:{terms:[string,string][];policies:[string,string][]};accepted:boolean}>('select public.driver_block_agreement($1)',[route]);
+ assert.deepEqual(agreement.snapshot.policies,DRIVER_POLICIES.map(p=>p.en));assert.deepEqual(agreement.snapshot.terms,DRIVER_BLOCK_TERMS);
+ assert.equal(agreement.accepted,false);assert.match(JSON.stringify(agreement.snapshot.terms),/85%/);assert.match(JSON.stringify(agreement.snapshot.terms),/one-month/);
+ await assert.rejects(value('select public.accept_driver_block($1,$2,$3::date,$3::date)',[route,agreement.key,dates]),/Only the assigned/);
+ await staffAs(other,async()=>{await assert.rejects(value('select public.driver_block_agreement($1)',[route]),/assigned|Permission|Route/i);});
+ await staffAs(driver,async()=>{
+ await assert.rejects(value("select public.accept_driver_block($1,$2,current_date,current_date)",[route,agreement.key]),/insurance/);
+ await assert.rejects(value('select public.accept_driver_block($1,$2,$3::date,$3::date)',[route,'stale',dates]),/Block changed/);
+ const id=await value<string>('select public.accept_driver_block($1,$2,$3::date,$3::date)',[route,agreement.key,dates]);
+ assert.equal(await value('select public.accept_driver_block($1,$2,$3::date,$3::date)',[route,agreement.key,dates]),id);
+ assert.equal(await value('select (public.driver_block_agreement($1)->>\'accepted\')::boolean',[route]),true);
+ await assert.rejects(db.query('update public.driver_block_acceptances set snapshot=\'{}\' where id=$1',[id]),/permission denied/);
+ });
+ await db.query("update public.pick_return_routes set route_date=route_date+1 where id=$1",[route]);
+ assert.equal(await value('select (public.driver_block_agreement($1)->>\'accepted\')::boolean',[route]),false);
+ await assert.rejects(value('select public.depart_driver_route($1)',[route]),/must accept/);
+ assert.equal(Number(await value('select count(*) from public.driver_block_acceptances where route_id=$1',[route])),1);
+});
+
+test("Pre-Quote request SMS uses explicit consent, safe test routing and transfers accepted cost once",async()=>{
+ await db.exec("update private.sms_deliveries set status='Skipped' where status='Pending'");
+ await db.query("update private.sms_settings set enabled=true,activated_at=now()-interval '1 second',test_phone='+13852142163' where unit_id=$1",[unit]);
+ const receipt=await value<string>("insert into private.get_tagged_receipts(id,fingerprint,details,matching,candidates) values(gen_random_uuid(),repeat('d',64),$1::jsonb,'new','{}') returning id",[JSON.stringify({contact:{name:'TEST-Request SMS',email:'request-sms@example.test'},sms:{...fixtureSmsConsent,policy_accepted:true}})]);
+ const nid=await value<string>("select id from public.notifications where entity_id=$1 and event='GET_TAGGED_RECEIVED'",[receipt]);
+ assert.equal(await value('select status from private.sms_deliveries where notification_id=$1',[nid]),'Pending');
+ await supportWorker(async()=>{
+ const claim=await value<{id:string;claim:string;phone:string;test_customer:boolean}>('select public.claim_sms()');
+ assert.equal(claim.id,nid);assert.equal(claim.phone,'+13852142163');assert.equal(claim.test_customer,true);
+ const context=await value<{job_code:string;action_path:string}>('select public.sms_message_context($1)',[nid]);assert.match(context.job_code,/TT-R-/);assert.match(context.action_path,/^\/status\//);
+ await value("select public.finish_sms($1,$2,'Sent','test-request-aws-accepted',null)",[nid,claim.claim]);
+ });
+ assert.equal(Number(await value('select count(*) from private.request_sms_cost_usage where request_id=$1',[receipt])),1);
+ const customer=await createCustomer('TEST-Request SMS','request-sms-cost'),quote=await createQuote(customer.id);
+ await db.query('update private.get_tagged_receipts set quote_id=$1,customer_id=$2 where id=$3',[quote,customer.id,receipt]);
+ await db.query('update private.get_tagged_receipts set quote_id=quote_id where id=$1',[receipt]);
+ assert.equal(Number(await value('select sms_count from public.sms_cost_totals where quote_id=$1',[quote])),1);
+ assert.equal(Number(await value('select count(*) from private.sms_cost_usage where notification_id=$1',[nid])),1);
+ const noConsent=await value<string>("insert into private.get_tagged_receipts(id,fingerprint,details,matching,candidates) values(gen_random_uuid(),repeat('e',64),$1::jsonb,'new','{}') returning id",[JSON.stringify({contact:{name:'TEST-No SMS',email:'no-sms@example.test'},sms:{...fixtureSmsConsent,policy_accepted:false}})]);
+ assert.equal(await value("select d.reason from private.sms_deliveries d join public.notifications n on n.id=d.notification_id where n.entity_id=$1 and n.event='GET_TAGGED_RECEIVED'",[noConsent]),'NO_OPT_IN');
+ await db.query('update private.sms_settings set enabled=false where unit_id=$1',[unit]);
 });

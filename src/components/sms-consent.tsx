@@ -1,4 +1,5 @@
 "use client";
+import {DialogClose} from "./dialog-close";
 import { useActionState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { saveSmsConsent } from "@/app/sms-actions";
@@ -24,5 +25,5 @@ export function StatusSmsOptIn({token,phone="",granted=false}:{token:string;phon
  useEffect(()=>{if(state.message){dialog.current?.close();router.refresh();}},[state.message,router]);
  if(granted) return <><p className="notice success">SMS notifications are enabled for future updates.</p><SmsPreferences token={token} scope="status" phone={phone} granted /></>;
  return <section className="panel"><button type="button" onClick={()=>dialog.current?.showModal()}>Get Notifications By SMS</button>
- <dialog ref={dialog} className="sms-opt-in-dialog"><form action={action} className="stack"><h2>Get Notifications By SMS</h2><p>Notifications start from your current status. Previous updates will not be sent. Your first SMS will be a welcome message with opt-out instructions.</p><input type="hidden" name="token" value={token}/><input type="hidden" name="scope" value="status"/><SmsConsentFields phone={phone}/><p>Consent is optional and is not a condition of purchase.</p>{state.error&&<p className="notice error" role="alert">{state.error}</p>}<div className="actions"><button disabled={pending} name="accept_sms" value="yes">{pending?"Saving…":"I accept"}</button><button type="button" className="secondary" disabled={pending} onClick={()=>dialog.current?.close()}>Cancel</button></div></form></dialog></section>;
+ <dialog ref={dialog} className="sms-opt-in-dialog"><DialogClose/><form action={action} className="stack"><h2>Get Notifications By SMS</h2><p>Notifications start from your current status. Previous updates will not be sent. Your first SMS will be a welcome message with opt-out instructions.</p><input type="hidden" name="token" value={token}/><input type="hidden" name="scope" value="status"/><SmsConsentFields phone={phone}/><p>Consent is optional and is not a condition of purchase.</p>{state.error&&<p className="notice error" role="alert">{state.error}</p>}<div className="actions"><button disabled={pending} name="accept_sms" value="yes">{pending?"Saving…":"I accept"}</button><button type="button" className="secondary" disabled={pending} onClick={()=>dialog.current?.close()}>Cancel</button></div></form></dialog></section>;
 }

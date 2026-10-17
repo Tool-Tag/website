@@ -1,4 +1,5 @@
 "use client";
+import {DialogClose} from "./dialog-close";
 
 import { useActionState, useState } from "react";
 import { customerAction, type ActionState } from "@/app/actions";
@@ -77,7 +78,7 @@ export function CancellationAction({
       )}
 
       {open && (
-        <dialog open>
+        <dialog open><DialogClose/>
           <form action={action}>
             {id && <input type="hidden" name="id" value={id} />}
             <h2>Cancel {code}?</h2>

@@ -3,7 +3,8 @@ import { normalizeSmsPhone } from "@/lib/integrations/sms";
 import { PHONE_VERIFICATION_COOKIE, verifiedPhone } from "@/lib/integrations/phone-verification";
 import { createHash, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
+import {dispatchWorkerMail} from "@/lib/integrations/mail-dispatch";
 import {
   PICKUP_FEE,
   PICKUP_REQUEST_DISCLAIMER,
@@ -198,6 +199,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    after(()=>dispatchWorkerMail());
     return noStore(
       NextResponse.json({
         reference,

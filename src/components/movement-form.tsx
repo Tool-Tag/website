@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
+import {MileageForm} from "./mileage-form";
 import {EvidenceUpload} from "./evidence-upload";
 import { Form, type Field } from "./form";
 type Option = { value: string; label: string };
@@ -133,6 +134,7 @@ export function MovementForm({
               ["OWNER_DRAW", "Owner Draw / Reimbursement"],
               ["INTER_UNIT_TRANSFER", "Internal Transfer to BOFT"],
               ["REFUND", "Refund"],
+              ["MILEAGE", "Trip/Mileage"],
             ].map(([v, l]) => (
               <option value={v} key={v}>
                 {l}
@@ -164,12 +166,13 @@ export function MovementForm({
       </div>
       {type === "REFUND" && <p className="notice">Customer refunds must be linked to a Job. <Link href="/app/refunds">Open refund case management</Link></p>}
       {type==="EXPENSE"&&<section className="panel"><h3>Expense receipt</h3><p>A receipt image is required for expenses of $75 or more. Take a photo or choose an image, then upload it before recording the expense.</p>{proofId?<><p role="status">Receipt image ready.</p><button type="button" className="secondary" onClick={()=>setProofId("")}>Replace receipt</button></>:<EvidenceUpload config={{type:"Other",expenseProof:true,photoOnly:true,defaultVisibility:"internal"}} accept="image/png,image/jpeg,image/webp" button="Upload receipt image" onStored={setProofId}/>}</section>}
-      <Form
+      {type==="EXPENSE"&&Number(amount)>=75&&!proofId&&<p className="notice error" role="alert">Upload a receipt photo before recording this expense. Expenses of $75 or more cannot be processed without a stored image.</p>}
+      {type==="MILEAGE"?<MileageForm onSaved={onSaved}/>:<Form
         onFieldChange={(name,value)=>{if(name==="amount")setAmount(value);}}
         submitDisabled={type==="EXPENSE"&&Number(amount)>=75&&!proofId}
         key={`${type}:${subtype}:${paidBy}`}
         operation="movement"
-        onSaved={onSaved}
+        onSaved={onSaved?(data)=>onSaved({type,id:data}):undefined}
         fields={fields}
         hidden={{
           request_id: requestId,
@@ -184,10 +187,10 @@ export function MovementForm({
             : {}),
         }}
         back={
-          saleId ? `/app/finance/sales/${saleId}` : "/app/finance/transactions"
+          onSaved ? "" : saleId ? `/app/finance/sales/${saleId}` : "/app/finance/transactions"
         }
         button="Record Transaction"
-      />
+      />}
     </>
   );
 }
