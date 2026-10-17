@@ -1668,9 +1668,28 @@ body:has(.get-tagged-react-dialog[open]) {
 .workspace-user-menu {position:relative;min-width:0;}
 .workspace-user-trigger {max-width:min(26rem,calc(100vw - 9rem));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .workspace-user-dropdown {position:absolute;right:0;top:calc(100% + 8px);z-index:100;width:min(240px,calc(100vw - 36px));padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px #0008;}
+/* Gold: the existing user-dropdown style. Named variants are opt-in only. */
 .workspace-user-dropdown a {display:block;padding:12px;border-radius:6px;white-space:nowrap;}
 .workspace-user-dropdown a:hover,.workspace-user-dropdown a:focus-visible {background:var(--bg);outline:2px solid var(--line);}
+
+
+/* Gold: general interaction skin, independent of component/layout.
+   Hosts own display, spacing, sizing and wrapping. Not applied to UI yet. */
+.gold,.menu-link-gold {border-radius:6px;}
+.gold:hover,.gold:focus-visible,.menu-link-gold:hover,.menu-link-gold:focus-visible {background:var(--bg);outline:2px solid var(--line);color:var(--gold);}
+
+/* Blue Electric: general interaction skin, independent of component/layout.
+   Hosts own display, spacing, sizing and wrapping. Not applied to UI yet. */
+.blue-electric,.menu-link-blue-electric {border-radius:6px;}
+.blue-electric:hover,.blue-electric:focus-visible,.menu-link-blue-electric:hover,.menu-link-blue-electric:focus-visible {background:var(--bg);outline:2px solid var(--line);color:var(--blue);}
 
 .support-controls {display:flex;flex-direction:column;gap:12px;margin-bottom:20px;min-width:0;max-width:100%;}
 .support-control-row {display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:10px;max-width:100%;min-width:0;overflow-x:auto;padding:2px;}
 .support-control-row > .button,.support-control-row > button {flex:0 0 auto;width:auto;white-space:nowrap;}
+
+/* Header redesign preview: layout stays separate from the reusable skins. */
+.workspace-header-links {display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0;max-width:100%;}
+.workspace-header-links .button {white-space:nowrap;filter:none;}
+.workspace-user-label {display:block;padding:10px 16px;min-height:42px;border:1px solid var(--line);border-radius:8px;font-weight:600;max-width:min(26rem,calc(100vw - 9rem));overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dashboard-attention-link {display:block;padding:12px;}
+@media(max-width:600px){.workspace-header-links {width:100%;}.workspace-header-links .button {flex:1 1 auto;}.workspace-topbar .workspace-user-actions {margin-left:0;}}

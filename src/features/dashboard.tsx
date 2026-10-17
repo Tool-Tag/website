@@ -61,7 +61,7 @@ export async function Dashboard() {
           {review.length ? (
             review.slice(0, 8).map((r, i) => (
               <p key={i}>
-                <Link href={r.path}>↗ {r.kind}</Link>
+                <Link className="blue-electric menu-link-blue-electric dashboard-attention-link" href={r.path}>↗ {r.kind}</Link>
               </p>
             ))
           ) : (
