@@ -673,3 +673,29 @@ test("Expense proof rejects oversized, unsupported and mislabeled files before r
  assert.ok(expenseProofError({size:3,type:"image/png"},new Uint8Array([255,216,255])));
  assert.ok(expenseProofError({size:0,type:"image/jpeg"}));
 });
+
+test("Finance lists keep filters across pages and use Denver date boundaries through DST",async()=>{
+ const {financeFilters,financePageUrl,denverDateBoundary}=await import("../src/lib/domain/finance-list");
+ const filters=financeFilters({q:"TT-S-2026",status:"Paid",page:"3",from:"2026-10-01"},[{name:"status",label:"Status",options:["Paid","Open"]}]);
+ assert.equal(filters.values.status,"Paid");assert.equal(filters.page,3);
+ const url=new URL(financePageUrl('/app/finance/sales',filters.values,4),'https://example.test');
+ assert.equal(url.searchParams.get('status'),'Paid');assert.equal(url.searchParams.get('q'),'TT-S-2026');assert.equal(url.searchParams.get('page'),'4');assert.equal(url.searchParams.get('from'),'2026-10-01');
+ assert.equal(financeFilters({method:'Cash'},[{name:'method',label:'Method',options:['Zelle','Check']}]).values.method,'');
+ assert.equal(denverDateBoundary('2026-03-08'),'2026-03-08T07:00:00.000Z');
+ assert.equal(denverDateBoundary('2026-03-08',true),'2026-03-09T06:00:00.000Z');
+ assert.equal(denverDateBoundary('2026-11-01'),'2026-11-01T06:00:00.000Z');
+ assert.equal(denverDateBoundary('2026-11-01',true),'2026-11-02T07:00:00.000Z');
+});
+
+test("Finance pagination counts the complete filtered set, caps pages at twenty, and clamps stale page numbers",async()=>{
+ const {financePage}=await import("../src/lib/domain/finance-list");
+ type Response={data:{id:number}[]|null;count:number|null;error:null};
+ type Query=Promise<Response>&{range:(from:number,to:number)=>Query};
+ const records=Array.from({length:241},(_,id)=>({id}));
+ const ranges:number[][]=[];
+ function make(head:boolean,from=0,to=records.length-1):Query{return Object.assign(Promise.resolve({data:head?null:records.slice(from,to+1),count:head?records.length:null,error:null}),{range:(a:number,b:number)=>{ranges.push([a,b]);return make(head,a,b);}});}
+ const second=await financePage(head=>make(head),2);
+ assert.equal(second.rows.length,20);assert.equal(second.rows[0].id,20);assert.equal(second.total,241);
+ const last=await financePage(head=>make(head),999);assert.equal(last.page,13);assert.equal(last.rows.length,1);assert.equal(last.rows[0].id,240);
+ assert.deepEqual(ranges,[[20,39],[240,259]]);
+});

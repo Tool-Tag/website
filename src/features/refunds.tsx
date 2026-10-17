@@ -14,9 +14,10 @@ import {compareRefundUrgency,refundAttention,refundEligibility,refundCompletionL
 
 import {decryptLostPaymentDetails,type LostPaymentDetails} from "@/lib/security/lost-payment-details";
 
-export async function RefundsPanel({jobId,view="cases"}:{jobId?:string;view?:"cases"|"execution"}) {
+export async function RefundsPanel({jobId,view="cases",requestIds}:{jobId?:string;view?:"cases"|"execution";requestIds?:string[]}) {
  const {db,unit,access}=await requirePermission("payments.refund","payments.view");
  let query=db.from("refund_requests").select("*").eq("unit_id",unit).order("requested_at",{ascending:false});
+ if(requestIds)query=query.in("id",requestIds).order("id",{ascending:false});
  if(jobId)query=query.eq("job_id",jobId);
  if(view==="execution")query=query.eq("status","Approved");
  const [{data:requests,error},{data:choices,error:choiceError},{data:accountChoices,error:accountError},{data:approver,error:approverError}]=await Promise.all([query,db.rpc("refund_job_choices"),view==="execution"?db.rpc("refund_account_choices"):Promise.resolve({data:[],error:null}),db.rpc("refund_can_approve")]);

@@ -1,8 +1,8 @@
+import {FinanceSalesList} from "@/features/finance-sales-list";
+import {FinanceExpensesList} from "@/features/finance-expenses-list";
+import type {FinanceSearch} from "@/lib/domain/finance-list";
 import {FinanceQuarterRollover} from "@/components/finance-quarter-rollover";
-import {EquipmentRegistrationModal} from "@/components/equipment-registration-modal";
-import {FinanceListFrame} from "@/components/finance-list-frame";
 import {FinanceTransactions} from "@/features/finance-transactions";
-import type {TransactionSearch} from "@/lib/domain/transaction-filters";
 import {salesTaxSummary} from "@/lib/domain/sales-tax-summary";
 import {SmsExpenseTrace} from "@/components/sms-expense-trace";
 import { randomUUID } from "node:crypto";
@@ -11,7 +11,6 @@ import { rows, context } from "@/lib/domain/context";
 import {
   Heading,
   Panel,
-  Table,
   Empty,
   Metric,
   Badge,
@@ -78,7 +77,7 @@ export async function Finance({
   section?: string;
   id?: string;
   created?: string;
-  search?: TransactionSearch;
+  search?: FinanceSearch;
 }) {
   const heading = (
     <>
@@ -319,108 +318,8 @@ export async function Finance({
       </>
     );
   }
-  if (section === "sales") {
-    const sales = await rows("sale_balances");
-    return (
-      <FinanceListFrame header={heading}>
-        <Panel>
-          {sales.length ? (
-            <Table
-              headers={["Sale", "Total", "Collected", "Balance Due", "Status"]}
-            >
-              {sales.map((s) => (
-                <tr key={s.transaction_id}>
-                  <td>
-                    <Link href={`/app/finance/sales/${s.transaction_id}`}>
-                      {s.code}
-                    </Link>
-                  </td>
-                  <td>{money(s.amount)}</td>
-                  <td>{money(s.collected)}</td>
-                  <td>{money(s.balance_due)}</td>
-                  <td>
-                    <Badge>{s.status}</Badge>
-                  </td>
-                </tr>
-              ))}
-            </Table>
-          ) : (
-            <Empty>Sales are created when a Quote and terms are accepted.</Empty>
-          )}
-        </Panel>
-      </FinanceListFrame>
-    );
-  }
-  if (section === "expenses") {
-    const expenses = await rows("expense_details");
-    const validCreated = typeof created === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(created);
-    const saved = validCreated ? (await rows("expense_details",{field:"transaction_id",value:created}))[0] : undefined;
-    const canRegister = (await context()).access.owner;
-    const equipmentCategories = saved?.is_equipment && !saved.linked_asset_id && canRegister
-      ? (await rows("categories")).filter(c=>c.kind==="asset"&&c.active).map(c=>({value:c.id,label:c.name})) : [];
-    return (
-      <FinanceListFrame header={heading}>
-        {saved?.is_equipment && !saved.linked_asset_id && canRegister && (
-          <EquipmentRegistrationModal key={saved.transaction_id} categories={equipmentCategories} expense={{id:saved.transaction_id,description:saved.description,amount:String(saved.amount),vendor:saved.vendor??"",date:saved.transaction_date}}/>
-        )}
-        <Panel title="Expenses">
-          {expenses.length ? (
-            <Table
-              headers={[
-                "Expense",
-                "Amount",
-                "Paid By",
-                "Reimbursement Due",
-                "Receipt",
-              ]}
-            >
-              {expenses.map((e) => (
-                <tr key={e.transaction_id}>
-                  <td>
-                    <Link
-                      href={`/app/finance/transactions/${e.transaction_id}`}
-                    >
-                      {e.description}
-                    </Link>
-                    <br />
-                    <small>{e.vendor}</small>
-                  </td>
-                  <td>{money(e.amount)}</td>
-                  <td>{e.paid_by}</td>
-                  <td>
-                    {e.paid_by === "Owner" ? money(e.reimbursement_due) : "—"}
-                  </td>
-                  <td>{e.receipt_status}</td>
-                </tr>
-              ))}
-            </Table>
-          ) : (
-            <Empty />
-          )}
-        </Panel>
-        <details>
-          <summary>Record Trip / Mileage</summary>
-          <Form
-            operation="mileage"
-            fields={[
-              { name: "date", label: "Date", type: "date", required: true },
-              { name: "purpose", label: "Purpose", required: true },
-              { name: "origin", label: "Origin", required: true },
-              { name: "destination", label: "Destination", required: true },
-              {
-                name: "miles",
-                label: "Miles",
-                type: "number",
-                required: true,
-              },
-              { name: "notes", label: "Notes" },
-            ]}
-            back="/app/finance/expenses"
-          />
-        </details>
-      </FinanceListFrame>
-    );
-  }
+  if (section === "sales") return <FinanceSalesList header={heading} search={search}/>;
+  if (section === "expenses") return <FinanceExpensesList header={heading} search={search} created={created}/>;
   if (section === "review") {
     const list = await rows("review_items");
     return (

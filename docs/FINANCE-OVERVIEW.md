@@ -39,3 +39,14 @@ New forward-only migrations, in order:
 2. `20261017104032_required_expense_receipt.sql`
 
 Neither is applied to production by this batch. Apply only with separate authorization and the preceding branch migrations already present. No existing migration/baseline or Customer Agreement was edited. No additional secret or storage bucket is required.
+
+## Block 5 list-filter completion
+
+Sales, Expenses, Finance Refunds and SMS Costs now use the same GET search/filter and server-side twenty-record pagination pattern as Transactions, inside the existing sticky header/control frame. Applying filters resets to page one; Previous/Next retain them. The full filtered result is counted before paging, with stable date/ID ordering and stale page numbers clamped to the last available page. These lists no longer use the generic 200-row helper.
+
+- Sales: sale number search; payment/refund status; transaction-date range.
+- Expenses: description/vendor search; Paid by, Equipment/Operating, receipt status; transaction-date range. The newly saved Equipment expense is still loaded separately by exact transaction ID to open registration even when off-page or filtered out.
+- Finance Refunds: customer/Job/reason/notes/reference search; method/reason; request-date range. Only Approved requests are included. The existing RefundsPanel receives just the selected twenty IDs and retains all issuance/proof/permission behavior. Dedicated Refunds case management and its lifecycle tabs are unchanged.
+- SMS Costs: quote/Job/posting-error search; Accumulating/Closed/Needs attention/Unconfirmed acceptance; updated-date range. The embedded Job/Quote SMS table is preserved.
+
+Timestamp ranges use inclusive Denver dates and an exclusive next-day boundary, including 23/25-hour DST days. No new migration or production write is needed for list filters.

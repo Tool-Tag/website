@@ -1,7 +1,10 @@
-import {FinanceListFrame} from "@/components/finance-list-frame";
 import { requirePermission } from "@/lib/domain/context";
 import { can } from "@/lib/auth/permissions";
 import { Heading, FinanceTabs } from "@/components/ui";
-import { RefundsPanel } from "@/features/refunds";
+import { FinanceRefundsList } from "@/features/finance-refunds-list";
+import type {FinanceSearch} from "@/lib/domain/finance-list";
 export const dynamic = "force-dynamic";
-export default async function Page() { const { access } = await requirePermission("payments.refund", "payments.view"); return <FinanceListFrame header={<><Heading title="Refunds" subtitle="Execute approved refunds manually and record payment proof."/><FinanceTabs includeGeneral={can(access, "payments.view")}/></>}><RefundsPanel view="execution" /></FinanceListFrame>; }
+export default async function Page({searchParams}:{searchParams:Promise<FinanceSearch>}) {
+ const {access}=await requirePermission("payments.refund","payments.view");
+ return <FinanceRefundsList search={await searchParams} header={<><Heading title="Refunds" subtitle="Execute approved refunds manually and record payment proof."/><FinanceTabs includeGeneral={can(access,"payments.view")}/></>}/>;
+}
