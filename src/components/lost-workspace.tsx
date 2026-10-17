@@ -41,6 +41,7 @@ function LostCaseRow({row,canApprove,expenseOptions}:{row:LostCase;canApprove:bo
   {row.notified_at&&<p>Notification queued: {denverDateTime(row.notified_at)}</p>}
   {row.customer_choice&&<p>Response: <strong>{row.customer_choice}</strong> · {denverDateTime(row.responded_at)}</p>}
   {row.approved_at&&<p>Approved: {denverDateTime(row.approved_at)}</p>}
+  {row.customer_choice==="Refund money"&&!row.refund_id&&<p>Waiting for the customer to submit secure payment details. The Pending Refund will be created after submission.</p>}
   {row.refund_id&&<p>Refund status: {row.refund_status??"Pending"}{canAny(access,["payments.refund","payments.view"])&&<> · <Link href="/app/refunds">Open Refunds</Link></>}</p>}
   {status==="New"&&manage&&<><p>Notify sends the customer an apology and a secure choice link. SMS requires an eligible phone and consent. The market value is frozen after notification.</p><button type="button" disabled={pending||!value} onClick={()=>run("notify")}>Notify</button></>}
   {status==="In Process"&&!row.approved_at&&row.customer_choice&&(canApprove?<button type="button" disabled={pending} onClick={()=>run("approve")}>Approved</button>:<p>Awaiting Owner or Manager approval.</p>)}
@@ -48,8 +49,8 @@ function LostCaseRow({row,canApprove,expenseOptions}:{row:LostCase;canApprove:bo
   {row.replacement_expense_id&&<p>Expense transaction ID: {access.owner||canAny(access,["payments.view"])?<Link href={`/app/finance/transactions/${row.replacement_expense_id}`}>{row.replacement_expense_id}</Link>:row.replacement_expense_id}</p>}
   {status==="In Process"&&row.approved_at&&manage&&<>
    {row.customer_choice==="Replace Item"&&!row.replacement_expense_id&&<><button type="button" disabled={pending||!expenseOptions} onClick={()=>confirmation.current?.showModal()}>Process</button>{!expenseOptions&&<p>Owner access and available Finance accounts/categories are required to record the replacement expense.</p>}</>}
-   {row.customer_choice==="Refund money"&&row.refund_status!=="Completed"&&<><p>Process the linked refund through the standard Refunds workflow.</p>{canAny(access,["payments.refund","payments.view"])&&<Link className="button" href="/app/refunds">Process</Link>}</>}
-   {lostCanFinalize({...row,status})&&<><label>Resolution details<textarea value={notes} maxLength={5000} disabled={pending} onChange={e=>setNotes(e.target.value)} placeholder={row.customer_choice==="Replace Item"?"Record the replacement provided and how delivery was completed.":"Record the completed refund resolution."}/></label><button type="button" disabled={pending||!notes.trim()} onClick={()=>run("finalize")}>Finalize</button></>}
+   {row.customer_choice==="Refund money"&&row.refund_id&&row.refund_status!=="Completed"&&<><p>Process the linked refund through the standard Refunds workflow. This case moves to History when the refund is issued.</p>{canAny(access,["payments.refund","payments.view"])&&<Link className="button" href="/app/refunds">Process</Link>}</>}
+   {lostCanFinalize({...row,status})&&<><label>Resolution details<textarea value={notes} maxLength={5000} disabled={pending} onChange={e=>setNotes(e.target.value)} placeholder={row.customer_choice==="Replace Item"?"Record the replacement ready at the shop. Finalize notifies the customer to choose shop pickup or free delivery.":"Record the completed refund resolution."}/></label><button type="button" disabled={pending||!notes.trim()} onClick={()=>run("finalize")}>Finalize</button></>}
   </>}
 
   {status==="History"&&<><p>Completed: {denverDateTime(row.finalized_at)}</p><p>{row.resolution_notes}</p><p>This record is read-only.</p></>}

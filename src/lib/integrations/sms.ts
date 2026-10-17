@@ -78,6 +78,8 @@ export class SnsSmsTransport {
   }
 }
 const SMS_EVENT_STAGE: Record<string, string> = {
+ LOST_REPLACEMENT_READY: "Replacement Ready - Free Delivery Available",
+ LOST_REPLACEMENT_UPDATE: "Replacement Delivery Update",
  LOST_RESOLUTION: "Lost Item Resolution",
  LOST_REPLACEMENT_APPROVED: "Replacement Started (5-7 Business Days)",
  LOST_REFUND_APPROVED: "Refund Started (5-7 Business Days)",

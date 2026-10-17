@@ -607,3 +607,19 @@ test("Lost SMS identifies ToolTag, includes the dedicated secure choice link and
  assert.equal(renderSms("LOST_RESOLUTION",{job_code:"TT-J-2026-00123",action_path:path},"https://tooltag.martinlab.studio"),"ToolTag: Your order TT-J-2026-00123 moved to Lost Item Resolution. Details: https://tooltag.martinlab.studio"+path);
  assert.throws(()=>renderSms("LOST_RESOLUTION",{job_code:"TT-J-2026-00123",action_path:"//evil.example/lost/abcdabcd"},"https://tooltag.example"));
 });
+
+test("Lost payment details validate methods and use authenticated encryption without retaining card fields",async()=>{
+ const {validateLostPaymentDetails,encryptLostPaymentDetails,decryptLostPaymentDetails}=await import("../src/lib/security/lost-payment-details");
+ const previous=process.env.TOOLTAG_PAYMENT_DETAILS_ENCRYPTION_KEY;
+ process.env.TOOLTAG_PAYMENT_DETAILS_ENCRYPTION_KEY=Buffer.alloc(32,7).toString("base64");
+ try{
+  const clean=validateLostPaymentDetails({method:"Bank Transfer",holder:"Test Owner",routing:"021000021",account:"123456789"},"Cash");
+  const encrypted=encryptLostPaymentDetails(clean,"lost-test");assert.equal(encrypted.includes("123456789"),false);assert.deepEqual(decryptLostPaymentDetails(encrypted,"lost-test"),clean);
+  assert.throws(()=>decryptLostPaymentDetails(encrypted,"different-case"));
+  assert.throws(()=>validateLostPaymentDetails({method:"Venmo",holder:"Test Owner",handle:"@test"},"Zelle"),/original/);
+  assert.throws(()=>validateLostPaymentDetails({...clean,routing:"111111111"},"Cash"),/routing/);
+  assert.throws(()=>validateLostPaymentDetails({method:"Card",holder:"Test Owner"},"Cash"),/original/);
+  assert.deepEqual(validateLostPaymentDetails({method:"Card",holder:"Test Owner",account:"4242424242424242"},"Card"),{method:"Card",holder:"Test Owner"});
+  delete process.env.TOOLTAG_PAYMENT_DETAILS_ENCRYPTION_KEY;assert.throws(()=>encryptLostPaymentDetails(clean,"lost-test"),/not configured/);
+ }finally{if(previous===undefined)delete process.env.TOOLTAG_PAYMENT_DETAILS_ENCRYPTION_KEY;else process.env.TOOLTAG_PAYMENT_DETAILS_ENCRYPTION_KEY=previous;}
+});

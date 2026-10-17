@@ -1,6 +1,7 @@
 import {canAny,type Access} from "@/lib/auth/permissions";
 /** Stable keys for paging the existing shop tables; several do not have an id column. */
 export const SHOP_BOARD_ORDER_KEYS = {
+ lost_replacement_deliveries:"id",
  pick_return_orders:"job_id",
  jobs:"id",
  job_items:"id",

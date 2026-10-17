@@ -2645,16 +2645,55 @@ test('Lost notify freezes market value, deduplicates mail/SMS, scopes bearer res
  await value('select public.lost_staff_action($1)',[{id:f.lost,action:'finalize',notes:'Replacement supplied and received by customer.'}]);
  assert.equal(await value('select status from public.lost_jobs where id=$1',[f.lost]),'History');
  const attention=await value<{items:{id:string}[]}>('select public.urgent_login_attention()');assert.equal(attention.items.some(i=>i.id===f.lost),false);
+ assert.ok(await value('select replacement_ready_at from public.lost_jobs where id=$1',[f.lost]));
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",['lost-ready:'+f.lost])),1);
+ await assert.rejects(value("select public.choose_lost_replacement_fulfillment($1,'Free delivery','')",[f.link]),/address/);
+ await value("select public.choose_lost_replacement_fulfillment($1,'Free delivery','101 Test Way, Draper UT 84020')",[f.link]);
+ await value("select public.choose_lost_replacement_fulfillment($1,'Free delivery','101 Test Way, Draper UT 84020')",[f.link]);
+ const delivery=await value<string>('select id from public.lost_replacement_deliveries where lost_id=$1',[f.lost]);
+ assert.equal(await value('select status from public.lost_replacement_deliveries where id=$1',[delivery]),'To Schedule');
+ assert.equal(Number(await value('select delivery_fee from public.lost_replacement_deliveries where id=$1',[delivery])),0);
+ assert.equal(await value('select top_priority from public.lost_replacement_deliveries where id=$1',[delivery]),true);
+ const original=await value('select to_jsonb(j) from public.jobs j where id=$1',[f.job]);
+ await value('select private.reconcile_lost_replacements()');
+ const replacementStop=await value<string>('select public.schedule_lost_replacement($1)',[delivery]);assert.ok(replacementStop);
+ assert.equal(await value('select public.schedule_lost_replacement($1)',[delivery]),replacementStop);
+ const route=await value<string>('select route_id from public.pick_return_stops where id=$1',[replacementStop]);
+ assert.equal(await value('select sequence from public.pick_return_stops where id=$1',[replacementStop]),1);
+ assert.deepEqual(await value('select to_jsonb(j) from public.jobs j where id=$1',[f.job]),original);
+ const manifest=await value<{stop:string;items:{id:string}[]}[]>("select public.route_item_checklist($1,'Loaded')",[route]);
+ const replacementItems=manifest.find(m=>m.stop===replacementStop)!.items.map(i=>i.id);assert.ok(replacementItems.length);
+ await value("select public.verify_route_items($1,'Loaded',$2::uuid[])",[replacementStop,replacementItems]);
+ await value('select public.depart_driver_route($1)',[route]);
+ assert.equal(await value("select payload->>'action_path' from public.notifications where dedupe_key=$1",['lost-replacement-departed:'+replacementStop]),'/lost/'+f.link);
+ await value("select public.return_driver_action($1,'en-route')",[replacementStop]);await value("select public.return_driver_action($1,'arrived')",[replacementStop]);
+ await assert.rejects(value("select public.return_driver_action($1,'delivered',true)",[replacementStop]),/evidence/);
+ await db.query("insert into public.documents(unit_id,type,file_name,job_id,pick_return_stop_id,status,storage_status) values($1,'Delivery Evidence','replacement-test.jpg',$2,$3,'Available','stored')",[unit,f.job,replacementStop]);
+ await assert.rejects(value("select public.return_driver_action($1,'cash',true)",[replacementStop]),/Invalid/);
+ await assert.rejects(value("select public.return_driver_action($1,'delivered',false)",[replacementStop]),/presence/);
+ await value("select public.return_driver_action($1,'delivered',true)",[replacementStop]);await value("select public.return_driver_action($1,'delivered',true)",[replacementStop]);
+ assert.equal(await value('select status from public.lost_replacement_deliveries where id=$1',[delivery]),'Delivered');
+ if(Number(await value("select count(*) from public.pick_return_stops where route_id=$1 and status not in ('Completed','Failed','Cancelled')",[route]))===0)await value('select public.confirm_pick_return_route($1)',[route]);else await assert.rejects(value('select public.confirm_pick_return_route($1)',[route]),/Resolve every stop/);
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",['lost-replacement:'+replacementStop+':delivered'])),1);
+
+ assert.deepEqual(await value('select to_jsonb(j) from public.jobs j where id=$1',[f.job]),original);
+
 });
-test('Lost refund pays market value above service collections as an expense, keeps normal caps, and finalizes only after receipt',async()=>{
+test('Lost refund pays market value above service collections as an expense, keeps normal caps, and closes Lost on issuance while retaining refund receipt tracking',async()=>{
  const f=await lostResolutionFixture('refund');
  const available=Number(await value('select private.job_refund_available($1)',[f.job]));assert.ok(available<500);
  await value("select public.public_lost_resolution($1,'Refund money')",[f.link]);
  await value('select public.lost_staff_action($1)',[{id:f.lost,action:'approve'}]);
  await value('select public.lost_staff_action($1)',[{id:f.lost,action:'approve'}]);
+ assert.equal(Number(await value("select count(*) from public.refund_requests where source_kind='Lost' and source_id=$1",[f.lost])),0);
+ await assert.rejects(value("select public.submit_lost_payment_details($1,'Zelle','v1.a.b.c')",[f.link]),/Server credentials/);
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+ try{await assert.rejects(value("select public.submit_lost_payment_details($1,'Card','v1.a.b.c')",[f.link]),/original electronic/);await value("select public.submit_lost_payment_details($1,'Zelle','v1.a.b.c')",[f.link]);await value("select public.submit_lost_payment_details($1,'Zelle','v1.a.b.c')",[f.link]);}finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
  assert.equal(Number(await value("select count(*) from public.refund_requests where source_kind='Lost' and source_id=$1",[f.lost])),1);
  const refund=await value<string>('select refund_id from public.lost_jobs where id=$1',[f.lost]);
  assert.equal(await value('select status from public.refund_requests where id=$1',[refund]),'Pending');
+ const publicView=await value<Record<string,unknown>>('select public.public_lost_resolution($1,null)',[f.link]);assert.equal(publicView.payment_details_submitted,true);assert.equal(JSON.stringify(publicView).includes('v1.a.b.c'),false);
+ await staffAs(admin,async()=>{assert.equal(await value('select public.lost_refund_payment_details($1)',[refund]),'v1.a.b.c');});
  const now=new Date().toISOString();await assert.rejects(rpc('create_refund_request',{request_key:await value('select gen_random_uuid()'),job_id:f.job,amount:'500.00',reason:'Other',issue_event:'Return',issue_event_at:now,reported_at:now}),/exceeds/);
  await rpc('refund_request_action',{id:refund,action:'review'});await rpc('refund_request_action',{id:refund,action:'confirm'});await rpc('refund_request_action',{id:refund,action:'approve'});
  await db.query('update public.refund_requests set process_not_before=current_date-1 where id=$1',[refund]);
@@ -2666,7 +2705,7 @@ test('Lost refund pays market value above service collections as an expense, kee
  assert.equal(Number(await value('select private.job_refund_available($1)',[f.job])),available);
  await rpc('refund_request_action',{id:refund,action:'complete'});
  assert.equal(Number(await value("select count(*) from public.transactions where reference=$1",['MANUAL-'+refund])),1);
- await assert.rejects(value('select public.lost_staff_action($1)',[{id:f.lost,action:'finalize',notes:'Waiting'}]),/Complete the linked Refund/);
+ assert.equal(await value('select status from public.lost_jobs where id=$1',[f.lost]),'History');
  await value('select public.public_refund($1,true)',[result.token]);
  await value('select public.lost_staff_action($1)',[{id:f.lost,action:'finalize',notes:'Market-value refund completed and confirmed.'}]);
  assert.equal(await value('select status from public.lost_jobs where id=$1',[f.lost]),'History');

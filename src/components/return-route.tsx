@@ -21,12 +21,13 @@ export async function ReturnRoute({date}:{date:string}){
  if(stopError)throw new Error("Could not load Return stops");
  const {data:incidents,error:incidentError}=ids.length?await db.from("route_incidents").select("id,route_id,status,deadline").eq("unit_id",unit).in("route_id",ids):{data:[],error:null};
  if(incidentError)throw new Error("Could not load route exceptions");
+ const {data:replacements,error:replacementError}=await db.from("lost_replacement_deliveries").select("id,item_ids").eq("unit_id",unit);if(replacementError)throw new Error("Could not load replacement manifests");
  const jobIds=(stops??[]).map(s=>s.job_id);
  const results=jobIds.length?await Promise.all([
  db.from("pick_return_orders").select("*").eq("unit_id",unit).in("job_id",jobIds).in("service_method",["Pickup & Delivery","Drop-off + Delivery"]).not("production_ready_at","is",null),
- db.from("jobs").select("*").eq("unit_id",unit).eq("is_lost",false).in("id",jobIds),
+ db.from("jobs").select("*").eq("unit_id",unit).in("id",jobIds),
  db.from("quote_logistics").select("quote_id,delivery_address").eq("unit_id",unit),
- db.from("job_items").select("job_id,article,sequence,stage").eq("unit_id",unit).in("job_id",jobIds).order("sequence"),
+ db.from("job_items").select("id,job_id,article,sequence,stage").eq("unit_id",unit).in("job_id",jobIds).order("sequence"),
  db.from("documents").select("*").eq("unit_id",unit).in("job_id",jobIds).eq("type","Delivery Evidence").eq("status","Available"),
  db.from("commercial_flows").select("id,customer_id").eq("unit_id",unit),
  db.from("customers").select("id,name,phone").eq("unit_id",unit),
@@ -36,7 +37,7 @@ export async function ReturnRoute({date}:{date:string}){
  if(results.some(r=>r.error))throw new Error("Could not load Return details");
  const [orders,jobs,logistics,items,documents,flows,customers,extensions,balances]=results.map(r=>r.data??[]);
  const allowed=new Set((orders??[]).filter(o=>o.return_status=== "Delivery In Progress" || (o.return_window_start&&new Date(o.return_window_start).toLocaleDateString("en-CA",{timeZone:"America/Denver"})===date)).map(o=>o.job_id));
- const visible=(stops??[]).filter(s=>s.status!=="Cancelled"&&s.status!=="Failed"&&allowed.has(s.job_id)&&(items??[]).some(i=>i.job_id===s.job_id)&&((items??[]).filter(i=>i.job_id===s.job_id).every(i=>["Finished","Cancelled"].includes(i.stage))||(extensions??[]).some(x=>x.job_id===s.job_id&&["Requested","Draft","Sent","Approved"].includes(x.status))));
+ const visible=(stops??[]).filter(s=>s.status!=="Cancelled"&&s.status!=="Failed"&&jobs?.some(j=>j.id===s.job_id&&(!j.is_lost||s.lost_replacement_id))&&(Boolean(s.lost_replacement_id)||allowed.has(s.job_id))&&(items??[]).some(i=>i.job_id===s.job_id)&&(Boolean(s.lost_replacement_id)||(items??[]).filter(i=>i.job_id===s.job_id).every(i=>["Finished","Cancelled"].includes(i.stage))||(extensions??[]).some(x=>x.job_id===s.job_id&&["Requested","Draft","Sent","Approved"].includes(x.status))));
  return <section className="return-route driver-landing"><RouteDeparture/><StatusRefresh channels={liveChannels.filter((value):value is string=>typeof value==="string")} />
  <Link className="button secondary" href="/pick-return">← All routes</Link><p className="eyebrow">SUNDAY / RETURN</p><h1>{routeDateLabel(date)}</h1><p className="driver-window">2:00 PM–6:00 PM · Denver time</p><p>{visible.filter(s=>s.status==="Completed").length}/{visible.length} delivered</p>
  {(routes??[]).map(route=><RouteNotificationControls key={route.id} leg="Return" route={route.id} departed={route.departed_at} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}
@@ -46,18 +47,19 @@ export async function ReturnRoute({date}:{date:string}){
  const job=(jobs??[]).find(j=>j.id===stop.job_id);if(!job)return null;
  const flow=(flows??[]).find(f=>f.id===job.flow_id);const customer=(customers??[]).find(c=>c.id===flow?.customer_id);
  const evidence=(documents??[]).filter(d=>d.pick_return_stop_id===stop.id);
- const pieces=(items??[]).filter(i=>i.job_id===job.id&&i.stage!=="Cancelled");const summary=new Map<string,number>();pieces.forEach(i=>summary.set(i.article,(summary.get(i.article)??0)+1));
+ const pieces=(items??[]).filter(i=>i.job_id===job.id&&i.stage!=="Cancelled"&&(!stop.lost_replacement_id||(replacements??[]).find(d=>d.id===stop.lost_replacement_id)?.item_ids.includes(i.id)));const summary=new Map<string,number>();pieces.forEach(i=>summary.set(i.article,(summary.get(i.article)??0)+1));
+ const replacement=Boolean(stop.lost_replacement_id);
  const paused=(incidents??[]).some(i=>i.route_id===stop.route_id&&i.status==="Open");
- const blocked=paused||job.status==="Cancelled"||/Cancellation Requested|Production Hold/.test(job.work_stage??"")||(extensions??[]).some(x=>x.job_id===job.id&&["Requested","Draft","Sent"].includes(x.status))||pieces.some(i=>i.stage!=="Finished");
+ const blocked=paused||(!replacement&&(job.status==="Cancelled"||/Cancellation Requested|Production Hold/.test(job.work_stage??"")||(extensions??[]).some(x=>x.job_id===job.id&&["Requested","Draft","Sent"].includes(x.status))||pieces.some(i=>i.stage!=="Finished")));
  return <article id={`return-stop-${stop.id}`} className="driver-card return-stop" key={stop.id}><div className="driver-card-heading"><span className="driver-icon">{index+1}</span><div><h2>{customer?.name??"Customer"}</h2><p>{job.code} · {stop.status==="Completed"?"Delivered":stop.status==="Requested"?"Pending · second Return payment":stop.status==="Scheduled"?"Return Scheduled":stop.status==="En Route"?"Return En Route":stop.status}</p></div></div>
  {customer?.phone&&<a className="button secondary" href={`tel:${customer.phone.replace(/[^+0-9]/g,"")}`}>{customer.phone}</a>}
  <p className="return-address">{stop.address||(logistics??[]).find(l=>l.quote_id===job.quote_id)?.delivery_address||"Delivery address unavailable"}</p><p>Window: 2:00 PM–6:00 PM</p>{stop.approximate_eta&&<p><strong>ETA aprox.: {denverTime(stop.approximate_eta)}</strong></p>}{stop.eta&&<p><strong>ETA: {denverTime(stop.eta)}</strong></p>}
- <h3>{pieces.length} pieces</h3><ul>{[...summary].map(([name,count])=><li key={name}>{count} × {name}</li>)}</ul>
+ {replacement&&<p className="badge">TOP PRIORITY · FREE REPLACEMENT</p>}<h3>{pieces.length} pieces</h3><ul>{[...summary].map(([name,count])=><li key={name}>{count} × {name}</li>)}</ul>
  {!pieces.length&&<p className="muted">Piece details unavailable.</p>}
  <EvidenceGallery files={evidence} />
  {stop.status==="Arrived"&&<details className="return-photos"><summary className="button secondary">Take / upload delivery photos</summary><EvidenceUpload config={{jobId:job.id,pickReturnStopId:stop.id,type:"Delivery Evidence",defaultVisibility:"customer",photoOnly:true}} button="Save delivery photo" accept="image/*" /></details>}
  {!["Arrived","Completed","Failed"].includes(stop.status)&&<button disabled>Take / upload delivery photos · arrive first</button>}
- <ReturnStopControls address={stop.address||(logistics??[]).find(l=>l.quote_id===job.quote_id)?.delivery_address||""} nextStop={visible[index+1]?.id} stop={stop.id} status={stop.status} waitUntil={stop.return_wait_until} coming={stop.return_customer_coming_at} blocked={blocked} hasEvidence={evidence.length>0} phone={customer?.phone||stop.customer_phone} cash={(orders??[]).find(o=>o.job_id===job.id)?.delivery_payment_method==="Cash"} balance={Number((balances??[]).find(b=>b.id===job.id)?.balance_due??0)} retryExpires={(orders??[]).find(o=>o.job_id===job.id)?.return_reservation_expires_at} />
+ <ReturnStopControls address={stop.address||(logistics??[]).find(l=>l.quote_id===job.quote_id)?.delivery_address||""} nextStop={visible[index+1]?.id} stop={stop.id} status={stop.status} waitUntil={stop.return_wait_until} coming={stop.return_customer_coming_at} blocked={blocked} hasEvidence={evidence.length>0} phone={customer?.phone||stop.customer_phone} cash={!replacement&&(orders??[]).find(o=>o.job_id===job.id)?.delivery_payment_method==="Cash"} balance={replacement?0:Number((balances??[]).find(b=>b.id===job.id)?.balance_due??0)} retryExpires={(orders??[]).find(o=>o.job_id===job.id)?.return_reservation_expires_at} />
  </article>;
  })}
  {(routes??[]).map(route=>{
