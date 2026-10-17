@@ -5,14 +5,22 @@ export function AssetForm({
   categories,
   expenses,
   expense,
+  lockedExpense = false,
+  defaultName,
+  onSaved,
+  back = "/app/equipment",
 }: {
   categories: { value: string; label: string }[];
   expenses: { value: string; label: string }[];
   expense?: string;
+  lockedExpense?: boolean;
+  defaultName?: string;
+  onSaved?: (data: unknown) => void;
+  back?: string;
 }) {
   const [origin, setOrigin] = useState("Purchased");
   const fields: Field[] = [
-    { name: "name", label: "Equipment Name", required: true },
+    { name: "name", label: "Equipment Name", required: true, value: defaultName },
     {
       name: "category_id",
       label: "Equipment Category",
@@ -23,7 +31,7 @@ export function AssetForm({
     { name: "warranty_expiration", label: "Warranty Expiration", type: "date" },
     { name: "notes", label: "Notes", type: "textarea", wide: true },
   ];
-  if (origin === "Purchased")
+  if (origin === "Purchased" && !lockedExpense)
     fields.unshift({
       name: "source_expense_id",
       label: "Unlinked Equipment Purchase",
@@ -31,7 +39,7 @@ export function AssetForm({
       required: true,
       value: expense,
     });
-  else
+  else if (origin !== "Purchased")
     fields.push(
       {
         name: "estimated_value",
@@ -39,7 +47,7 @@ export function AssetForm({
         type: "number",
         required: true,
       },
-      { name: "donated_by", label: "Donado por", required: true },
+      { name: "donated_by", label: "Donated By", required: true },
       {
         name: "received_date",
         label: "Received Date",
@@ -49,7 +57,7 @@ export function AssetForm({
     );
   return (
     <>
-      <label style={{ marginBottom: 18 }}>Source<select value={origin} onChange={(e) => setOrigin(e.target.value)}>
+      <label style={{ marginBottom: 18 }}>Source<select disabled={lockedExpense} value={origin} onChange={(e) => setOrigin(e.target.value)}>
           <option>Purchased</option>
           <option>Donated</option>
         </select>
@@ -57,9 +65,10 @@ export function AssetForm({
       <Form
         key={origin}
         operation="asset"
-        hidden={{ origin }}
+        onSaved={onSaved}
+        hidden={{ origin, ...(lockedExpense && expense ? {source_expense_id:expense} : {}) }}
         fields={fields}
-        back="/app/equipment"
+        back={back}
       />
     </>
   );

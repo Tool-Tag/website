@@ -1,4 +1,5 @@
 "use server";
+import {expenseProofError} from "@/lib/domain/expense-proof";
 import { canAny, evidencePermissions } from "@/lib/auth/permissions";
 
 import { createHash } from "node:crypto";
@@ -38,6 +39,7 @@ export type EvidenceRegistration = {
   defaultVisibility?: "internal" | "customer";
   back?: string;
   photoOnly?: boolean;
+  expenseProof?: boolean;
 };
 
 export async function registerEvidenceAction(
@@ -49,6 +51,7 @@ export async function registerEvidenceAction(
     const { db, unit, access } = await context();
     if (!canAny(access,evidencePermissions(config.type,Boolean(config.pickReturnStopId)))) return { error: "Evidence permission required." };
 
+    if(config.expenseProof && (!access.owner || config.type!=="Other" || config.jobId || config.transactionId || config.refundRequestId))return {error:"Expense receipt staging requires Owner access."};
     if (config.type === "Delivery Evidence" && config.pickReturnStopId) {
       const {data:stop, error} = await db.from("pick_return_stops").select("status,job_id").eq("id",config.pickReturnStopId).eq("unit_id",unit).single();
       if (error || !stop || stop.status !== "Arrived" || stop.job_id !== config.jobId) return {error: "Arrive at the delivery stop before uploading delivery photos."};
@@ -68,10 +71,11 @@ export async function registerEvidenceAction(
 
     const original = storageObjectName(file.name || "evidence-file");
     const bytes = new Uint8Array(await file.arrayBuffer());
+    if(config.expenseProof){const error=expenseProofError(file,bytes);if(error)return {error};}
     const fingerprint = createHash("sha256").update(bytes).digest("hex");
 
     const visibility = String(
-      form.get("visibility") || config.defaultVisibility || "internal",
+      config.expenseProof ? "internal" : form.get("visibility") || config.defaultVisibility || "internal",
     );
     if (!["internal", "customer"].includes(visibility)) {
       return { error: "Choose a valid visibility." };

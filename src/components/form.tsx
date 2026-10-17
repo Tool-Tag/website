@@ -1,7 +1,7 @@
 "use client";
 import { useActionPermission } from "./permission-provider";
 import { PhoneVerification } from "./phone-verification";
-import { useActionState, useState } from "react";
+import { useActionState, useState, useEffect, useRef } from "react";
 import { mutate, type ActionState } from "@/app/actions";
 export type Field = {
   name: string;
@@ -23,6 +23,9 @@ export function Form({
   button = "Save",
   back = "/app",
   children,
+  onSaved,
+  onFieldChange,
+  submitDisabled = false,
 }: {
   operation: string;
   fields: Field[];
@@ -30,6 +33,9 @@ export function Form({
   button?: string;
   back?: string;
   children?: React.ReactNode;
+  onSaved?: (data:unknown)=>void;
+  onFieldChange?: (name:string,value:string)=>void;
+  submitDisabled?: boolean;
 }) {
   const allowed = useActionPermission(operation);
   const [customerPhone, setCustomerPhone] = useState(fields.find(f=>f.name==="phone")?.value??"");
@@ -37,6 +43,8 @@ export function Form({
     mutate.bind(null, operation, back),
     {},
   );
+  const handled = useRef<ActionState|null>(null);
+  useEffect(()=>{if(state.ok && onSaved && handled.current!==state){handled.current=state;onSaved(state.data);}},[state,onSaved]);
   if (!allowed) return null;
   return (
     <form action={action} className="formgrid">
@@ -76,7 +84,7 @@ export function Form({
               <input
                 list={f.suggestions ? `suggest-${f.name}` : undefined}
                 name={f.name}
-                onChange={operation==="customer" && f.name==="phone" ? e=>setCustomerPhone(e.target.value) : undefined}
+                onChange={e=>{if(operation==="customer"&&f.name==="phone")setCustomerPhone(e.target.value);onFieldChange?.(f.name,e.target.value);}}
                 type={f.type ?? "text"}
                 required={f.required}
                 defaultValue={f.value}
@@ -122,7 +130,7 @@ export function Form({
       )}
       {state.mailStatus && <p className="notice wide">{state.mailStatus}</p>}
       {state.ok && <div className="notice success wide">Saved.</div>}
-      <button disabled={pending}>{pending ? "Saving…" : button}</button>
+      <button disabled={pending||submitDisabled}>{pending ? "Saving…" : button}</button>
     </form>
   );
 }

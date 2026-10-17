@@ -2586,3 +2586,219 @@ test('Dashboard activity checks Owner once, returns only ten grouped tenant even
   await staffAs(admin,async()=>{await assert.rejects(value('select public.dashboard_recent_activity($1)',[unit]),/Owner access/);});
  } finally {await db.query('update auth.sessions set created_at=$2 where id=$1',[admin,created]);}
 });
+
+async function lostResolutionFixture(suffix:string){
+ const f=await driverReturnFixture('resolution-'+suffix);
+ await value("select public.return_driver_action($1,'en-route')",[f.stop]);
+ await value("select public.return_driver_action($1,'arrived')",[f.stop]);
+ await db.query("update public.pick_return_stops set return_wait_until=now()-interval '1 second' where id=$1",[f.stop]);
+ await value("select public.return_driver_action($1,'not-home')",[f.stop]);
+ const lost=await value<string>("select public.mark_failed_delivery_lost_v2($1,'{}','Test missing tool at shop',500)",[f.stop]);
+ await value("select public.lost_staff_action($1)",[{id:lost,action:'notify',market_value:'500.00'}]);
+ const path=await value<string>("select payload->>'action_path' from public.notifications where dedupe_key=$1",['lost-resolution:'+lost]);
+ return {...f,lost,link:path.split('/').at(-1)!};
+}
+test('Lost notify freezes market value, deduplicates mail/SMS, scopes bearer responses and waits for the customer',async()=>{
+ const f=await lostResolutionFixture('notify');
+ assert.equal(await value('select status from public.lost_jobs where id=$1',[f.lost]),'In Process');
+ assert.equal(Number(await value('select market_value from public.lost_jobs where id=$1',[f.lost])),500);
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",['lost-resolution:'+f.lost])),1);
+ await value('select public.lost_staff_action($1)',[{id:f.lost,action:'notify',market_value:'1.00'}]);
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",['lost-resolution:'+f.lost])),1);
+ assert.equal(Number(await value('select market_value from public.lost_jobs where id=$1',[f.lost])),500);
+ const notification=await value<string>("select id from public.notifications where dedupe_key=$1",['lost-resolution:'+f.lost]);
+ assert.equal(Number(await value('select count(*) from private.sms_deliveries where notification_id=$1',[notification])),1);
+ assert.equal(await value('select status from private.sms_deliveries where notification_id=$1',[notification]),'Skipped');
+ const sms=await supportWorker(()=>value<{action_path:string;job_code:string}>('select public.sms_message_context($1)',[notification]));assert.equal(sms.action_path,'/lost/'+f.link);
+ await assert.rejects(value('select public.lost_staff_action($1)',[{id:f.lost,action:'approve'}]),/Waiting for customer/);
+ await assert.rejects(value('select public.public_lost_resolution($1,null)',['0'.repeat(64)]),/unavailable/);
+ await db.query("select set_config('request.jwt.claim.sub','',false)");await db.exec('set role anon');
+ try {
+  const response=await value<Record<string,unknown>>('select public.public_lost_resolution($1,null)',[f.link]);
+  assert.equal(Number(response.market_value),500);assert.equal('driver_email' in response,false);assert.equal('phone' in response,false);assert.equal('explanation' in response,false);
+  await assert.rejects(value('select public.lost_staff_action($1)',[{id:f.lost,action:'approve'}]),/permission denied/);
+  await value("select public.public_lost_resolution($1,'Replace Item')",[f.link]);
+  await value("select public.public_lost_resolution($1,'Replace Item')",[f.link]);
+  await assert.rejects(value("select public.public_lost_resolution($1,'Refund money')",[f.link]),/already recorded/);
+ }finally{await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);}
+ const employee=await value<string>('select gen_random_uuid()');await db.query('insert into auth.users(id) values($1)',[employee]);
+ const employeeRole=await value<string>("select id from public.roles where unit_id=$1 and name='Employee'",[unit]);
+ await value("select public.rbac_save_user($1,'Lost Employee',true,array[$2]::uuid[])",[employee,employeeRole]);
+ await staffAs(employee,async()=>{await assert.rejects(value('select public.lost_staff_action($1)',[{id:f.lost,action:'approve'}]),/Owner or Manager/);});
+ await value('select public.lost_staff_action($1)',[{id:f.lost,action:'approve'}]);
+ assert.equal(Number(await value("select count(*) from public.refund_requests where source_kind='Lost' and source_id=$1",[f.lost])),0);
+ await assert.rejects(value('select public.lost_staff_action($1)',[{id:f.lost,action:'finalize',notes:'Replacement supplied and received by customer.'}]),/record its Finance expense/);
+ const approval=await value<{text:string}>("select payload from public.notifications where dedupe_key=$1",['lost-approved:'+f.lost]);assert.match(approval.text,/replacing.*5–7 business days/);
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",['lost-approved:'+f.lost])),1);
+ const account=await value<string>('select id from public.accounts where unit_id=$1 and active limit 1',[unit]);
+ const category=await value<string>("select id from public.categories where unit_id=$1 and kind='expense' and active limit 1",[unit]);
+ const expensePayload={proof_id:await storedExpenseProof(),lost_id:f.lost,amount:'475.00',account_id:account,category_id:category,description:'Test replacement purchase',vendor:'Test supplier',paid_by:'Business'};
+ await assert.rejects(value('select public.record_lost_replacement_expense($1)',[expensePayload]),/at the shop first/);
+ await value('select public.lost_staff_action($1)',[{id:f.lost,action:'confirm-replacement'}]);
+ await staffAs(employee,async()=>{await assert.rejects(value('select public.record_lost_replacement_expense($1)',[expensePayload]),/Owner access/);});
+ const expense=await value<string>('select public.record_lost_replacement_expense($1)',[expensePayload]);
+ assert.equal(await value('select public.record_lost_replacement_expense($1)',[expensePayload]),expense);
+ await assert.rejects(value('select public.record_lost_replacement_expense($1)',[{...expensePayload,amount:'480.00'}]),/different information/);
+ assert.equal(await value('select replacement_expense_id from public.lost_jobs where id=$1',[f.lost]),expense);
+ assert.equal(Number(await value('select amount from public.transactions where id=$1',[expense])),475);
+ await assert.rejects(value('select public.lost_staff_action($1)',[{id:f.lost,action:'finalize',notes:''}]),/resolution details/);
+ await value('select public.lost_staff_action($1)',[{id:f.lost,action:'finalize',notes:'Replacement supplied and received by customer.'}]);
+ assert.equal(await value('select status from public.lost_jobs where id=$1',[f.lost]),'History');
+ const attention=await value<{items:{id:string}[]}>('select public.urgent_login_attention()');assert.equal(attention.items.some(i=>i.id===f.lost),false);
+ assert.ok(await value('select replacement_ready_at from public.lost_jobs where id=$1',[f.lost]));
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",['lost-ready:'+f.lost])),1);
+ await assert.rejects(value("select public.choose_lost_replacement_fulfillment($1,'Free delivery','')",[f.link]),/address/);
+ await value("select public.choose_lost_replacement_fulfillment($1,'Free delivery','101 Test Way, Draper UT 84020')",[f.link]);
+ await value("select public.choose_lost_replacement_fulfillment($1,'Free delivery','101 Test Way, Draper UT 84020')",[f.link]);
+ const delivery=await value<string>('select id from public.lost_replacement_deliveries where lost_id=$1',[f.lost]);
+ assert.equal(await value('select status from public.lost_replacement_deliveries where id=$1',[delivery]),'To Schedule');
+ assert.equal(Number(await value('select delivery_fee from public.lost_replacement_deliveries where id=$1',[delivery])),0);
+ assert.equal(await value('select top_priority from public.lost_replacement_deliveries where id=$1',[delivery]),true);
+ const original=await value('select to_jsonb(j) from public.jobs j where id=$1',[f.job]);
+ await value('select private.reconcile_lost_replacements()');
+ const replacementStop=await value<string>('select public.schedule_lost_replacement($1)',[delivery]);assert.ok(replacementStop);
+ assert.equal(await value('select public.schedule_lost_replacement($1)',[delivery]),replacementStop);
+ const route=await value<string>('select route_id from public.pick_return_stops where id=$1',[replacementStop]);
+ assert.equal(await value('select sequence from public.pick_return_stops where id=$1',[replacementStop]),1);
+ assert.deepEqual(await value('select to_jsonb(j) from public.jobs j where id=$1',[f.job]),original);
+ const manifest=await value<{stop:string;items:{id:string}[]}[]>("select public.route_item_checklist($1,'Loaded')",[route]);
+ const replacementItems=manifest.find(m=>m.stop===replacementStop)!.items.map(i=>i.id);assert.ok(replacementItems.length);
+ await value("select public.verify_route_items($1,'Loaded',$2::uuid[])",[replacementStop,replacementItems]);
+ await value('select public.depart_driver_route($1)',[route]);
+ assert.equal(await value("select payload->>'action_path' from public.notifications where dedupe_key=$1",['lost-replacement-departed:'+replacementStop]),'/lost/'+f.link);
+ await value("select public.return_driver_action($1,'en-route')",[replacementStop]);await value("select public.return_driver_action($1,'arrived')",[replacementStop]);
+ await assert.rejects(value("select public.return_driver_action($1,'delivered',true)",[replacementStop]),/evidence/);
+ await db.query("insert into public.documents(unit_id,type,file_name,job_id,pick_return_stop_id,status,storage_status) values($1,'Delivery Evidence','replacement-test.jpg',$2,$3,'Available','stored')",[unit,f.job,replacementStop]);
+ await assert.rejects(value("select public.return_driver_action($1,'cash',true)",[replacementStop]),/Invalid/);
+ await assert.rejects(value("select public.return_driver_action($1,'delivered',false)",[replacementStop]),/presence/);
+ await value("select public.return_driver_action($1,'delivered',true)",[replacementStop]);await value("select public.return_driver_action($1,'delivered',true)",[replacementStop]);
+ assert.equal(await value('select status from public.lost_replacement_deliveries where id=$1',[delivery]),'Delivered');
+ if(Number(await value("select count(*) from public.pick_return_stops where route_id=$1 and status not in ('Completed','Failed','Cancelled')",[route]))===0)await value('select public.confirm_pick_return_route($1)',[route]);else await assert.rejects(value('select public.confirm_pick_return_route($1)',[route]),/Resolve every stop/);
+ assert.equal(Number(await value("select count(*) from public.notifications where dedupe_key=$1",['lost-replacement:'+replacementStop+':delivered'])),1);
+
+ assert.deepEqual(await value('select to_jsonb(j) from public.jobs j where id=$1',[f.job]),original);
+
+});
+test('Lost refund pays market value above service collections as an expense, keeps normal caps, and closes Lost on issuance while retaining refund receipt tracking',async()=>{
+ const f=await lostResolutionFixture('refund');
+ const available=Number(await value('select private.job_refund_available($1)',[f.job]));assert.ok(available<500);
+ await value("select public.public_lost_resolution($1,'Refund money')",[f.link]);
+ await value('select public.lost_staff_action($1)',[{id:f.lost,action:'approve'}]);
+ await value('select public.lost_staff_action($1)',[{id:f.lost,action:'approve'}]);
+ assert.equal(Number(await value("select count(*) from public.refund_requests where source_kind='Lost' and source_id=$1",[f.lost])),0);
+ await assert.rejects(value("select public.submit_lost_payment_details($1,'Zelle','v1.a.b.c')",[f.link]),/Server credentials/);
+ await db.query("select set_config('request.jwt.claim.role','service_role',false)");
+ try{await assert.rejects(value("select public.submit_lost_payment_details($1,'Card','v1.a.b.c')",[f.link]),/original electronic/);await value("select public.submit_lost_payment_details($1,'Zelle','v1.a.b.c')",[f.link]);await value("select public.submit_lost_payment_details($1,'Zelle','v1.a.b.c')",[f.link]);}finally{await db.query("select set_config('request.jwt.claim.role','authenticated',false)");}
+ assert.equal(Number(await value("select count(*) from public.refund_requests where source_kind='Lost' and source_id=$1",[f.lost])),1);
+ const refund=await value<string>('select refund_id from public.lost_jobs where id=$1',[f.lost]);
+ assert.equal(await value('select status from public.refund_requests where id=$1',[refund]),'Pending');
+ const publicView=await value<Record<string,unknown>>('select public.public_lost_resolution($1,null)',[f.link]);assert.equal(publicView.payment_details_submitted,true);assert.equal(JSON.stringify(publicView).includes('v1.a.b.c'),false);
+ await staffAs(admin,async()=>{assert.equal(await value('select public.lost_refund_payment_details($1)',[refund]),'v1.a.b.c');});
+ const now=new Date().toISOString();await assert.rejects(rpc('create_refund_request',{request_key:await value('select gen_random_uuid()'),job_id:f.job,amount:'500.00',reason:'Other',issue_event:'Return',issue_event_at:now,reported_at:now}),/exceeds/);
+ await rpc('refund_request_action',{id:refund,action:'review'});await rpc('refund_request_action',{id:refund,action:'confirm'});await rpc('refund_request_action',{id:refund,action:'approve'});
+ await db.query('update public.refund_requests set process_not_before=current_date-1 where id=$1',[refund]);
+ const account=await value<string>('select id from public.accounts where unit_id=$1 and active limit 1',[unit]);
+ const result=await issueLifecycle({id:refund,job:f.job,account});
+ assert.equal(await value('select status from public.refund_requests where id=$1',[refund]),'Issued');
+ assert.equal(Number(await value("select sum(amount) from public.transactions where reference=$1 and type='EXPENSE'",['MANUAL-'+refund])),500);
+ assert.equal(Number(await value("select count(*) from public.transactions where reference=$1 and type='REFUND'",['MANUAL-'+refund])),0);
+ assert.equal(Number(await value('select private.job_refund_available($1)',[f.job])),available);
+ await rpc('refund_request_action',{id:refund,action:'complete'});
+ assert.equal(Number(await value("select count(*) from public.transactions where reference=$1",['MANUAL-'+refund])),1);
+ assert.equal(await value('select status from public.lost_jobs where id=$1',[f.lost]),'History');
+ await value('select public.public_refund($1,true)',[result.token]);
+ await value('select public.lost_staff_action($1)',[{id:f.lost,action:'finalize',notes:'Market-value refund completed and confirmed.'}]);
+ assert.equal(await value('select status from public.lost_jobs where id=$1',[f.lost]),'History');
+ await db.query("update private.lost_resolution_links set expires_at=now()-interval '1 second' where lost_id=$1",[f.lost]);
+ await assert.rejects(value('select public.public_lost_resolution($1,null)',[f.link]),/unavailable/);
+});
+
+test('Driver loss agreements are prospective, driver-bound, versioned, and gate new assignments until acceptance/Owner decision',async()=>{
+ const driver=await value<string>('select gen_random_uuid()');await db.query("insert into auth.users(id,email) values($1,'driver-agreement@example.test')",[driver]);
+ const role=await value<string>("select id from public.roles where unit_id=$1 and name='Driver'",[unit]);await value("select public.rbac_save_user($1,'Agreement Driver',true,array[$2]::uuid[])",[driver,role]);
+ async function report(suffix:string){
+  const f=await driverReturnFixture('driver-agreement-'+suffix);const route=await value<string>('select route_id from public.pick_return_stops where id=$1',[f.stop]);
+  await value('select public.assign_route_operator($1,$2)',[route,driver]);
+  await value("select public.return_driver_action($1,'en-route')",[f.stop]);await value("select public.return_driver_action($1,'arrived')",[f.stop]);
+  await db.query("update public.pick_return_stops set return_wait_until=now()-interval '1 second' where id=$1",[f.stop]);await value("select public.return_driver_action($1,'not-home')",[f.stop]);
+  const lost=await value<string>("select public.mark_failed_delivery_lost_v2($1,'{}','Test driver loss',500)",[f.stop]);
+  const agreement=await value<string>('select id from public.driver_loss_agreements where lost_id=$1 and document_version=1',[lost]);return {...f,route,lost,agreement};
+ }
+ const first=await report('first');assert.equal(Number(await value('select loss_number from public.driver_loss_agreements where id=$1',[first.agreement])),1);
+ const text=await value<string>('select document_text from public.driver_loss_agreements where id=$1',[first.agreement]);assert.match(text,/First loss — Warning/);assert.match(text,/does not assign fault/);assert.match(text,/To be determined/);assert.match(text,/Agreement Rev: 1.0\nToolTag - Bandits of the Framing LLC$/);
+ assert.equal(await value('select private.driver_loss_eligible($1)',[driver]),false);
+ const choices=await value<{id:string;selectable:boolean}[]>('select public.delivery_block_drivers()');assert.equal(choices.find(d=>d.id===driver)?.selectable,false);
+ await staffAs(driver,async()=>{assert.equal(Number(await value('select count(*) from public.driver_loss_agreements where driver_id<>$1',[driver])),0);});
+ await assert.rejects(value('select public.driver_loss_agreement($1,true)',[first.agreement]),/Only the named driver/);
+ await assert.rejects(value("select public.driver_loss_owner_decision($1,'allow','Review complete')",[driver]),/accepted first/);
+ await staffAs(driver,async()=>{await value('select public.driver_loss_agreement($1,true)',[first.agreement]);await value('select public.driver_loss_agreement($1,true)',[first.agreement]);await assert.rejects(value("select public.driver_loss_owner_decision($1,'allow','Self approval')",[driver]),/Owner/);});
+ assert.equal(await value('select private.driver_loss_eligible($1)',[driver]),false);
+ await value("select public.driver_loss_owner_decision($1,'allow','Owner reviewed the warning and authorizes continued assignments')",[driver]);assert.equal(await value('select private.driver_loss_eligible($1)',[driver]),true);
+ // Final recorded Finance expense creates a second immutable document, not a rewrite.
+ await value('select public.lost_staff_action($1)',[{id:first.lost,action:'notify',market_value:'500.00'}]);
+ const path=await value<string>("select payload->>'action_path' from public.notifications where dedupe_key=$1",['lost-resolution:'+first.lost]);await value("select public.public_lost_resolution($1,'Replace Item')",[path.split('/').at(-1)]);
+ await value('select public.lost_staff_action($1)',[{id:first.lost,action:'approve'}]);await value('select public.lost_staff_action($1)',[{id:first.lost,action:'confirm-replacement'}]);
+ const account=await value<string>('select id from public.accounts where unit_id=$1 and active limit 1',[unit]);const category=await value<string>("select id from public.categories where unit_id=$1 and kind='expense' and active limit 1",[unit]);
+ await value('select public.record_lost_replacement_expense($1)',[{proof_id:await storedExpenseProof(),lost_id:first.lost,amount:'475.00',account_id:account,category_id:category,description:'Final replacement expense',vendor:'Driver test supplier',paid_by:'Business'}]);
+ const final=await value<string>('select id from public.driver_loss_agreements where lost_id=$1 and document_version=2',[first.lost]);assert.equal(Number(await value('select cost from public.driver_loss_agreements where id=$1',[final])),475);assert.equal(await value('select document_text from public.driver_loss_agreements where id=$1',[first.agreement]),text);assert.equal(await value('select private.driver_loss_eligible($1)',[driver]),false);
+ await staffAs(driver,()=>value('select public.driver_loss_agreement($1,true)',[final]));assert.equal(await value('select private.driver_loss_eligible($1)',[driver]),true);
+ const second=await report('second');assert.equal(Number(await value('select loss_number from public.driver_loss_agreements where id=$1',[second.agreement])),2);assert.match(await value<string>('select document_text from public.driver_loss_agreements where id=$1',[second.agreement]),/pay the remaining difference personally/);
+ const unassigned=await value<string>("insert into public.pick_return_routes(unit_id,leg,route_date) values($1,'Return',current_date+300) returning id",[unit]);await assert.rejects(value('select public.assign_route_operator($1,$2)',[unassigned,driver]),/ineligible/);
+ await staffAs(driver,()=>value('select public.driver_loss_agreement($1,true)',[second.agreement]));
+ const third=await report('third');assert.equal(Number(await value('select loss_number from public.driver_loss_agreements where id=$1',[third.agreement])),3);assert.match(await value<string>('select document_text from public.driver_loss_agreements where id=$1',[third.agreement]),/Second or subsequent loss/);
+ await staffAs(driver,()=>value('select public.driver_loss_agreement($1,true)',[third.agreement]));
+ await value("select public.driver_loss_owner_decision($1,'ban','Owner confirmed documented noncompliance')",[driver]);assert.equal(await value('select private.driver_loss_eligible($1)',[driver]),false);await assert.rejects(value('select public.assign_route_operator($1,$2)',[unassigned,driver]),/ineligible/);
+ // A historical case assigned to this driver is never backfilled into the policy.
+ const historical=await driverReturnFixture('historical-driver-only');
+ const old=await value<string>("insert into public.lost_jobs(unit_id,job_id,stop_id,route_id,driver_id,driver_name,missing_item_ids,explanation,reported_by,reported_at) select $1,$2,$3,route_id,$4,'Agreement Driver',array(select id from public.job_items where job_id=$2),'Historical fixture',$5,(select effective_at-interval '1 day' from private.driver_loss_policy) from public.pick_return_stops where id=$3 returning id",[unit,historical.job,historical.stop,driver,admin]);
+ await value('select private.queue_driver_loss_agreement($1,null,false)',[old]);assert.equal(Number(await value('select count(*) from public.driver_loss_agreements where lost_id=$1',[old])),0);
+ assert.equal(Number(await value("select count(*) from public.notifications where event='DRIVER_LOSS_AGREEMENT' and entity_id=$1",[first.lost])),2);
+ assert.equal(await value("select has_function_privilege('anon','public.driver_loss_agreement(uuid,boolean)','execute')"),false);
+});
+
+test('Tax quarter settings are Owner-only, validated, audited and leave transactions untouched',async()=>{
+ const before=await value('select count(*) from public.transactions');
+ const employee=await addStaff(['Employee'],'Quarter settings employee');
+ await staffAs(employee,async()=>{await assert.rejects(value('select public.save_tax_quarters($1::text[])',[['01-15','04-15','07-15','10-15']]),/Owner/);});
+ for(const dates of [['02-29','04-01','07-01','10-01'],['01-01','01-01','07-01','10-01'],['01-01','10-01','07-01','04-01']])await assert.rejects(value('select public.save_tax_quarters($1::text[])',[dates]),/valid annual/);
+ const dates=['10-15','01-15','04-15','07-15'];
+ await value('select public.save_tax_quarters($1::text[])',[dates]);
+ assert.deepEqual(await value('select sales_tax_quarter_starts from public.unit_settings where unit_id=$1',[unit]),dates);
+ const financeReader=await value<string>("select public.rbac_save_role(null,'Tax reporting reader',array['payments.view']::text[])");
+ const reader=await value<string>('select gen_random_uuid()');await db.query('insert into auth.users(id) values($1)',[reader]);await value("select public.rbac_save_user($1,'Tax reporting reader',true,array[$2]::uuid[])",[reader,financeReader]);
+ await staffAs(reader,async()=>{assert.deepEqual(await value('select public.tax_quarter_dates()'),dates);await assert.rejects(value('select public.save_tax_quarters($1::text[])',[dates]),/Owner/);});
+
+ assert.equal(await value('select count(*) from public.transactions'),before);
+ await value('select public.save_tax_quarters($1::text[])',[['01-01','04-01','07-01','10-01']]);
+});
+
+async function storedExpenseProof(){
+ const unique=await value<string>('select gen_random_uuid()');
+ const id=await rpc('register_document_metadata',{unit_id:unit,type:'Other',file_name:'receipt.jpg',original_file_name:'receipt.jpg',mime_type:'image/jpeg',file_size:3,sha256:unique.replaceAll('-','').repeat(2),visibility:'internal'});
+ const path=`${unit}/documents/${id}/receipt.jpg`;
+ await db.query("insert into storage.objects(bucket_id,name) values('tooltag-files',$1)",[path]);
+ await value("select public.finish_document_storage($1,'tooltag-files',$2,'stored',null)",[id,path]);
+ return id;
+}
+test('Manual expenses require a stored image receipt at $75, bind atomically and prevent proof reuse or duplicate expenses',async()=>{
+ const account=await value<string>('select id from public.accounts where unit_id=$1 and active limit 1',[unit]);
+ const category=await value<string>("select id from public.categories where unit_id=$1 and kind='expense' and active limit 1",[unit]);
+ const payload={unit_id:unit,type:'EXPENSE',amount:'75.00',account_id:account,category_id:category,description:'Receipt gate test',vendor:'Test store',paid_by:'Business',request_id:await value('select gen_random_uuid()')};
+ const before=Number(await value('select count(*) from public.transactions'));
+ await assert.rejects(rpc('record_movement',payload),/receipt image is required/);
+ assert.equal(Number(await value('select count(*) from public.transactions')),before);
+ const proof=await storedExpenseProof();
+ await db.query("update public.documents set storage_status='failed' where id=$1",[proof]);
+ await assert.rejects(rpc('record_movement',{...payload,proof_id:proof}),/Unstored/);
+ await db.query("update public.documents set storage_status='stored',mime_type='application/pdf' where id=$1",[proof]);
+ await assert.rejects(rpc('record_movement',{...payload,proof_id:proof}),/Unstored/);
+ await db.query("update public.documents set mime_type='image/jpeg' where id=$1",[proof]);
+ const expense=await rpc('record_movement',{...payload,proof_id:proof});
+ assert.equal(await rpc('record_movement',{...payload,proof_id:proof}),expense);
+ assert.equal(Number(await value('select count(*) from public.transactions')),before+1);
+ assert.equal(await value('select transaction_id from public.documents where id=$1',[proof]),expense);
+ assert.equal(await value('select type from public.documents where id=$1',[proof]),'Receipt');
+ assert.equal(await value('select receipt_status from public.expense_details where transaction_id=$1',[expense]),'Receipt Attached');
+ await assert.rejects(rpc('record_movement',{...payload,request_id:await value('select gen_random_uuid()'),proof_id:proof}),/previously linked/);
+ await rpc('record_movement',{...payload,amount:'74.99',request_id:await value('select gen_random_uuid()')});
+});

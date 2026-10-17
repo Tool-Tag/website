@@ -13,7 +13,7 @@ export async function customerDeliveryAcknowledge(token:string) {
 }
 export async function verifyShopItem(item:string){
  const {db}=await requirePermission("pr.receiving");const {error}=await db.rpc("verify_shop_item",{p_item:item});
- if(error)return {error:error.message};revalidatePath("/app","layout");revalidatePath("/pick-return","layout");revalidatePath("/app/pick-return");return {ok:true};
+ if(error)return {error:error.message==="Review receiving photos before verifying items"?"No receiving evidence is registered for this job. Upload a receiving photo, then retry verification.":error.message};revalidatePath("/app","layout");revalidatePath("/pick-return","layout");revalidatePath("/app/pick-return");return {ok:true};
 }
 export async function getRouteChecklist(route:string,kind:"Loaded"|"Returned"){
  const {db}=await requirePermission(...(kind === "Returned" ? ["pr.returns"] : ["pr.returns","pr.routes.live","driver.routes"]));const {data,error}=await db.rpc("route_item_checklist",{p_route:route,p_kind:kind});

@@ -1,0 +1,138 @@
+-- Prospective driver agreements only. No historical replay or automatic pay adjustments.
+begin;
+create table private.driver_loss_policy(singleton boolean primary key default true check(singleton),effective_at timestamptz not null default now());
+insert into private.driver_loss_policy(singleton) values(true);
+alter table private.driver_loss_policy enable row level security;
+revoke all on private.driver_loss_policy from public,anon,authenticated;
+create table public.driver_loss_agreements(
+ id uuid primary key default gen_random_uuid(),unit_id uuid not null references public.business_units(id),lost_id uuid not null references public.lost_jobs(id),
+ driver_id uuid not null references auth.users(id),driver_name text not null,loss_number integer not null check(loss_number>0),
+ document_version integer not null check(document_version in (1,2)),template_revision text not null default '1.0',
+ cost numeric(14,2) check(cost>0),cost_final boolean not null default false,
+ document_text text not null,created_at timestamptz not null default now(),accepted_at timestamptz,accepted_by uuid references auth.users(id),
+ unique(lost_id,document_version),check((accepted_at is null)=(accepted_by is null))
+);
+create index driver_loss_agreements_driver on public.driver_loss_agreements(driver_id,created_at);
+alter table public.driver_loss_agreements enable row level security;
+revoke all on public.driver_loss_agreements from public,anon,authenticated;
+grant select on public.driver_loss_agreements to authenticated;
+create policy driver_loss_agreement_read on public.driver_loss_agreements for select to authenticated
+ using(unit_id='10000000-0000-0000-0000-000000000002' and private.staff_active(unit_id) and (driver_id=auth.uid() or private.is_owner(unit_id)));
+create table private.driver_loss_decisions(
+ driver_id uuid primary key references auth.users(id),allowed_at timestamptz,allowed_by uuid references auth.users(id),
+ banned_at timestamptz,banned_by uuid references auth.users(id),reason text
+);
+alter table private.driver_loss_decisions enable row level security;
+revoke all on private.driver_loss_decisions from public,anon,authenticated;
+create function private.driver_loss_eligible(p_driver uuid) returns boolean language sql stable security definer set search_path='' as $$
+ select not exists(select 1 from private.driver_loss_decisions where driver_id=p_driver and banned_at is not null)
+ and not exists(select 1 from public.driver_loss_agreements where driver_id=p_driver and accepted_at is null)
+ and (not exists(select 1 from public.driver_loss_agreements where driver_id=p_driver and loss_number=1)
+ or exists(select 1 from private.driver_loss_decisions where driver_id=p_driver and allowed_at is not null));
+$$;
+revoke all on function private.driver_loss_eligible(uuid) from public,anon,authenticated;
+create function private.queue_driver_loss_agreement(p_lost uuid,p_cost numeric default null,p_final boolean default false) returns void
+language plpgsql security definer set search_path='' as $$
+declare l public.lost_jobs;a public.driver_loss_agreements;num integer;ver integer:=case when p_final then 2 else 1 end;body text;recipient text;begin
+ select * into l from public.lost_jobs where id=p_lost;
+ if l.id is null or l.driver_id is null or l.unit_id<>'10000000-0000-0000-0000-000000000002' or l.reported_at<(select effective_at from private.driver_loss_policy where singleton) then return;end if;
+ perform pg_advisory_xact_lock(hashtextextended('tooltag-driver-loss:'||l.driver_id,0));
+ if exists(select 1 from public.driver_loss_agreements where lost_id=l.id and document_version=ver) then return;end if;
+ if p_final then
+  select loss_number into num from public.driver_loss_agreements where lost_id=l.id and document_version=1;
+  if num is null or p_cost is null or p_cost<=0 then return;end if;
+ else
+  select count(distinct lost_id)+1 into num from public.driver_loss_agreements where driver_id=l.driver_id and document_version=1;
+ end if;
+ body:='Driver Loss Agreement'||E'\n\nLost case ID: '||l.id||E'\nDriver name: '||coalesce(nullif(l.driver_name,''),'Driver')||E'\nLoss number: '||num||E'\nDocument version: '||ver||E'\nCost generated: '||case when p_cost is null then 'To be determined' else '$'||to_char(p_cost,'FM999999999990.00') end||case when p_final then ' (final documented cost)' else ' (provisional; final cost to be confirmed)' end||E'\n\n';
+ if num=1 then
+ body:=body||'First loss — Warning. I acknowledge that the missing item(s) were reported lost during the ToolTag process. This acknowledgment does not assign fault. I must accept this warning to remain eligible for ToolTag deliveries. If I do not accept, I am not eligible for new ToolTag route assignments. After acceptance, continued eligibility is subject to ToolTag discretion and must be authorized by the Owner.';
+ else
+ body:=body||'Second or subsequent loss — Monetary responsibility. I agree to an adjustment to my pay for the documented expenses generated by this loss. If the adjustment does not cover the full amount, I agree to pay the remaining difference personally. Failure to comply results in a ban from ToolTag deliveries, as determined and recorded by the Owner.';
+ end if;
+ body:=body||E'\n\n' ||case when p_final then 'This updated version states the final documented cost. Acceptance of this version is required before any pay adjustment. This document does not itself execute a deduction or collect money.' else 'Any amount shown is provisional. ToolTag will send an updated agreement with the final documented cost before any pay adjustment. Acceptance of this initial notice does not authorize an unspecified final amount.' end||E'\n\nAgreement Rev: 1.0\nToolTag - Bandits of the Framing LLC';
+ insert into public.driver_loss_agreements(unit_id,lost_id,driver_id,driver_name,loss_number,document_version,cost,cost_final,document_text)
+ values(l.unit_id,l.id,l.driver_id,coalesce(nullif(l.driver_name,''),'Driver'),num,ver,p_cost,p_final,body) returning * into a;
+ select email into recipient from auth.users where id=l.driver_id;
+ insert into public.notifications(unit_id,event,entity_id,recipient,dedupe_key,payload)
+ values(l.unit_id,'DRIVER_LOSS_AGREEMENT',l.id,recipient,'driver-loss-agreement:'||a.id,
+ jsonb_build_object('template','notification','live_eligible',true,'subject',case when p_final then 'Updated driver loss agreement — final cost' else 'Driver loss notice and agreement' end,
+ 'text',body,'action_path','/pick-return/loss-agreements/'||a.id));
+end$$;
+revoke all on function private.queue_driver_loss_agreement(uuid,numeric,boolean) from public,anon,authenticated;
+-- Future failed-stop reports identify the assigned driver, not the staff actor.
+-- Existing Lost records and counts are never rewritten.
+do $$declare d text;begin
+ d:=pg_get_functiondef('private.register_failed_delivery()'::regprocedure);
+ if position('coalesce(auth.uid(),(select operator_id from public.pick_return_routes where id=new.route_id))' in d)=0 then raise exception 'Unexpected failed-stop driver snapshot';end if;
+ d:=replace(d,'coalesce(auth.uid(),(select operator_id from public.pick_return_routes where id=new.route_id))','coalesce((select operator_id from public.pick_return_routes where id=new.route_id),auth.uid())');execute d;
+end$$;
+create function private.driver_loss_document_event() returns trigger language plpgsql security definer set search_path='' as $$begin
+ if TG_TABLE_NAME='lost_jobs' then
+  if TG_OP='INSERT' then perform private.queue_driver_loss_agreement(new.id,new.market_value,false);
+  elsif new.replacement_expense_id is distinct from old.replacement_expense_id and new.replacement_expense_id is not null then
+   perform private.queue_driver_loss_agreement(new.id,(select amount from public.transactions where id=new.replacement_expense_id),true);
+  end if;
+ elsif new.status='Issued' and old.status is distinct from 'Issued' and new.source_kind='Lost' then
+  perform private.queue_driver_loss_agreement(new.source_id,new.processed_amount,true);
+ end if;
+ return new;
+end$$;
+revoke all on function private.driver_loss_document_event() from public,anon,authenticated;
+create trigger driver_loss_initial after insert on public.lost_jobs for each row execute function private.driver_loss_document_event();
+create trigger driver_loss_replacement_cost after update of replacement_expense_id on public.lost_jobs for each row execute function private.driver_loss_document_event();
+create trigger driver_loss_refund_cost after update of status on public.refund_requests for each row execute function private.driver_loss_document_event();
+
+create function public.driver_loss_agreement(p_id uuid,p_accept boolean default false) returns jsonb language plpgsql security definer set search_path='' as $$declare a public.driver_loss_agreements;begin
+ select * into a from public.driver_loss_agreements where id=p_id for update;
+ if a.id is null or a.unit_id<>'10000000-0000-0000-0000-000000000002' or not private.staff_active(a.unit_id) or (auth.uid() is distinct from a.driver_id and not private.is_owner(a.unit_id)) then raise exception 'Driver agreement access denied' using errcode='42501';end if;
+ if p_accept then
+  if auth.uid() is distinct from a.driver_id then raise exception 'Only the named driver can accept' using errcode='42501';end if;
+  if a.accepted_at is null then
+   update public.driver_loss_agreements set accepted_at=now(),accepted_by=auth.uid() where id=a.id returning * into a;
+   perform private.rbac_log('driver.loss.agreement.accepted',a.id,jsonb_build_object('lost_id',a.lost_id,'document_version',a.document_version,'final_cost',a.cost_final));
+  end if;
+ end if;
+ return to_jsonb(a)||jsonb_build_object('eligible',private.driver_loss_eligible(a.driver_id),'can_accept',auth.uid()=a.driver_id);
+end$$;
+revoke all on function public.driver_loss_agreement(uuid,boolean) from public,anon;
+grant execute on function public.driver_loss_agreement(uuid,boolean) to authenticated;
+create function private.driver_loss_owner_decision(p_driver uuid,p_action text,p_reason text) returns void language plpgsql security definer set search_path='' as $$begin
+ perform private.require_owner('10000000-0000-0000-0000-000000000002');
+ perform pg_advisory_xact_lock(hashtextextended('tooltag-driver-loss:'||p_driver,0));
+ if not exists(select 1 from public.driver_loss_agreements where driver_id=p_driver) or nullif(trim(p_reason),'') is null or length(p_reason)>2000 then raise exception 'Select a driver with a Lost agreement and record the reason';end if;
+ if p_action='allow' then
+  if exists(select 1 from private.driver_loss_decisions where driver_id=p_driver and banned_at is not null) then raise exception 'This driver is banned';end if;
+  if exists(select 1 from public.driver_loss_agreements where driver_id=p_driver and accepted_at is null) then raise exception 'All driver agreements must be accepted first';end if;
+  insert into private.driver_loss_decisions(driver_id,allowed_at,allowed_by,reason) values(p_driver,now(),auth.uid(),trim(p_reason)) on conflict(driver_id) do update set allowed_at=excluded.allowed_at,allowed_by=excluded.allowed_by,reason=excluded.reason;
+ elsif p_action='ban' then
+  insert into private.driver_loss_decisions(driver_id,banned_at,banned_by,reason) values(p_driver,now(),auth.uid(),trim(p_reason)) on conflict(driver_id) do update set banned_at=excluded.banned_at,banned_by=excluded.banned_by,reason=excluded.reason;
+ else raise exception 'Invalid driver decision';end if;
+ perform private.rbac_log('driver.loss.'||p_action,p_driver,jsonb_build_object('reason',trim(p_reason)));
+end$$;
+create function public.driver_loss_owner_decision(p_driver uuid,p_action text,p_reason text) returns void language sql security invoker set search_path='' as $$select private.driver_loss_owner_decision(p_driver,p_action,p_reason)$$;
+revoke all on function private.driver_loss_owner_decision(uuid,text,text),public.driver_loss_owner_decision(uuid,text,text) from public,anon;
+grant execute on function private.driver_loss_owner_decision(uuid,text,text),public.driver_loss_owner_decision(uuid,text,text) to authenticated;
+
+create function private.driver_loss_assignment_gate() returns trigger language plpgsql security definer set search_path='' as $$begin
+ if new.unit_id='10000000-0000-0000-0000-000000000002' and new.operator_id is not null then
+  if TG_OP='UPDATE' and new.operator_id is not distinct from old.operator_id then return new;end if;
+  if not private.driver_loss_eligible(new.operator_id) then raise exception 'Driver is ineligible: pending Lost agreement, Owner decision, or ban';end if;
+ end if;return new;
+end$$;
+revoke all on function private.driver_loss_assignment_gate() from public,anon,authenticated;
+create trigger driver_loss_assignment_gate before insert or update of operator_id on public.pick_return_routes for each row execute function private.driver_loss_assignment_gate();
+-- Preserve operator history; hide ineligible operators from assignment choices.
+do $$declare d text;begin
+ d:=pg_get_functiondef('public.delivery_block_drivers()'::regprocedure);
+ if position('''selectable'',a.active and' in d)=0 then raise exception 'Unexpected driver picker definition';end if;
+ d:=replace(d,'''selectable'',a.active and','''selectable'',private.driver_loss_eligible(a.user_id) and a.active and');execute d;
+ d:=pg_get_functiondef('public.route_operators()'::regprocedure);
+ if position('where a.unit_id=u and a.active and' in d)=0 then raise exception 'Unexpected operator picker definition';end if;
+ d:=replace(d,'where a.unit_id=u and a.active and','where a.unit_id=u and a.active and private.driver_loss_eligible(a.user_id) and');execute d;
+ d:=pg_get_functiondef('public.lost_job_list()'::regprocedure);
+ if position('''id'',l.id' in d)=0 then raise exception 'Unexpected Lost list definition';end if;
+ d:=replace(d,'''id'',l.id','''driver_eligible'',private.driver_loss_eligible(l.driver_id),''driver_agreements'',case when private.is_owner(l.unit_id) then (select coalesce(jsonb_agg(to_jsonb(a) order by a.document_version),''[]'') from public.driver_loss_agreements a where a.lost_id=l.id) else ''[]''::jsonb end,''id'',l.id');execute d;
+end$$;
+notify pgrst,'reload schema';
+commit;

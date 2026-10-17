@@ -78,6 +78,11 @@ export class SnsSmsTransport {
   }
 }
 const SMS_EVENT_STAGE: Record<string, string> = {
+ LOST_REPLACEMENT_READY: "Replacement Ready - Free Delivery Available",
+ LOST_REPLACEMENT_UPDATE: "Replacement Delivery Update",
+ LOST_RESOLUTION: "Lost Item Resolution",
+ LOST_REPLACEMENT_APPROVED: "Replacement Started (5-7 Business Days)",
+ LOST_REFUND_APPROVED: "Refund Started (5-7 Business Days)",
  PICKUP_ROUTE_DEPARTED: "Driver En Route", RETURN_ROUTE_DEPARTED: "Driver En Route",
  PICKUP_EN_ROUTE: "Driver En Route", RETURN_EN_ROUTE: "Driver En Route",
  PICKUP_DRIVER_NEARBY: "3 Stops Away", RETURN_DRIVER_NEARBY: "3 Stops Away",
@@ -113,7 +118,7 @@ export function renderSms(event: string, payload: Record<string, unknown>, origi
  const stage=normalized==="JOB_STATUS_UPDATE" ? SMS_WORK_STAGE[String(payload.stage)]??"Status Updated" : SMS_EVENT_STAGE[normalized];
  if(!stage)throw new Error("SMS_TEMPLATE_UNAVAILABLE");
  const code=String(payload.job_code??""),path=String(payload.action_path??"");
- if(!/^[A-Z0-9][A-Z0-9/-]{0,63}$/.test(code)||!/^\/(status|review)\/[A-Za-z0-9-]{8,200}$/.test(path))throw new Error("SMS_CONTEXT_UNAVAILABLE");
+ if(!/^[A-Z0-9][A-Z0-9/-]{0,63}$/.test(code)||!/^\/(status|review|lost)\/[A-Za-z0-9-]{8,200}$/.test(path))throw new Error("SMS_CONTEXT_UNAVAILABLE");
  const url=new URL(path,site);if(url.origin!==site.origin)throw new Error("SMS_CONTEXT_UNAVAILABLE");
  // Keep capability links intact; plain English/ASCII avoids UCS-2 segmentation.
  return "ToolTag: Your order "+code+" moved to "+stage+". Details: "+url.href;

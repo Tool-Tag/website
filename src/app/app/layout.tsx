@@ -1,7 +1,7 @@
 import { StaffLoginAttention } from "@/components/staff-login-attention";
 import { SessionTimeout } from "@/components/session-timeout";
 import { PermissionProvider } from "@/components/permission-provider";
-import {WorkspaceUserMenu, type UserMenuLink} from "@/components/workspace-user-menu";
+import {type UserMenuLink} from "@/components/workspace-user-menu";
 import { canAny, driverOnly, sectionPermissions } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
 import { BackNavigation } from "@/components/back-navigation";
@@ -42,6 +42,9 @@ export default async function AppLayout({
       </aside>
       <div className="workspace">
         <header className="topbar workspace-topbar">
+          <nav className="workspace-header-links" aria-label="Workspace utilities">
+            {userLinks.map(link=><Link key={link.href} className="button secondary gold menu-link-gold" href={link.href}>{link.label}</Link>)}
+          </nav>
           {ctx && canAny(ctx.access,["customers.view"]) && <form action="/app/customers">
             <input
               name="q"
@@ -50,7 +53,7 @@ export default async function AppLayout({
             />
           </form>}
           <div className="workspace-user-actions">
-          <WorkspaceUserMenu name={ctx?userName:"Initial setup"} links={userLinks}/>
+          <span className="workspace-user-label" title={`User: ${ctx?userName:"Initial setup"}`}>User: {ctx?userName:"Initial setup"}</span>
           {ctx && (
             <form action={logout} className="workspace-sign-out">
               <button className="secondary">Sign Out</button>

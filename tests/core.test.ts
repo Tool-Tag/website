@@ -593,3 +593,120 @@ test("Shop board defaults to a leg the staff member is permitted to operate",()=
  assert.deepEqual(shopBoardLeg({owner:false,blocks:['pr.receiving']},'Delivery'),{pickup:true,delivery:false,leg:'Pickup'});
  assert.equal(shopBoardLeg({owner:true,blocks:[]},'Delivery').leg,'Return');
 });
+
+import {lostCanFinalize} from "../src/lib/domain/lost-flow";
+test("Lost finalization requires approval plus completed replacement/refund, never just a customer choice",()=>{
+ assert.equal(lostCanFinalize({status:"In Process",customer_choice:"Replace Item",approved_at:null}),false);
+ assert.equal(lostCanFinalize({status:"In Process",customer_choice:"Replace Item",approved_at:"2026-10-17",replacement_at_shop_at:"2026-10-17",replacement_expense_id:"expense-id"}),true);
+ assert.equal(lostCanFinalize({status:"In Process",customer_choice:"Refund money",approved_at:"2026-10-17",refund_status:"Issued"}),false);
+ assert.equal(lostCanFinalize({status:"In Process",customer_choice:"Refund money",approved_at:"2026-10-17",refund_status:"Completed"}),true);
+ assert.equal(lostCanFinalize({status:"History",customer_choice:"Replace Item",approved_at:"2026-10-17"}),false);
+});
+test("Lost SMS identifies ToolTag, includes the dedicated secure choice link and rejects external paths",()=>{
+ const path="/lost/"+"a".repeat(64);
+ assert.equal(renderSms("LOST_RESOLUTION",{job_code:"TT-J-2026-00123",action_path:path},"https://tooltag.martinlab.studio"),"ToolTag: Your order TT-J-2026-00123 moved to Lost Item Resolution. Details: https://tooltag.martinlab.studio"+path);
+ assert.throws(()=>renderSms("LOST_RESOLUTION",{job_code:"TT-J-2026-00123",action_path:"//evil.example/lost/abcdabcd"},"https://tooltag.example"));
+});
+
+test("Lost payment details validate methods and use authenticated encryption without retaining card fields",async()=>{
+ const {validateLostPaymentDetails,encryptLostPaymentDetails,decryptLostPaymentDetails}=await import("../src/lib/security/lost-payment-details");
+ const previous=process.env.TOOLTAG_PAYMENT_DETAILS_ENCRYPTION_KEY;
+ process.env.TOOLTAG_PAYMENT_DETAILS_ENCRYPTION_KEY=Buffer.alloc(32,7).toString("base64");
+ try{
+  const clean=validateLostPaymentDetails({method:"Bank Transfer",holder:"Test Owner",routing:"021000021",account:"123456789"},"Cash");
+  const encrypted=encryptLostPaymentDetails(clean,"lost-test");assert.equal(encrypted.includes("123456789"),false);assert.deepEqual(decryptLostPaymentDetails(encrypted,"lost-test"),clean);
+  assert.throws(()=>decryptLostPaymentDetails(encrypted,"different-case"));
+  assert.throws(()=>validateLostPaymentDetails({method:"Venmo",holder:"Test Owner",handle:"@test"},"Zelle"),/original/);
+  assert.throws(()=>validateLostPaymentDetails({...clean,routing:"111111111"},"Cash"),/routing/);
+  assert.throws(()=>validateLostPaymentDetails({method:"Card",holder:"Test Owner"},"Cash"),/original/);
+  assert.deepEqual(validateLostPaymentDetails({method:"Card",holder:"Test Owner",account:"4242424242424242"},"Card"),{method:"Card",holder:"Test Owner"});
+  delete process.env.TOOLTAG_PAYMENT_DETAILS_ENCRYPTION_KEY;assert.throws(()=>encryptLostPaymentDetails(clean,"lost-test"),/not configured/);
+ }finally{if(previous===undefined)delete process.env.TOOLTAG_PAYMENT_DETAILS_ENCRYPTION_KEY;else process.env.TOOLTAG_PAYMENT_DETAILS_ENCRYPTION_KEY=previous;}
+});
+
+test("Sales Tax quarters reset at Denver calendar boundaries and retain accumulated recorded tax", async () => {
+  const {salesTaxQuarter,salesTaxSummary} = await import("../src/lib/domain/sales-tax-summary");
+  assert.equal(salesTaxQuarter(new Date("2027-01-01T06:59:59Z")).label,"Q4 2026");
+  assert.equal(salesTaxQuarter(new Date("2027-01-01T07:00:00Z")).label,"Q1 2027");
+  assert.equal(salesTaxQuarter(new Date("2026-04-01T05:59:59Z")).label,"Q1 2026");
+  assert.equal(salesTaxQuarter(new Date("2026-04-01T06:00:00Z")).label,"Q2 2026");
+  const records = [
+    {type:"SALE",amount:"107.45",revenue:"100.00",date:"2026-09-30"},
+    {type:"SALE",amount:"214.90",revenue:"200.00",date:"2026-10-01"},
+    {type:"REFUND",amount:"53.73",revenue:"-50.00",date:"2026-10-02"},
+    {type:"REFUND",amount:"25.00",revenue:"0.00",date:"2026-10-03"},
+    {type:"SALE",amount:"10.00",revenue:"10.00",date:"2026-10-04"},
+  ];
+  const q4=salesTaxSummary(records,new Date("2026-10-17T12:00:00Z"));
+  assert.equal(q4.accumulated,"18.62");assert.equal(q4.current,"11.17");
+  const q1=salesTaxSummary(records,new Date("2027-01-01T07:00:00Z"));
+  assert.equal(q1.accumulated,"18.62");assert.equal(q1.current,"0.00");
+});
+
+test("Sales Tax uses configurable annual quarter dates, including fiscal-year rollover", async () => {
+  const {salesTaxQuarter,validateTaxQuarters,salesTaxSummary} = await import("../src/lib/domain/sales-tax-summary");
+  const starts=["10-15","01-15","04-15","07-15"];
+  assert.equal(salesTaxQuarter(new Date("2027-01-15T06:59:59Z"),starts).label,"Q1 2026");
+  assert.equal(salesTaxQuarter(new Date("2027-01-15T07:00:00Z"),starts).label,"Q2 2027");
+  assert.deepEqual(salesTaxQuarter(new Date("2026-10-17T12:00:00Z"),starts),{start:"2026-10-15",end:"2027-01-15",label:"Q1 2026"});
+  for (const invalid of [["01-01","01-01","07-01","10-01"],["02-29","04-01","07-01","10-01"],["02-30","04-01","07-01","10-01"],["01-01","10-01","07-01","04-01"]]) assert.throws(()=>validateTaxQuarters(invalid));
+  const records=[{type:"SALE",amount:"107.45",revenue:"100.00",date:"2026-10-14"}];
+  assert.equal(salesTaxSummary(records,new Date("2026-10-17T12:00:00Z"),starts).current,"0.00");
+  assert.equal(salesTaxSummary(records,new Date("2026-10-17T12:00:00Z"),starts).accumulated,"7.45");
+});
+
+test("Transactions validate filters and preserve them across twenty-record pages",async()=>{
+  const {transactionFilters,transactionPageUrl,TRANSACTION_PAGE_SIZE}=await import("../src/lib/domain/transaction-filters");
+  assert.equal(TRANSACTION_PAGE_SIZE,20);
+  const filters=transactionFilters({q:"TEST- drill",type:"EXPENSE",status:"Active",from:"2026-10-01",to:"2026-10-31",page:"2"});
+  const url=new URL(transactionPageUrl(filters,3),"https://example.test");
+  assert.equal(url.searchParams.get("q"),"TEST- drill");assert.equal(url.searchParams.get("type"),"EXPENSE");assert.equal(url.searchParams.get("from"),"2026-10-01");assert.equal(url.searchParams.get("page"),"3");
+  const bad=transactionFilters({q:'abc%,status.eq.Voided(*)',type:"unknown",status:"unknown",from:"2026-02-30",account:"not-a-uuid",page:"-2"});
+  assert.equal(bad.type,"");assert.equal(bad.status,"");assert.equal(bad.from,"");assert.equal(bad.account,"");assert.equal(bad.page,1);assert.equal(/[,*()%]/.test(bad.q),false);
+});
+
+test("Expense proof rejects oversized, unsupported and mislabeled files before registration",async()=>{
+ const {expenseProofError}=await import("../src/lib/domain/expense-proof");
+ assert.equal(expenseProofError({size:3,type:"image/jpeg"},new Uint8Array([255,216,255])),null);
+ assert.ok(expenseProofError({size:4*1024*1024,type:"image/jpeg"}));
+ assert.ok(expenseProofError({size:20,type:"application/pdf"}));
+ assert.ok(expenseProofError({size:3,type:"image/png"},new Uint8Array([255,216,255])));
+ assert.ok(expenseProofError({size:0,type:"image/jpeg"}));
+});
+
+test("Finance lists keep filters across pages and use Denver date boundaries through DST",async()=>{
+ const {financeFilters,financePageUrl,denverDateBoundary}=await import("../src/lib/domain/finance-list");
+ const filters=financeFilters({q:"TT-S-2026",status:"Paid",page:"3",from:"2026-10-01"},[{name:"status",label:"Status",options:["Paid","Open"]}]);
+ assert.equal(filters.values.status,"Paid");assert.equal(filters.page,3);
+ const url=new URL(financePageUrl('/app/finance/sales',filters.values,4),'https://example.test');
+ assert.equal(url.searchParams.get('status'),'Paid');assert.equal(url.searchParams.get('q'),'TT-S-2026');assert.equal(url.searchParams.get('page'),'4');assert.equal(url.searchParams.get('from'),'2026-10-01');
+ assert.equal(financeFilters({method:'Cash'},[{name:'method',label:'Method',options:['Zelle','Check']}]).values.method,'');
+ assert.equal(denverDateBoundary('2026-03-08'),'2026-03-08T07:00:00.000Z');
+ assert.equal(denverDateBoundary('2026-03-08',true),'2026-03-09T06:00:00.000Z');
+ assert.equal(denverDateBoundary('2026-11-01'),'2026-11-01T06:00:00.000Z');
+ assert.equal(denverDateBoundary('2026-11-01',true),'2026-11-02T07:00:00.000Z');
+});
+
+test("Finance pagination counts the complete filtered set, caps pages at twenty, and clamps stale page numbers",async()=>{
+ const {financePage}=await import("../src/lib/domain/finance-list");
+ type Response={data:{id:number}[]|null;count:number|null;error:null};
+ type Query=Promise<Response>&{range:(from:number,to:number)=>Query};
+ const records=Array.from({length:241},(_,id)=>({id}));
+ const ranges:number[][]=[];
+ function make(head:boolean,from=0,to=records.length-1):Query{return Object.assign(Promise.resolve({data:head?null:records.slice(from,to+1),count:head?records.length:null,error:null}),{range:(a:number,b:number)=>{ranges.push([a,b]);return make(head,a,b);}});}
+ const second=await financePage(head=>make(head),2);
+ assert.equal(second.rows.length,20);assert.equal(second.rows[0].id,20);assert.equal(second.total,241);
+ const last=await financePage(head=>make(head),999);assert.equal(last.page,13);assert.equal(last.rows.length,1);assert.equal(last.rows[0].id,240);
+ assert.deepEqual(ranges,[[20,39],[240,259]]);
+});
+
+test("List pagination keeps urgency order, twenty cases per page and safe stale-page bounds",async()=>{
+ const {paginateList}=await import("../src/lib/domain/list-pagination");
+ const cases=Array.from({length:43},(_,index)=>`case-${index}`);
+ const second=paginateList(cases,"2");
+ assert.deepEqual(second.items,cases.slice(20,40));assert.equal(second.total,43);
+ assert.equal(second.start,21);assert.equal(second.end,40);assert.equal(second.pages,3);
+ assert.deepEqual(paginateList(cases,"999").items,cases.slice(40));
+ for(const invalid of [undefined,"-1","0","1.5","NaN","Infinity"])assert.equal(paginateList(cases,invalid).page,1);
+ assert.deepEqual(paginateList([],"4"),{items:[],total:0,pages:1,page:1,start:0,end:0});
+});

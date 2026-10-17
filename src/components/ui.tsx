@@ -39,14 +39,16 @@ export function Metric({
   value,
   help,
   currency = true,
+  tone,
 }: {
   label: string;
   value: unknown;
   help?: string;
   currency?: boolean;
+  tone?: "positive" | "negative";
 }) {
   return (
-    <div className="metric">
+    <div className={`metric${tone ? ` metric-${tone}` : ""}`}>
       <span className="muted">{label}</span>
       <strong>{currency ? money(value) : String(value ?? 0)}</strong>
       {help && <small>{help}</small>}
@@ -95,7 +97,6 @@ export function FinanceTabs({includeGeneral=true}:{includeGeneral?:boolean}={}) 
         ["expenses", "Expenses"],
         ["refunds", "Refunds"],
         ["sms", "SMS Costs"],
-        ["equipment", "Equipment"],
         ["reports", "Monthly Closes"],
         ["review", "Review"],
         ["about", "About"],

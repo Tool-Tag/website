@@ -12,9 +12,12 @@ import {money} from "@/lib/domain/money";
 import {denverDateTime} from "@/lib/domain/time";
 import {compareRefundUrgency,refundAttention,refundEligibility,refundCompletionLabel,refundAmountRemaining} from "@/lib/domain/refund-flow";
 
-export async function RefundsPanel({jobId,view="cases"}:{jobId?:string;view?:"cases"|"execution"}) {
+import {decryptLostPaymentDetails,type LostPaymentDetails} from "@/lib/security/lost-payment-details";
+
+export async function RefundsPanel({jobId,view="cases",requestIds}:{jobId?:string;view?:"cases"|"execution";requestIds?:string[]}) {
  const {db,unit,access}=await requirePermission("payments.refund","payments.view");
  let query=db.from("refund_requests").select("*").eq("unit_id",unit).order("requested_at",{ascending:false});
+ if(requestIds)query=query.in("id",requestIds).order("id",{ascending:false});
  if(jobId)query=query.eq("job_id",jobId);
  if(view==="execution")query=query.eq("status","Approved");
  const [{data:requests,error},{data:choices,error:choiceError},{data:accountChoices,error:accountError},{data:approver,error:approverError}]=await Promise.all([query,db.rpc("refund_job_choices"),view==="execution"?db.rpc("refund_account_choices"):Promise.resolve({data:[],error:null}),db.rpc("refund_can_approve")]);
@@ -23,6 +26,9 @@ export async function RefundsPanel({jobId,view="cases"}:{jobId?:string;view?:"ca
  const ids=(requests??[]).map(r=>r.id);
  const {data:documents,error:docError}=ids.length?await db.from("documents").select("id,file_name,refund_request_id,storage_status,type,refund_method,mime_type").eq("unit_id",unit).in("refund_request_id",ids):{data:[],error:null};
  if(docError)throw new Error(docError.message);
+ const payout=new Map<string,LostPaymentDetails>();
+ if(manage)await Promise.all((requests??[]).filter(r=>r.source_kind==="Lost"&&!["Completed","Rejected"].includes(r.status)).map(async r=>{const {data,error}=await db.rpc("lost_refund_payment_details",{p_refund:r.id});if(!error&&data){try{payout.set(r.id,decryptLostPaymentDetails(data,r.source_id));}catch{/* Never expose ciphertext or key errors. */}}}));
+ const paymentDetails=(id:string)=>{const p=payout.get(id);return p?<section><h3>Customer payment instructions</h3><p>Method: {p.method} · Holder: {p.holder}</p>{p.routing&&<p>Routing: {p.routing}</p>}{p.account&&<p>Account: {p.account}</p>}{p.handle&&<p>Payment identifier: {p.handle}</p>}{p.address&&<p>Mailing address: {p.address}</p>}</section>:null;};
  const render=(list:NonNullable<typeof requests>,modal=false)=><div className="stack">
   {list.length===0&&!modal&&<Empty>{view==="execution"?"No approved refunds awaiting manual issuance.":"No refunds for this selection."}</Empty>}
   {list.map(r=>{
@@ -37,6 +43,7 @@ export async function RefundsPanel({jobId,view="cases"}:{jobId?:string;view?:"ca
    if(view==="execution")return <div key={r.id} id={`refund-${r.id}`}><Panel title={`${job?.customer_name??"Customer"} · ${title}`}>
     <Badge>Approved</Badge><p>Approved: {denverDateTime(r.approved_at)} · Original payment method: {r.original_method??"Unconfirmed"}</p>
     <p>Approved refund: {money(r.amount)} · Previously issued: {money(r.processed_amount)} · Amount to issue: {money(remaining)}</p>
+    {paymentDetails(r.id)}{manage&&r.source_kind==="Lost"&&!payout.has(r.id)&&!["Completed","Rejected"].includes(r.status)&&<p role="alert">Secure customer payment instructions are unavailable. Check the encryption-key configuration before issuing this refund.</p>}
     {evidence}
     {manage?<><h3>Execute manual refund</h3><RefundProofUpload job={r.job_id} id={r.id} method={r.method}/><RefundUpdate id={r.id} kind="complete" amount={remaining} method={r.method} proofs={files} accounts={accountChoices??[]} originalAccount={job?.original_account_id}/></>:<p>Read-only access. Refund permission is required to record issuance.</p>}
     <Link href="/app/refunds">Open refund case management</Link>
@@ -47,7 +54,7 @@ export async function RefundsPanel({jobId,view="cases"}:{jobId?:string;view?:"ca
      <p>Reason: {r.reason} · Source: {r.source_kind}</p>
      <p>Origin event: {r.issue_event??"Source obligation — review required"} · {denverDateTime(r.issue_event_at)}</p>
      <p>Reported: {denverDateTime(r.reported_at)} · Requested: {denverDateTime(r.requested_at)}</p>
-     <p>Eligibility check: {refundEligibility(r.issue_event_at,r.reported_at)}</p>
+     <p>Eligibility check: {r.source_kind==="Lost"?"Lost item market-value compensation — independent of service payments":refundEligibility(r.issue_event_at,r.reported_at)}</p>
      {r.confirmed_at&&<p>Eligibility confirmed: {denverDateTime(r.confirmed_at)} · Process {r.process_not_before}–{r.process_due} (business days)</p>}
      {r.approved_at&&<p>Approved: {denverDateTime(r.approved_at)}</p>}
      {r.status==="Rejected"&&<p>Rejected: {denverDateTime(r.rejected_at)} · Reason: {r.rejection_reason}</p>}
@@ -62,6 +69,7 @@ export async function RefundsPanel({jobId,view="cases"}:{jobId?:string;view?:"ca
      {r.processed_at&&<p>Issued: {denverDateTime(r.processed_at)} · By: {r.confirmation_snapshot?.processor_name??r.processed_by} · Reference: {r.reference}</p>}
      {r.confirmation_snapshot&&<p>Recorded payment: {money(r.confirmation_snapshot.amount)} · {r.confirmation_snapshot.method} · {r.confirmation_snapshot.job_code} / {r.confirmation_snapshot.quote_code}</p>}
     </section>
+    {paymentDetails(r.id)}{manage&&r.source_kind==="Lost"&&!payout.has(r.id)&&!["Completed","Rejected"].includes(r.status)&&<p role="alert">Secure customer payment instructions are unavailable. Check the encryption-key configuration before issuing this refund.</p>}
     {evidence}
     {manage&&["In Review","Approved","Issued"].includes(r.status)&&<section aria-label="Refund actions"><h3>Actions</h3>
      {r.status==="In Review"&&<>

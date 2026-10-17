@@ -7,6 +7,7 @@ on:
       - feature/pick-return-ui
       - feature/roles-support-inbox
       - feature/pick-return-delivery-blocks
+      - feature/header-style-preview
   pull_request:
 
 permissions:

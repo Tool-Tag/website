@@ -1,4 +1,5 @@
 import Link from "next/link";
+import {DEFAULT_TAX_QUARTERS} from "@/lib/domain/sales-tax-summary";
 import { RolesSettings } from "@/components/roles-settings";
 import { requireOwner, rows } from "@/lib/domain/context";
 import { SmsSettings } from "@/components/sms-settings";
@@ -207,6 +208,14 @@ export async function Settings({ tab }: { tab?: string }) {
   return <>{heading}
     <Panel title="Engraving Pricing"><p>Base service price is reviewed manually for each quote item.</p><p>The first engraving is included; each additional engraving costs $5 per physical piece.</p><p>Paint fill costs $2 per colored physical piece, once per piece.</p><p>Falcon image/logo preparation costs $3 per unique image/logo, once per quote.</p><p className="muted">These are the existing pricing rules. This page does not change accepted quote snapshots or pricing calculations.</p></Panel>
     <Panel title="Utah Sales Tax"><Form operation="sales-tax-settings" fields={[{name:"sales_tax_rate",label:"Sales Tax Rate (%)",type:"number",step:"0.001",required:true,value:String(s?.sales_tax_rate ?? 7.45),help:"Applied to the service subtotal, including logistics fees. Existing sent and accepted quotes retain their stored rate."}]} back="/app/settings?tab=prices" button="Save Tax Rate" /></Panel>
+    <Panel title="Sales Tax Reporting Quarters">
+      <p>Set the annual start date for each quarter. Each quarter ends the day before the next one starts, with no gaps or overlaps. Dates repeat every year in Denver time.</p>
+      <p className="muted">This changes the Sales Tax reporting periods only. It does not change tax rates, transactions, accepted quotes or the accumulated total. February 29 is unavailable as an annual boundary.</p>
+      <Form operation="sales-tax-quarter-settings" fields={(s?.sales_tax_quarter_starts ?? DEFAULT_TAX_QUARTERS).flatMap((date:string,index:number) => [
+        {name:`q${index+1}_month`,label:`Q${index+1} start month`,required:true,value:date.slice(0,2),options:Array.from({length:12},(_,i)=>({value:String(i+1).padStart(2,"0"),label:new Intl.DateTimeFormat("en-US",{month:"long",timeZone:"UTC"}).format(new Date(Date.UTC(2001,i,1)))}))},
+        {name:`q${index+1}_day`,label:`Q${index+1} start day`,required:true,value:date.slice(3),options:Array.from({length:31},(_,i)=>({value:String(i+1).padStart(2,"0"),label:String(i+1)}))},
+      ])} back="/app/settings?tab=prices" button="Save Quarter Dates" />
+    </Panel>
     <Panel title="Logistics Fees"><Table headers={["Service", "Fee"]}>{LOGISTICS_OPTIONS.map(option => <tr key={option.code}><td>{option.name}</td><td>{money(option.fee.toFixed(2))}</td></tr>)}</Table></Panel>
     <Panel title="Payment Accounts and Return Retry">
       <p className="muted">Identifiers belong to ToolTag. Confirmed Venmo: @boftbuild — Bandits of the Framing.</p>
