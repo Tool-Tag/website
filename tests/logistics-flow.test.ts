@@ -2673,3 +2673,46 @@ test('Lost refund pays market value above service collections as an expense, kee
  await db.query("update private.lost_resolution_links set expires_at=now()-interval '1 second' where lost_id=$1",[f.lost]);
  await assert.rejects(value('select public.public_lost_resolution($1,null)',[f.link]),/unavailable/);
 });
+
+test('Driver loss agreements are prospective, driver-bound, versioned, and gate new assignments until acceptance/Owner decision',async()=>{
+ const driver=await value<string>('select gen_random_uuid()');await db.query("insert into auth.users(id,email) values($1,'driver-agreement@example.test')",[driver]);
+ const role=await value<string>("select id from public.roles where unit_id=$1 and name='Driver'",[unit]);await value("select public.rbac_save_user($1,'Agreement Driver',true,array[$2]::uuid[])",[driver,role]);
+ async function report(suffix:string){
+  const f=await driverReturnFixture('driver-agreement-'+suffix);const route=await value<string>('select route_id from public.pick_return_stops where id=$1',[f.stop]);
+  await value('select public.assign_route_operator($1,$2)',[route,driver]);
+  await value("select public.return_driver_action($1,'en-route')",[f.stop]);await value("select public.return_driver_action($1,'arrived')",[f.stop]);
+  await db.query("update public.pick_return_stops set return_wait_until=now()-interval '1 second' where id=$1",[f.stop]);await value("select public.return_driver_action($1,'not-home')",[f.stop]);
+  const lost=await value<string>("select public.mark_failed_delivery_lost_v2($1,'{}','Test driver loss',500)",[f.stop]);
+  const agreement=await value<string>('select id from public.driver_loss_agreements where lost_id=$1 and document_version=1',[lost]);return {...f,route,lost,agreement};
+ }
+ const first=await report('first');assert.equal(Number(await value('select loss_number from public.driver_loss_agreements where id=$1',[first.agreement])),1);
+ const text=await value<string>('select document_text from public.driver_loss_agreements where id=$1',[first.agreement]);assert.match(text,/First loss — Warning/);assert.match(text,/does not assign fault/);assert.match(text,/To be determined/);assert.match(text,/Agreement Rev: 1.0\nToolTag - Bandits of the Framing LLC$/);
+ assert.equal(await value('select private.driver_loss_eligible($1)',[driver]),false);
+ const choices=await value<{id:string;selectable:boolean}[]>('select public.delivery_block_drivers()');assert.equal(choices.find(d=>d.id===driver)?.selectable,false);
+ await staffAs(driver,async()=>{assert.equal(Number(await value('select count(*) from public.driver_loss_agreements where driver_id<>$1',[driver])),0);});
+ await assert.rejects(value('select public.driver_loss_agreement($1,true)',[first.agreement]),/Only the named driver/);
+ await assert.rejects(value("select public.driver_loss_owner_decision($1,'allow','Review complete')",[driver]),/accepted first/);
+ await staffAs(driver,async()=>{await value('select public.driver_loss_agreement($1,true)',[first.agreement]);await value('select public.driver_loss_agreement($1,true)',[first.agreement]);await assert.rejects(value("select public.driver_loss_owner_decision($1,'allow','Self approval')",[driver]),/Owner/);});
+ assert.equal(await value('select private.driver_loss_eligible($1)',[driver]),false);
+ await value("select public.driver_loss_owner_decision($1,'allow','Owner reviewed the warning and authorizes continued assignments')",[driver]);assert.equal(await value('select private.driver_loss_eligible($1)',[driver]),true);
+ // Final recorded Finance expense creates a second immutable document, not a rewrite.
+ await value('select public.lost_staff_action($1)',[{id:first.lost,action:'notify',market_value:'500.00'}]);
+ const path=await value<string>("select payload->>'action_path' from public.notifications where dedupe_key=$1",['lost-resolution:'+first.lost]);await value("select public.public_lost_resolution($1,'Replace Item')",[path.split('/').at(-1)]);
+ await value('select public.lost_staff_action($1)',[{id:first.lost,action:'approve'}]);await value('select public.lost_staff_action($1)',[{id:first.lost,action:'confirm-replacement'}]);
+ const account=await value<string>('select id from public.accounts where unit_id=$1 and active limit 1',[unit]);const category=await value<string>("select id from public.categories where unit_id=$1 and kind='expense' and active limit 1",[unit]);
+ await value('select public.record_lost_replacement_expense($1)',[{lost_id:first.lost,amount:'475.00',account_id:account,category_id:category,description:'Final replacement expense',vendor:'Driver test supplier',paid_by:'Business'}]);
+ const final=await value<string>('select id from public.driver_loss_agreements where lost_id=$1 and document_version=2',[first.lost]);assert.equal(Number(await value('select cost from public.driver_loss_agreements where id=$1',[final])),475);assert.equal(await value('select document_text from public.driver_loss_agreements where id=$1',[first.agreement]),text);assert.equal(await value('select private.driver_loss_eligible($1)',[driver]),false);
+ await staffAs(driver,()=>value('select public.driver_loss_agreement($1,true)',[final]));assert.equal(await value('select private.driver_loss_eligible($1)',[driver]),true);
+ const second=await report('second');assert.equal(Number(await value('select loss_number from public.driver_loss_agreements where id=$1',[second.agreement])),2);assert.match(await value<string>('select document_text from public.driver_loss_agreements where id=$1',[second.agreement]),/pay the remaining difference personally/);
+ const unassigned=await value<string>("insert into public.pick_return_routes(unit_id,leg,route_date) values($1,'Return',current_date+300) returning id",[unit]);await assert.rejects(value('select public.assign_route_operator($1,$2)',[unassigned,driver]),/ineligible/);
+ await staffAs(driver,()=>value('select public.driver_loss_agreement($1,true)',[second.agreement]));
+ const third=await report('third');assert.equal(Number(await value('select loss_number from public.driver_loss_agreements where id=$1',[third.agreement])),3);assert.match(await value<string>('select document_text from public.driver_loss_agreements where id=$1',[third.agreement]),/Second or subsequent loss/);
+ await staffAs(driver,()=>value('select public.driver_loss_agreement($1,true)',[third.agreement]));
+ await value("select public.driver_loss_owner_decision($1,'ban','Owner confirmed documented noncompliance')",[driver]);assert.equal(await value('select private.driver_loss_eligible($1)',[driver]),false);await assert.rejects(value('select public.assign_route_operator($1,$2)',[unassigned,driver]),/ineligible/);
+ // A historical case assigned to this driver is never backfilled into the policy.
+ const historical=await driverReturnFixture('historical-driver-only');
+ const old=await value<string>("insert into public.lost_jobs(unit_id,job_id,stop_id,route_id,driver_id,driver_name,missing_item_ids,explanation,reported_by,reported_at) select $1,$2,$3,route_id,$4,'Agreement Driver',array(select id from public.job_items where job_id=$2),'Historical fixture',$5,(select effective_at-interval '1 day' from private.driver_loss_policy) from public.pick_return_stops where id=$3 returning id",[unit,historical.job,historical.stop,driver,admin]);
+ await value('select private.queue_driver_loss_agreement($1,null,false)',[old]);assert.equal(Number(await value('select count(*) from public.driver_loss_agreements where lost_id=$1',[old])),0);
+ assert.equal(Number(await value("select count(*) from public.notifications where event='DRIVER_LOSS_AGREEMENT' and entity_id=$1",[first.lost])),2);
+ assert.equal(await value("select has_function_privilege('anon','public.driver_loss_agreement(uuid,boolean)','execute')"),false);
+});

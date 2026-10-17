@@ -26,6 +26,7 @@ export default async function PickReturnLayout({
         {!driverOnly(ctx.access) && <Link className="button secondary" href="/app">
           Back to Workspace
         </Link>}
+        <Link className="button secondary" href="/pick-return/loss-agreements">Driver agreements</Link>
         <form action={logout}><button className="secondary">Sign Out</button></form>
       </header>
       <main className="content">{children}</main>

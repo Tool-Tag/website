@@ -1,4 +1,5 @@
 "use client";
+import {DriverLossOwnerControls} from "./driver-loss-owner-controls";
 import {MovementForm} from "./movement-form";
 import Link from "next/link";
 import {useId,useRef,useState,useTransition} from "react";
@@ -36,6 +37,7 @@ function LostCaseRow({row,canApprove,expenseOptions}:{row:LostCase;canApprove:bo
   <p>Route: {row.route_date} · Reported: {denverDateTime(row.reported_at)}</p>
   <h3>Missing pieces</h3><ul>{(row.items??[]).map(i=><li key={i.id}>{i.sequence}. {i.article}</li>)}</ul><p style={{whiteSpace:"pre-wrap"}}>{row.explanation}</p>
   {status==="New"&&manage?<label>Total market value of missing items (USD)<input type="number" min="0.01" step="0.01" value={value} disabled={pending} onChange={e=>setValue(e.target.value)}/></label>:<p>Market value: {money(row.market_value)}</p>}
+  {access.owner&&row.driver_id&&(row.driver_agreements??[]).length>0&&<section><h3>Driver agreements</h3><p>New assignments: {row.driver_eligible?"Eligible":"Blocked"}</p>{row.driver_agreements?.map(a=><details key={a.id}><summary>Version {a.document_version} · {a.cost_final?"Final cost":"Initial notice"} · {a.accepted_at?"Accepted":"Awaiting acceptance"}</summary><p style={{whiteSpace:"pre-wrap"}}>{a.document_text}</p></details>)}<DriverLossOwnerControls driver={row.driver_id}/></section>}
   {row.notified_at&&<p>Notification queued: {denverDateTime(row.notified_at)}</p>}
   {row.customer_choice&&<p>Response: <strong>{row.customer_choice}</strong> · {denverDateTime(row.responded_at)}</p>}
   {row.approved_at&&<p>Approved: {denverDateTime(row.approved_at)}</p>}
