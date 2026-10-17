@@ -699,3 +699,14 @@ test("Finance pagination counts the complete filtered set, caps pages at twenty,
  const last=await financePage(head=>make(head),999);assert.equal(last.page,13);assert.equal(last.rows.length,1);assert.equal(last.rows[0].id,240);
  assert.deepEqual(ranges,[[20,39],[240,259]]);
 });
+
+test("List pagination keeps urgency order, twenty cases per page and safe stale-page bounds",async()=>{
+ const {paginateList}=await import("../src/lib/domain/list-pagination");
+ const cases=Array.from({length:43},(_,index)=>`case-${index}`);
+ const second=paginateList(cases,"2");
+ assert.deepEqual(second.items,cases.slice(20,40));assert.equal(second.total,43);
+ assert.equal(second.start,21);assert.equal(second.end,40);assert.equal(second.pages,3);
+ assert.deepEqual(paginateList(cases,"999").items,cases.slice(40));
+ for(const invalid of [undefined,"-1","0","1.5","NaN","Infinity"])assert.equal(paginateList(cases,invalid).page,1);
+ assert.deepEqual(paginateList([],"4"),{items:[],total:0,pages:1,page:1,start:0,end:0});
+});
