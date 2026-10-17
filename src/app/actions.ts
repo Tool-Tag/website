@@ -204,7 +204,7 @@ export async function mutate(
         break;
       case "movement":
         cents(String(p.amount));
-        name = "record_movement";
+        name = p.lost_id ? "record_lost_replacement_expense" : "record_movement";
         break;
       case "asset":
         name = "create_asset";
@@ -310,6 +310,7 @@ export async function mutate(
       return { error: error.message };
     }
     revalidatePath("/app", "layout");
+    if (operation === "movement" && p.lost_id) return {ok:true,data};
     if (operation === "send-quote" || operation === "resend-quote") return { mailRequestedAt: new Date().toISOString(), link: `/review/${data}`, mailStatus: await dispatchQuoteMail(db, String(p.id)) };
     if (["route-cash","shop-handover","route-confirm","job","job-item","complete-job-work","complete-production","pick-return-schedule","pick-return-stop","document","movement","extension-send","extension-cancel","generate-receipt","retry-notification","confirm-payment","cancellation-refund"].includes(operation)) await dispatchWorkerMail();
     if (operation === "extension-send") return {link:`/extension/${data}`};

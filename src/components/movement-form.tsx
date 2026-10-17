@@ -14,8 +14,12 @@ export function MovementForm({
   defaultType = "EXPENSE",
   saleId,
   vendors,
+  lostCaseId,
+  onSaved,
 }: {
   requestId: string;
+  lostCaseId?: string;
+  onSaved?: (data:unknown)=>void;
   accounts: Option[];
   categories: Option[];
   sales: Option[];
@@ -116,7 +120,7 @@ export function MovementForm({
       <div className="formgrid" style={{ marginBottom: 20 }}>
         <label>Type<select
             value={type}
-            disabled={!!saleId}
+            disabled={!!saleId||Boolean(lostCaseId)}
             onChange={(e) => setType(e.target.value)}
           >
             {[
@@ -124,7 +128,7 @@ export function MovementForm({
               ["COLLECTION", "Collection"],
               ["OWNER_INJECTION", "Owner Injection"],
               ["OWNER_DRAW", "Owner Draw / Reimbursement"],
-              ["INTER_UNIT_TRANSFER", "Transferencia interna a BOFT"],
+              ["INTER_UNIT_TRANSFER", "Internal Transfer to BOFT"],
               ["REFUND", "Refund"],
             ].map(([v, l]) => (
               <option value={v} key={v}>
@@ -135,7 +139,7 @@ export function MovementForm({
         </label>
         {type === "EXPENSE" && (
           <label>
-            Pagado por
+            Paid by
             <select value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
               <option value="Business">ToolTag / Main Account</option>
               <option value="Owner">Owner — creates reimbursement due</option>
@@ -144,7 +148,7 @@ export function MovementForm({
         )}
         {type === "OWNER_DRAW" && (
           <label>
-            Subtipo
+            Subtype
             <select
               value={subtype}
               onChange={(e) => setSubtype(e.target.value)}
@@ -159,9 +163,11 @@ export function MovementForm({
       <Form
         key={`${type}:${subtype}:${paidBy}`}
         operation="movement"
+        onSaved={onSaved}
         fields={fields}
         hidden={{
           request_id: requestId,
+          ...(lostCaseId ? {lost_id:lostCaseId} : {}),
           type,
           subtype,
           paid_by: paidBy,

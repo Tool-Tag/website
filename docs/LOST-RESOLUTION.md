@@ -27,3 +27,14 @@ The migration has NOT been applied to production. Apply only after separate auth
 ## Validation
 
 Tests exercise migration application against the six baselines and all later migrations in an isolated PGlite database, capability privacy/expiry, first-response immutability, notification/SMS deduplication and consent skipping, replacement completion, Pending refund creation, $500 compensation above service payments, preserved ordinary caps, EXPENSE ledger, idempotent issuance, receipt-confirmation gate and History urgency removal. Unit coverage checks finalization eligibility and the SMS secure path/template. Typecheck/lint/build results are reported with the branch delivery.
+
+
+## Approval notice and replacement processing (Block 4 continuation)
+
+Additional forward-only migration: `20261017094257_lost_replacement_processing.sql`, NOT applied remotely. Apply only after the preceding Lost migration and separate authorization.
+
+Approval queues one customer email and consent-gated SMS saying work has started on their chosen resolution, with a 5–7-business-day processing window. Approval retries do not send duplicates.
+
+An approved replacement shows Process. Clicking opens a confirmation dialog: make sure the replacement is physically at the shop. Not yet closes that dialog without confirming or opening Finance. Confirmed records staff/time on the server and opens the existing Finance MovementForm inside an expense modal, locked to Expense. It preserves Finance's existing Owner-only expense permissions, required amount/account/category/vendor, closed-period rules, paid-by handling, and idempotent record_movement path. The actual purchase cost can differ from the customer's frozen market value.
+
+The new guarded RPC atomically records the Finance expense and stores its transaction ID on the Lost case. Retries cannot create a second expense, and changed retry data fails. The Lost modal displays the transaction ID and changes Process to Finalize. The server refuses replacement finalization without the shop confirmation and a linked Active expense. Resolution notes are still required. Refund processing remains in Refunds; its Finalize appears only after Completed.

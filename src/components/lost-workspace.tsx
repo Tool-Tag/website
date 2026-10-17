@@ -1,22 +1,24 @@
 "use client";
+import {MovementForm} from "./movement-form";
 import Link from "next/link";
 import {useId,useRef,useState,useTransition} from "react";
 import {useRouter} from "next/navigation";
 import {useAccess} from "./permission-provider";
 import {canAny} from "@/lib/auth/permissions";
 import {lostStaffAction} from "@/app/lost-actions";
-import {lostCanFinalize,type LostCase,type LostStatus} from "@/lib/domain/lost-flow";
+import {lostCanFinalize,type LostCase,type LostStatus,type LostExpenseOptions} from "@/lib/domain/lost-flow";
 import {denverDateTime} from "@/lib/domain/time";
 import {money} from "@/lib/domain/money";
 
-export function LostWorkspace({rows,canApprove}:{rows:LostCase[];canApprove:boolean}) {
+export function LostWorkspace({rows,canApprove,expenseOptions}:{rows:LostCase[];canApprove:boolean;expenseOptions:LostExpenseOptions|null}) {
  const [tab,setTab]=useState<LostStatus>("New");
  const list=rows.filter(row=>(row.status??"New")===tab).sort((a,b)=>Date.parse(tab==="History"?b.finalized_at??b.reported_at:a.reported_at)-Date.parse(tab==="History"?a.finalized_at??a.reported_at:b.reported_at));
  return <><nav className="main-tab-list" aria-label="Lost cases">{(["New","In Process","History"] as const).map(name=><button type="button" key={name} className={`main-tab ${tab===name?"active":""}`} aria-pressed={tab===name} onClick={()=>setTab(name)}>{name} ({rows.filter(r=>(r.status??"New")===name).length})</button>)}</nav>
- <section aria-label={`${tab} Lost cases`}><div className="lost-case-list">{!list.length&&<p>No {tab.toLowerCase()} cases.</p>}{list.map(row=><LostCaseRow key={row.id} row={row} canApprove={canApprove}/>)}</div></section></>;
+ <section aria-label={`${tab} Lost cases`}><div className="lost-case-list">{!list.length&&<p>No {tab.toLowerCase()} cases.</p>}{list.map(row=><LostCaseRow key={row.id} row={row} canApprove={canApprove} expenseOptions={expenseOptions}/>)}</div></section></>;
 }
-function LostCaseRow({row,canApprove}:{row:LostCase;canApprove:boolean}) {
+function LostCaseRow({row,canApprove,expenseOptions}:{row:LostCase;canApprove:boolean;expenseOptions:LostExpenseOptions|null}) {
  const dialog=useRef<HTMLDialogElement>(null),waiting=useRef<HTMLDialogElement>(null);const id=useId();
+ const confirmation=useRef<HTMLDialogElement>(null),expense=useRef<HTMLDialogElement>(null);
  const access=useAccess(),router=useRouter();const manage=canAny(access,["jobs.manage","pr.returns"]);
  const [value,setValue]=useState(String(row.market_value??"")),[notes,setNotes]=useState(""),[error,setError]=useState("");const [pending,start]=useTransition();
  const status=row.status??"New";
@@ -40,8 +42,18 @@ function LostCaseRow({row,canApprove}:{row:LostCase;canApprove:boolean}) {
   {row.refund_id&&<p>Refund status: {row.refund_status??"Pending"}{canAny(access,["payments.refund","payments.view"])&&<> · <Link href="/app/refunds">Open Refunds</Link></>}</p>}
   {status==="New"&&manage&&<><p>Notify sends the customer an apology and a secure choice link. SMS requires an eligible phone and consent. The market value is frozen after notification.</p><button type="button" disabled={pending||!value} onClick={()=>run("notify")}>Notify</button></>}
   {status==="In Process"&&!row.approved_at&&row.customer_choice&&(canApprove?<button type="button" disabled={pending} onClick={()=>run("approve")}>Approved</button>:<p>Awaiting Owner or Manager approval.</p>)}
-  {status==="In Process"&&row.approved_at&&manage&&<><label>Resolution details<textarea value={notes} maxLength={5000} disabled={pending} onChange={e=>setNotes(e.target.value)} placeholder={row.customer_choice==="Replace Item"?"Record the replacement provided and how delivery was completed.":"Record the completed refund resolution."}/></label>{!lostCanFinalize({...row,status})&&<p>Complete the linked Refund before finalizing this case.</p>}<button type="button" disabled={pending||!notes.trim()||!lostCanFinalize({...row,status})} onClick={()=>run("finalize")}>Process / Finalize</button></>}
+  {row.replacement_at_shop_at&&<p>Replacement confirmed at shop: {denverDateTime(row.replacement_at_shop_at)}</p>}
+  {row.replacement_expense_id&&<p>Expense transaction ID: {access.owner||canAny(access,["payments.view"])?<Link href={`/app/finance/transactions/${row.replacement_expense_id}`}>{row.replacement_expense_id}</Link>:row.replacement_expense_id}</p>}
+  {status==="In Process"&&row.approved_at&&manage&&<>
+   {row.customer_choice==="Replace Item"&&!row.replacement_expense_id&&<><button type="button" disabled={pending||!expenseOptions} onClick={()=>confirmation.current?.showModal()}>Process</button>{!expenseOptions&&<p>Owner access and available Finance accounts/categories are required to record the replacement expense.</p>}</>}
+   {row.customer_choice==="Refund money"&&row.refund_status!=="Completed"&&<><p>Process the linked refund through the standard Refunds workflow.</p>{canAny(access,["payments.refund","payments.view"])&&<Link className="button" href="/app/refunds">Process</Link>}</>}
+   {lostCanFinalize({...row,status})&&<><label>Resolution details<textarea value={notes} maxLength={5000} disabled={pending} onChange={e=>setNotes(e.target.value)} placeholder={row.customer_choice==="Replace Item"?"Record the replacement provided and how delivery was completed.":"Record the completed refund resolution."}/></label><button type="button" disabled={pending||!notes.trim()} onClick={()=>run("finalize")}>Finalize</button></>}
+  </>}
+
   {status==="History"&&<><p>Completed: {denverDateTime(row.finalized_at)}</p><p>{row.resolution_notes}</p><p>This record is read-only.</p></>}
   {error&&<p className="notice error" role="alert">{error}</p>}
- </dialog></div>;
+ </dialog>
+ <dialog ref={confirmation} className="lost-case-modal" aria-label="Confirm replacement at shop"><h2>Make sure the replacement is already at the shop</h2><p>Do not continue until the replacement is physically at the shop.</p><div className="actions"><button type="button" disabled={pending} onClick={()=>{setError("");start(async()=>{const result=await lostStaffAction(row.id,"confirm-replacement");if(result.error)setError(result.error);else{confirmation.current?.close();expense.current?.showModal();router.refresh();}});}}>Confirmed</button><button type="button" className="secondary" disabled={pending} onClick={()=>confirmation.current?.close()}>Not yet</button></div>{error&&<p role="alert" className="notice error">{error}</p>}</dialog>
+ <dialog ref={expense} className="lost-case-modal" aria-label="Record replacement expense"><header className="actions" style={{justifyContent:"space-between"}}><h2>Record replacement expense · {row.job}</h2><button type="button" className="secondary" onClick={()=>expense.current?.close()}>Close</button></header>{expenseOptions&&<MovementForm requestId={row.id} lostCaseId={row.id} defaultType="EXPENSE" accounts={expenseOptions.accounts} categories={expenseOptions.categories} vendors={expenseOptions.vendors} sales={[]} expenses={[]} collections={[]} destinationAccounts={[]} onSaved={()=>{expense.current?.close();router.refresh();}}/>}</dialog>
+ </div>;
 }

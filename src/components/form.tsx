@@ -1,7 +1,7 @@
 "use client";
 import { useActionPermission } from "./permission-provider";
 import { PhoneVerification } from "./phone-verification";
-import { useActionState, useState } from "react";
+import { useActionState, useState, useEffect, useRef } from "react";
 import { mutate, type ActionState } from "@/app/actions";
 export type Field = {
   name: string;
@@ -23,6 +23,7 @@ export function Form({
   button = "Save",
   back = "/app",
   children,
+  onSaved,
 }: {
   operation: string;
   fields: Field[];
@@ -30,6 +31,7 @@ export function Form({
   button?: string;
   back?: string;
   children?: React.ReactNode;
+  onSaved?: (data:unknown)=>void;
 }) {
   const allowed = useActionPermission(operation);
   const [customerPhone, setCustomerPhone] = useState(fields.find(f=>f.name==="phone")?.value??"");
@@ -37,6 +39,8 @@ export function Form({
     mutate.bind(null, operation, back),
     {},
   );
+  const handled = useRef<ActionState|null>(null);
+  useEffect(()=>{if(state.ok && onSaved && handled.current!==state){handled.current=state;onSaved(state.data);}},[state,onSaved]);
   if (!allowed) return null;
   return (
     <form action={action} className="formgrid">

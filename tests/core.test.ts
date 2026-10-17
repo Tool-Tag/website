@@ -597,7 +597,7 @@ test("Shop board defaults to a leg the staff member is permitted to operate",()=
 import {lostCanFinalize} from "../src/lib/domain/lost-flow";
 test("Lost finalization requires approval plus completed replacement/refund, never just a customer choice",()=>{
  assert.equal(lostCanFinalize({status:"In Process",customer_choice:"Replace Item",approved_at:null}),false);
- assert.equal(lostCanFinalize({status:"In Process",customer_choice:"Replace Item",approved_at:"2026-10-17"}),true);
+ assert.equal(lostCanFinalize({status:"In Process",customer_choice:"Replace Item",approved_at:"2026-10-17",replacement_at_shop_at:"2026-10-17",replacement_expense_id:"expense-id"}),true);
  assert.equal(lostCanFinalize({status:"In Process",customer_choice:"Refund money",approved_at:"2026-10-17",refund_status:"Issued"}),false);
  assert.equal(lostCanFinalize({status:"In Process",customer_choice:"Refund money",approved_at:"2026-10-17",refund_status:"Completed"}),true);
  assert.equal(lostCanFinalize({status:"History",customer_choice:"Replace Item",approved_at:"2026-10-17"}),false);

@@ -79,6 +79,8 @@ export class SnsSmsTransport {
 }
 const SMS_EVENT_STAGE: Record<string, string> = {
  LOST_RESOLUTION: "Lost Item Resolution",
+ LOST_REPLACEMENT_APPROVED: "Replacement Started (5-7 Business Days)",
+ LOST_REFUND_APPROVED: "Refund Started (5-7 Business Days)",
  PICKUP_ROUTE_DEPARTED: "Driver En Route", RETURN_ROUTE_DEPARTED: "Driver En Route",
  PICKUP_EN_ROUTE: "Driver En Route", RETURN_EN_ROUTE: "Driver En Route",
  PICKUP_DRIVER_NEARBY: "3 Stops Away", RETURN_DRIVER_NEARBY: "3 Stops Away",
