@@ -1732,3 +1732,11 @@ body:has(.get-tagged-react-dialog[open]) {
 .shop-receiving-modal {width:min(720px,calc(100vw - 32px));max-height:85dvh;overflow:auto;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:20px;}
 .shop-receiving-modal::backdrop {background:#000b;}
 .shop-receiving-checklist .checkbox {margin:12px 0;}
+
+.lost-case-list {display:flex;flex-direction:column;}
+.lost-case-entry {border-bottom:1px solid var(--line);padding:8px 0;}
+.lost-response {margin:4px 12px;color:var(--muted);}
+.lost-case-row {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;width:100%;padding:14px 12px;background:transparent;color:var(--ink);border:0;text-align:left;box-shadow:none;}
+.lost-case-row:hover {filter:none;}
+.lost-case-modal {width:min(720px,calc(100vw - 32px));max-height:85dvh;overflow:auto;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:20px;}
+.lost-case-modal::backdrop {background:#000b;}

@@ -47,7 +47,7 @@ export async function RefundsPanel({jobId,view="cases"}:{jobId?:string;view?:"ca
      <p>Reason: {r.reason} · Source: {r.source_kind}</p>
      <p>Origin event: {r.issue_event??"Source obligation — review required"} · {denverDateTime(r.issue_event_at)}</p>
      <p>Reported: {denverDateTime(r.reported_at)} · Requested: {denverDateTime(r.requested_at)}</p>
-     <p>Eligibility check: {refundEligibility(r.issue_event_at,r.reported_at)}</p>
+     <p>Eligibility check: {r.source_kind==="Lost"?"Lost item market-value compensation — independent of service payments":refundEligibility(r.issue_event_at,r.reported_at)}</p>
      {r.confirmed_at&&<p>Eligibility confirmed: {denverDateTime(r.confirmed_at)} · Process {r.process_not_before}–{r.process_due} (business days)</p>}
      {r.approved_at&&<p>Approved: {denverDateTime(r.approved_at)}</p>}
      {r.status==="Rejected"&&<p>Rejected: {denverDateTime(r.rejected_at)} · Reason: {r.rejection_reason}</p>}

@@ -34,7 +34,7 @@ export async function dispatchQuoteMail(db: SupabaseClient, quoteId?: string) {
                 : event.completion_token
                   ? new URL(`/completion/${event.completion_token}`, origin).href
                   : undefined,
-              refundReceipt ? "Confirm Receipt" : event.event === "Completion acknowledgment"
+              refundReceipt ? "Confirm Receipt" : event.event === "LOST_RESOLUTION" ? "Choose a resolution" : event.event === "Completion acknowledgment"
                 ? "Accept Delivery"
                 : ["JOB_STATUS_LINK", "JOB_STATUS_UPDATE"].includes(event.event)
                   ? "View Job Status"

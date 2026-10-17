@@ -7,9 +7,9 @@ export async function verifyFailedDelivery(stop: string, items: string[]) {
  if (error) return {error:error.message};
  revalidatePath("/app", "layout");return {ok:true};
 }
-export async function markFailedDeliveryLost(stop:string,checked:string[],explanation:string) {
+export async function markFailedDeliveryLost(stop:string,checked:string[],explanation:string,marketValue:string) {
  const {db}=await requirePermission("pr.returns");
- const {error}=await db.rpc("mark_failed_delivery_lost", {p_stop:stop,p_checked:checked,p_explanation:explanation});
+ const {error}=await db.rpc("mark_failed_delivery_lost_v2", {p_stop:stop,p_checked:checked,p_explanation:explanation,p_market_value:marketValue});
  if(error)return {error:error.message};
  revalidatePath("/app","layout");revalidatePath("/pick-return","layout");return {ok:true};
 }
