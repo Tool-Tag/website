@@ -252,7 +252,7 @@ export async function Jobs({ id }: { id?: string }) {
             {can(access,"production.work") && currentItem.stage === "Engraving" && (
               <details open={!itemEvidence.length}>
                 <summary>Add Completed Evidence for this item</summary>
-                <EvidenceCapture
+                <EvidenceCapture photosOnly
                   config={{
                     jobId: id,
                     jobItemId: currentItem.id,

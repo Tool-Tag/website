@@ -12,6 +12,7 @@ export function mailSender(event: string, env: Env = process.env) {
     "QUOTE_REVISION",
     "REVISION_REQUIRES_ACCEPTANCE",
     "AGREEMENT_ACCEPTED",
+    "AGREEMENT_DOCUMENT_RESENT",
     "AGREEMENT_ACCEPTED_COPY",
   ];
 

@@ -5,8 +5,10 @@ import { EvidenceUpload } from "@/components/evidence-upload";
 
 export function EvidenceCapture({
   config,
+  photosOnly=false,
 }: {
   config: Omit<EvidenceRegistration, "photoOnly">;
+  photosOnly?:boolean;
 }) {
   return (
     <div className="evidence-capture">
@@ -14,18 +16,18 @@ export function EvidenceCapture({
         <h4>Photo</h4>
         <EvidenceUpload
           config={{ ...config, photoOnly: true }}
-          button="Upload Photo"
+          button="Upload"
           accept="image/*"
         />
       </div>
 
-      <details>
+      {!photosOnly&&<details>
         <summary>Upload File</summary>
         <EvidenceUpload
           config={{ ...config, photoOnly: false }}
           button="Upload File"
         />
-      </details>
+      </details>}
     </div>
   );
 }

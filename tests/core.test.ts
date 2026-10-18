@@ -739,3 +739,29 @@ test('Get Tagged tool photos are optional and only accept UUID references',()=>{
  request.items[0].photo_id='00000000-0000-4000-8000-000000000001';assert.equal(getTaggedRequestSchema.parse(request).items[0].photo_id,request.items[0].photo_id);
  assert.equal(getTaggedRequestSchema.safeParse({...request,items:[{...request.items[0],photo_id:'https://foreign.test/image'}]}).success,false);
 });
+
+
+test('HEIC conversion precedes proof validation and preserves ordinary photos',async()=>{
+ const {normalizePhoto,isHeic,PHOTO_ACCEPT}=await import('../src/lib/photos/normalize');
+ const {paymentProofError}=await import('../src/lib/payments/proof');
+ const large=new File([new Uint8Array(4*1024*1024)],'iphone.HEIC',{type:'image/heic',lastModified:123});
+ let called=0;const jpeg=await normalizePhoto(large,async()=>{called++;return new Blob(['jpeg-result'],{type:'image/jpeg'});});
+ assert.equal(called,1);assert.equal(jpeg.name,'iphone.jpg');assert.equal(jpeg.lastModified,123);assert.equal(paymentProofError(jpeg),null);
+ const oversized=await normalizePhoto(large,async()=>new Blob([new Uint8Array(4*1024*1024)],{type:'image/jpeg'}));assert.notEqual(paymentProofError(oversized),null);
+ const png=new File(['png'],'photo.png',{type:'image/png'});assert.equal(await normalizePhoto(png,async()=>{throw new Error('must not decode PNG');}),png);
+ const sniffed=new File([new Uint8Array([0,0,0,24]),'ftypheic0000'],'unknown',{type:''});assert.equal(await isHeic(sniffed),true);
+ assert.match(PHOTO_ACCEPT,/image\/heif/);
+ await assert.rejects(normalizePhoto(large,async()=>{throw new Error('unsupported');}),/could not be converted/);
+ await assert.rejects(normalizePhoto(large,async()=>[]),/could not be converted/);
+ const first=await normalizePhoto(large,async()=>[new Blob(['first'],{type:'image/jpeg'}),new Blob(['second'],{type:'image/jpeg'})]);assert.equal(await first.text(),'first');
+});
+
+test('Agreement resend attachment uses the stored PDF and rejects corrupt artifacts',async()=>{
+ const {acceptedAgreementAttachment}=await import('../src/lib/documents/accepted-delivery');
+ const {createHash}=await import('node:crypto');const bytes=Buffer.from('immutable accepted PDF');
+ const artifact={file_name:'agreement.pdf',pdf:bytes.toString('base64'),sha256:createHash('sha256').update(bytes).digest('hex')};
+ const db={rpc:async()=>({data:artifact,error:null})};
+ const attachment=await acceptedAgreementAttachment(db as unknown as Parameters<typeof acceptedAgreementAttachment>[0],'test');
+ assert.equal(attachment.filename,'agreement.pdf');assert.deepEqual(attachment.content,bytes);
+ artifact.sha256='corrupt';await assert.rejects(acceptedAgreementAttachment(db as unknown as Parameters<typeof acceptedAgreementAttachment>[0],'test'),/INTEGRITY/);
+});
