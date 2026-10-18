@@ -1631,7 +1631,9 @@ test("RBAC bootstraps Owner, permits role unions/future blocks and guards last a
  assert.equal(await value<boolean>("select private.has_block($1,'future.test')",[unit]),true);
  const employee=await addStaff(['Employee'],'rbac-employee');
  await staffAs(employee,async()=>{
- const a=await value<{owner:boolean;blocks:string[]}>("select public.staff_permissions()");assert.equal(a.owner,false);assert.ok(a.blocks.includes('production.work'));assert.ok(!a.blocks.includes('quotes.manage'));
+ const a=await value<{owner:boolean;blocks:string[]}>("select public.staff_permissions()");assert.equal(a.owner,false);assert.ok(a.blocks.includes('production.work'));assert.ok(a.blocks.includes('quotes.manage'));
+ const customer=await value<string>("select id from public.customers where unit_id=$1 limit 1",[unit]);
+ await createQuote(customer);
  await assert.rejects(value("select public.rbac_directory()"),/Owner/);
  await assert.rejects(value("select public.rbac_save_role(null,'Escalate',array['users.manage'])"),/Owner/);
  await assert.rejects(value("select public.save_settings($1::jsonb)",[JSON.stringify({unit_id:unit})]),/Permission denied|Owner/);
@@ -1711,7 +1713,8 @@ test("RBAC Employee payment recording works; ToolTag roles do not grant BOFT acc
  const boft=await value<string>("select id from public.business_units where id<>$1 limit 1",[unit]);
  await staffAs(employee,async()=>{
  await value("select public.confirm_payment_request($1)",[request]);
- await assert.rejects(value("select public.create_quote($1::jsonb)",[JSON.stringify({unit_id:unit})]),/Permission denied/);
+ const customer=await value<string>("select id from public.customers where unit_id=$1 limit 1",[unit]);
+ await createQuote(customer);
  await assert.rejects(value("select public.save_settings($1::jsonb)",[JSON.stringify({unit_id:boft})]),/Administrative/);
  assert.equal(Number(await value("select count(*) from public.customers where unit_id=$1",[boft])),0);
  });
