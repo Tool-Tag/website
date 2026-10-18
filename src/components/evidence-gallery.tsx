@@ -1,4 +1,5 @@
 "use client";
+import {ModalClose} from "./modal-close";
 
 import Link from "next/link";
 import { useRef, useState } from "react";
@@ -179,7 +180,7 @@ export function EvidenceGallery({
                 </p>
               )}
 
-            <button type="button" onClick={() => dialog.current?.close()} aria-label="Close dialog" className="modal-close">×</button>
+            <ModalClose type="button" onClick={() => dialog.current?.close()} aria-label="Close dialog" className="modal-close">×</ModalClose>
           </>
         )}
       </dialog>

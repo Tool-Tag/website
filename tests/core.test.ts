@@ -725,3 +725,17 @@ test("SMS activation is production-only, explicitly overridable, and safe withou
  const broken={rpc:async()=>{throw new Error("offline");}};
  assert.deepEqual(await dispatchSms(broken as unknown as Parameters<typeof dispatchSms>[0]),{sent:0,skipped:0,failed:0});
 });
+
+test('Owner-only evidence fallback permits the authorized expense recorder without granting empty permissions to employees',async()=>{
+ const {canAny,evidencePermissions,canMutate}=await import('../src/lib/auth/permissions');
+ const owner={owner:true,blocks:[]},employee={owner:false,blocks:['payments.record']};
+ assert.equal(canMutate(owner,'movement'),true);assert.equal(canAny(owner,evidencePermissions('Other')),true);
+ assert.equal(canMutate(employee,'movement'),false);assert.equal(canAny(employee,evidencePermissions('Other')),false);
+});
+test('Get Tagged tool photos are optional and only accept UUID references',()=>{
+ const request=emptyGetTaggedRequest();request.contact.name='Test Photo';request.contact.email='test-photo@example.test';
+ request.items[0]={...request.items[0],article:'Drill',brand:'Test',marks:[{...request.items[0].marks[0],location:'Side',text:'Test'}]};
+ assert.equal(getTaggedRequestSchema.parse(request).items[0].photo_id,'');
+ request.items[0].photo_id='00000000-0000-4000-8000-000000000001';assert.equal(getTaggedRequestSchema.parse(request).items[0].photo_id,request.items[0].photo_id);
+ assert.equal(getTaggedRequestSchema.safeParse({...request,items:[{...request.items[0],photo_id:'https://foreign.test/image'}]}).success,false);
+});

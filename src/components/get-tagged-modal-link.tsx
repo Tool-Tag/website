@@ -1,4 +1,5 @@
 "use client";
+import {ModalClose} from "./modal-close";
 
 import { useEffect, useRef } from "react";
 
@@ -56,14 +57,14 @@ export function GetTaggedModalLink({
               <p className="eyebrow">GET TAGGED</p>
               <h2 id="get-tagged-react-dialog-title">Start your request.</h2>
             </div>
-            <button
+            <ModalClose
               type="button"
               className="close"
               aria-label="Close Get Tagged form"
               onClick={() => dialogRef.current?.close()}
             >
               ×
-            </button>
+            </ModalClose>
           </div>
           <iframe
             ref={frameRef}

@@ -1,4 +1,5 @@
 "use client";
+import {ModalClose} from "./modal-close";
 
 import { useEffect, useState } from "react";
 import { GetTaggedForm } from "@/components/get-tagged-form";
@@ -45,7 +46,7 @@ export function GetTaggedModalContent() {
             Agreement are accepted.
           </p>
         </section>
-        <button type="button" onClick={requestGetTaggedClose} aria-label="Close dialog" className="modal-close">×</button>
+        <ModalClose type="button" onClick={requestGetTaggedClose} aria-label="Close dialog" className="modal-close">×</ModalClose>
       </main>
     );
   }

@@ -1,4 +1,5 @@
 "use client";
+import {ModalClose} from "./modal-close";
 import {useRef, useState, useTransition} from "react";
 import {useRouter} from "next/navigation";
 import {useRefundTab} from "./refund-status-tabs";
@@ -26,7 +27,7 @@ export function RefundCaseModal({id,title,customer,status,reason,requested,days,
    <span className={`support-urgency-dot dot-${color}`} aria-label={`${color} urgency`}/><strong>{customer} · {title}</strong><br/>{status} · {reason}<br/><small>{days} business {days===1?"day":"days"} waiting{days===0?" — awaiting eligibility confirmation":""} · Requested: {requested}</small>
   </button>}
   <dialog ref={dialog} className="support-case-modal" aria-label={`Refund details: ${title}`} style={{width:"min(48rem, calc(100vw - 2rem))",maxHeight:"85dvh",overflowY:"auto"}}>
-   <header className="actions" style={{justifyContent:"space-between"}}><div><h2>{customer}</h2><p>{title}</p><Badge>{status}</Badge><p><span className={`support-urgency-dot dot-${color}`} aria-label={`${color} urgency`}/>{days} business {days===1?"day":"days"} waiting{days===0?" — awaiting eligibility confirmation":""}</p></div><button type="button" className="secondary modal-close" onClick={()=>dialog.current?.close()} aria-label="Close dialog">×</button></header>
+   <header className="actions" style={{justifyContent:"space-between"}}><div><h2>{customer}</h2><p>{title}</p><Badge>{status}</Badge><p><span className={`support-urgency-dot dot-${color}`} aria-label={`${color} urgency`}/>{days} business {days===1?"day":"days"} waiting{days===0?" — awaiting eligibility confirmation":""}</p></div><ModalClose type="button" className="secondary modal-close" onClick={()=>dialog.current?.close()} aria-label="Close dialog">×</ModalClose></header>
    {pending&&<p role="status">Opening review…</p>}
    {error&&<p className="notice error" role="alert">{error} Close and reopen to retry.</p>}
    {!canReview&&status==="Pending"&&<p>Read-only access. An authorized staff member must review this refund.</p>}

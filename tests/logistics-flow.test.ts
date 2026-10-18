@@ -2884,3 +2884,47 @@ test("Pre-Quote request SMS uses explicit consent, safe test routing and transfe
  assert.equal(await value("select d.reason from private.sms_deliveries d join public.notifications n on n.id=d.notification_id where n.entity_id=$1 and n.event='GET_TAGGED_RECEIVED'",[noConsent]),'NO_OPT_IN');
  await db.query('update private.sms_settings set enabled=false where unit_id=$1',[unit]);
 });
+
+test('Lost replacement expenses below $75 persist Missing Receipt; $75 remains blocked and stored proof clears the mark',async()=>{
+ await db.exec('begin');try{
+  const f=await lostResolutionFixture('photo-receipts');
+  await value("select public.public_lost_resolution($1,'Replace Item')",[f.link]);
+  await value('select public.lost_staff_action($1)',[{id:f.lost,action:'approve'}]);
+  await value('select public.lost_staff_action($1)',[{id:f.lost,action:'confirm-replacement'}]);
+  const account=await value<string>('select id from public.accounts where unit_id=$1 and active limit 1',[unit]);
+  const category=await value<string>("select id from public.categories where unit_id=$1 and kind='expense' and active limit 1",[unit]);
+  const payload={lost_id:f.lost,amount:'75.00',account_id:account,category_id:category,description:'Replacement receipt',vendor:'Test store',paid_by:'Business'};
+  await db.exec('savepoint missing_receipt');
+  await assert.rejects(rpc('record_lost_replacement_expense',payload),/receipt image is required/);
+  await db.exec('rollback to savepoint missing_receipt');
+  const missingExpense=await rpc('record_lost_replacement_expense',{...payload,amount:'74.99'});
+  assert.equal(await value('select receipt_status from public.expense_details where transaction_id=$1',[missingExpense]),'Missing Receipt');
+  assert.equal(await value('select missing_receipt from public.lost_jobs where id=$1',[f.lost]),true);
+  const list=await value<{id:string;missing_receipt:boolean}[]>('select public.lost_job_list()');assert.equal(list.find(l=>l.id===f.lost)?.missing_receipt,true);
+  const second=await lostResolutionFixture('photo-receipts-stored');
+  await value("select public.public_lost_resolution($1,'Replace Item')",[second.link]);
+  await value('select public.lost_staff_action($1)',[{id:second.lost,action:'approve'}]);
+  await value('select public.lost_staff_action($1)',[{id:second.lost,action:'confirm-replacement'}]);
+  await rpc('record_lost_replacement_expense',{...payload,lost_id:second.lost,proof_id:await storedExpenseProof()});
+  assert.equal(await value('select missing_receipt from public.lost_jobs where id=$1',[second.lost]),false);
+
+ }finally{await db.exec('rollback');}
+});
+test('Intake photo reservations are server-only, rate bounded, and private to the trusted endpoint',async()=>{
+ await db.exec('begin');try{
+  const key=await value<string>('select gen_random_uuid()'),id=await value<string>('select gen_random_uuid()');
+  await db.exec('savepoint unauthorized_photo');
+  await assert.rejects(value('select public.reserve_intake_photo($1,$2,$3,$4,3)',[id,key,'a'.repeat(64),'image/jpeg']),/Server credentials/);
+  await db.exec('rollback to savepoint unauthorized_photo');
+  await db.query("select set_config('request.jwt.claim.role','service_role',true)");
+  const path=await value<string>('select public.reserve_intake_photo($1,$2,$3,$4,3)',[id,key,'a'.repeat(64),'image/jpeg']);assert.ok(path.includes(key));
+  assert.equal(await value("select has_table_privilege('anon','public.get_tagged_tool_photos','select')"),false);
+  assert.equal(await value("select has_table_privilege('authenticated','public.get_tagged_tool_photos','insert')"),false);
+  await db.query("insert into public.get_tagged_tool_photos(id,request_key,network,storage_path,mime_type,file_size) select gen_random_uuid(),$1,$2,'quota-'||gen_random_uuid(),'image/jpeg',3 from generate_series(1,19)",[key,'a'.repeat(64)]);
+  await db.exec('savepoint photo_quota');
+  await assert.rejects(value('select public.reserve_intake_photo(gen_random_uuid(),$1,$2,$3,3)',[key,'a'.repeat(64),'image/jpeg']),/upload limit/);
+  await db.exec('rollback to savepoint photo_quota');
+
+  await assert.rejects(value('select public.reserve_intake_photo(gen_random_uuid(),$1,$2,$3,3145729)',[await value<string>('select gen_random_uuid()'),'b'.repeat(64),'image/jpeg']),/file_size|check constraint/);
+ }finally{await db.exec('rollback');}
+});

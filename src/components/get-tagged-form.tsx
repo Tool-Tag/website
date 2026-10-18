@@ -1,4 +1,5 @@
 "use client";
+import {ToolPhotoInput} from "./tool-photo-input";
 import { SmsConsentCheckbox } from "./sms-consent";
 import { PhoneVerification } from "./phone-verification";
 
@@ -322,6 +323,7 @@ export function GetTaggedForm({
               )}
             </div>
 
+            <ToolPhotoInput token={token} value={item.photo_id||""} onChange={photo_id=>updateItem(itemIndex,{photo_id})}/>
             <div className="intake-grid">
               <label>
                 Item / tool / part

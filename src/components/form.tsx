@@ -27,6 +27,7 @@ export function Form({
   onSaved,
   onFieldChange,
   submitDisabled = false,
+  validateSubmit,
 }: {
   operation: string;
   fields: Field[];
@@ -37,6 +38,7 @@ export function Form({
   onSaved?: (data:unknown)=>void;
   onFieldChange?: (name:string,value:string)=>void;
   submitDisabled?: boolean;
+  validateSubmit?: ()=>boolean;
 }) {
   const allowed = useActionPermission(operation);
   const closeModal=useActionModal();
@@ -49,7 +51,7 @@ export function Form({
   useEffect(()=>{if(state.ok && handled.current!==state){handled.current=state;onSaved?.(state.data);closeModal?.();}},[state,onSaved,closeModal]);
   if (!allowed) return null;
   return (
-    <form action={action} className="formgrid">
+    <form action={action} className="formgrid" onSubmitCapture={e=>{if(validateSubmit&&!validateSubmit())e.preventDefault();}}>
       {Object.entries(hidden).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
@@ -132,7 +134,7 @@ export function Form({
       )}
       {state.mailStatus && <p className="notice wide">{state.mailStatus}</p>}
       {state.ok && <div className="notice success wide">Saved.</div>}
-      <button disabled={pending||submitDisabled}>{pending ? "Saving…" : button}</button>
+      <button onClick={e=>{if(validateSubmit&&!validateSubmit())e.preventDefault();}} disabled={pending||submitDisabled}>{pending ? "Saving…" : button}</button>
     </form>
   );
 }

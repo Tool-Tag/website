@@ -1,4 +1,5 @@
 "use client";
+import {ModalClose} from "./modal-close";
 
 import Link from "next/link";
 import { useId, useRef, useState } from "react";
@@ -27,7 +28,7 @@ export function DashboardAttention({ items }: { items: AttentionItem[] }) {
     <dialog ref={dialog} className="dashboard-attention-modal" aria-labelledby={titleId}>
       <header className="actions dashboard-attention-modal-header">
         <h2 id={titleId}>Needs Attention</h2>
-        <button type="button" className="secondary modal-close" onClick={() => dialog.current?.close()} aria-label="Close dialog">×</button>
+        <ModalClose type="button" className="secondary modal-close" onClick={() => dialog.current?.close()} aria-label="Close dialog">×</ModalClose>
       </header>
       {rows(items.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE), true)}
       <footer className="actions pagination dashboard-attention-pagination">

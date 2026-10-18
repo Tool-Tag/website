@@ -1,4 +1,5 @@
 "use client";
+import {ModalClose} from "./modal-close";
 import {useEffect,useId,useRef} from "react";
 import {AssetForm} from "./asset-form";
 import {money} from "@/lib/domain/money";
@@ -9,7 +10,7 @@ export function EquipmentRegistrationModal({expense,categories}:{expense:{id:str
   return <>
     <div className="notice success">Equipment purchase saved. <button className="secondary" type="button" onClick={()=>dialog.current?.showModal()}>Register equipment</button></div>
     <dialog ref={dialog} className="equipment-registration-modal" aria-labelledby={title}>
-      <header className="pagehead"><h2 id={title}>Register Equipment</h2><button className="secondary modal-close" type="button" onClick={()=>dialog.current?.close()} aria-label="Close dialog">×</button></header>
+      <header className="pagehead"><h2 id={title}>Register Equipment</h2><ModalClose className="secondary modal-close" type="button" onClick={()=>dialog.current?.close()} aria-label="Close dialog">×</ModalClose></header>
       <p>{expense.description} · {money(expense.amount)}</p>
       <p className="muted">{expense.vendor} · {expense.date}</p>
       <p>The purchase is already saved in Finance. This registration links the equipment to that expense without creating another charge.</p>

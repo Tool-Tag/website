@@ -94,6 +94,7 @@ export const getTaggedRequestSchema = z
       .array(
         z.object({
           article: shortText.min(1, "Describe the item."),
+          photo_id: z.union([z.literal(""),z.string().uuid()]).default(""),
           brand: shortText.min(1, 'Enter a brand or "Not sure".'),
           model: shortText,
           quantity: z.number().int().min(1).max(1000),
@@ -139,6 +140,7 @@ export function emptyMark(): GetTaggedMark {
 export function emptyItem(): GetTaggedItem {
   return {
     article: "",
+    photo_id: "",
     brand: "",
     model: "",
     quantity: 1,

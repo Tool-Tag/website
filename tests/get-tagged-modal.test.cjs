@@ -29,7 +29,7 @@ test("modal route reuses GetTaggedForm and keeps success inside the modal", () =
 
   assert.match(modal, /<GetTaggedForm modal onSuccess=\{setReference\}/);
   assert.match(modal, /REQUEST RECEIVED/);
-  assert.match(modal, /aria-label="Close dialog"[^>]*>×<\/button>/);
+  assert.match(modal, /aria-label="Close dialog"[^>]*>×<\/ModalClose>/);
   assert.match(modal, /event\.key === "Escape"/);
   assert.match(form, /intake-submit-sticky/);
   assert.match(form, /if \(onSuccess\)/);

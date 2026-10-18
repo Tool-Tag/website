@@ -155,6 +155,8 @@ export async function POST(request: NextRequest) {
     if (customerRequest.contact.phone && !(await verifiedPhone(customerRequest.contact.phone, request.cookies.get(PHONE_VERIFICATION_COOKIE)?.value))) return noStore(NextResponse.json({error:"Verify your phone number before submitting your request."},{status:400}));
     const links=smsPolicyLinks(), smsPhone=normalizeSmsPhone(customerRequest.sms_phone || customerRequest.contact.phone);
     if(customerRequest.sms_opt_in && (!links || !smsPhone || !customerRequest.sms_policy_accepted)) return noStore(NextResponse.json({error:"SMS updates require a valid mobile number and acceptance of Terms of Service and Privacy Policy."},{status:400}));
+    const photoIds=customerRequest.items.map(i=>i.photo_id).filter(Boolean);
+    if(photoIds.length){const photos=await serverClient().from("get_tagged_tool_photos").select("id").eq("request_key",token).eq("stored",true).in("id",photoIds);const valid=new Set((photos.data??[]).map(p=>p.id));customerRequest.items=customerRequest.items.map(item=>({...item,photo_id:!photos.error&&valid.has(item.photo_id)?item.photo_id:""}));}
     const pickup = customerRequest.service.method === "Pickup";
 
     const payload = {
