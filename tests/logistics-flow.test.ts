@@ -2659,15 +2659,26 @@ test('Lost notify freezes market value, deduplicates mail/SMS, scopes bearer res
  assert.equal(Number(await value('select delivery_fee from public.lost_replacement_deliveries where id=$1',[delivery])),0);
  assert.equal(await value('select top_priority from public.lost_replacement_deliveries where id=$1',[delivery]),true);
  const original=await value('select to_jsonb(j) from public.jobs j where id=$1',[f.job]);
- await value('select private.reconcile_lost_replacements()');
- const replacementStop=await value<string>('select public.schedule_lost_replacement($1)',[delivery]);assert.ok(replacementStop);
+ // Reserve occupied fixture blocks while this scheduler scenario runs. Otherwise
+ // the next Denver route date can contain unpaid stops left by earlier scenarios.
+ const occupied=(await db.query<{id:string;delivery_capacity:number}>("select r.id,r.delivery_capacity from public.pick_return_routes r where r.unit_id=$1 and r.leg='Return' and exists(select 1 from public.pick_return_stops s where s.route_id=r.id and s.status<>'Cancelled')",[unit])).rows;
+ let replacementStop:string;
+ try {
+  for(const block of occupied) await db.query("update public.pick_return_routes set delivery_capacity=(select count(*) from public.pick_return_stops where route_id=$1 and status<>'Cancelled') where id=$1",[block.id]);
+  await value('select private.reconcile_lost_replacements()');
+  replacementStop=await value<string>('select public.schedule_lost_replacement($1)',[delivery]);assert.ok(replacementStop);
+ }finally{
+  for(const block of occupied) await db.query('update public.pick_return_routes set delivery_capacity=$2 where id=$1',[block.id,block.delivery_capacity]);
+ }
  assert.equal(await value('select public.schedule_lost_replacement($1)',[delivery]),replacementStop);
  const route=await value<string>('select route_id from public.pick_return_stops where id=$1',[replacementStop]);
  assert.equal(await value('select sequence from public.pick_return_stops where id=$1',[replacementStop]),1);
  assert.deepEqual(await value('select to_jsonb(j) from public.jobs j where id=$1',[f.job]),original);
  const manifest=await value<{stop:string;items:{id:string}[]}[]>("select public.route_item_checklist($1,'Loaded')",[route]);
  const replacementItems=manifest.find(m=>m.stop===replacementStop)!.items.map(i=>i.id);assert.ok(replacementItems.length);
- await value("select public.verify_route_items($1,'Loaded',$2::uuid[])",[replacementStop,replacementItems]);
+ // The driver must verify the complete selected manifest before departure.
+ await assert.rejects(value('select public.depart_driver_route($1)',[route]),/Verify all items/);
+ for(const stop of manifest) await value("select public.verify_route_items($1,'Loaded',$2::uuid[])",[stop.stop,stop.items.map(item=>item.id)]);
  await value('select public.depart_driver_route($1)',[route]);
  assert.equal(await value("select payload->>'action_path' from public.notifications where dedupe_key=$1",['lost-replacement-departed:'+replacementStop]),'/lost/'+f.link);
  await value("select public.return_driver_action($1,'en-route')",[replacementStop]);await value("select public.return_driver_action($1,'arrived')",[replacementStop]);
