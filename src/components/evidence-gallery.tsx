@@ -2,6 +2,7 @@
 import {ModalClose} from "./modal-close";
 
 import Link from "next/link";
+import {ResendAgreementDocument} from "./resend-agreement-document";
 import { useRef, useState } from "react";
 import {
   legacyDriveUrl,
@@ -57,10 +58,12 @@ export function EvidenceGallery({
   files,
   publicView = false,
   viewerBase,
+  statusToken,
 }: {
   files: Evidence[];
   publicView?: boolean;
   viewerBase?: string;
+  statusToken?:string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [file, setFile] = useState<Evidence | null>(null);
@@ -139,9 +142,10 @@ export function EvidenceGallery({
             </div>
 
             {file.notes && <p>{file.notes}</p>}
-            <p className="notice">{storageCopy(file)}</p>
+            <p className="notice">{publicView&&file.type==="Accepted Agreement"?"To view your agreement, check your email. A copy was sent when you accepted your quote. You can also email yourself another copy using the button below.":storageCopy(file)}</p>
 
-            {publicView && viewerBase && (
+            {publicView&&statusToken&&file.type==="Accepted Agreement"&&<ResendAgreementDocument key={file.id} token={statusToken} document={file.id}/>}
+            {publicView && viewerBase && file.type!=="Accepted Agreement" && (
               <p>
                 <Link
                   className="button secondary"

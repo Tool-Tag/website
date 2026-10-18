@@ -1,3 +1,4 @@
+import {acceptedAgreementAttachment} from "@/lib/documents/accepted-delivery";
 import { dispatchSms } from "./sms-dispatch";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@supabase/supabase-js";
@@ -42,6 +43,7 @@ export async function dispatchQuoteMail(db: SupabaseClient, quoteId?: string) {
               refundReceipt ? new URL(`${event.payload.action_path}/proof`, origin).href : undefined,
             )
           : renderQuoteMail(event.payload.snapshot, new URL(`/review/${event.token}`, origin).href, event.event === "Agreement accepted copy" ? "confirmation" : "quote", event.payload.job_code);
+        if(event.payload.accepted_agreement_attachment===true){message.attachments=[await acceptedAgreementAttachment(db,event.payload.document_id)];}
         Object.assign(message, mailSender(event.event), {to: event.recipient});
         if (event.event === "Quote expiration reminder") message.subject = `Your ToolTag Quote expires soon — ${event.payload.snapshot.code}`;
         providerId = (await new GmailTransport().deliver(message, event.dedupe_key)).providerId;

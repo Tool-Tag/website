@@ -131,7 +131,7 @@ export function JobItemWorkflow({
             </div>
 
             {can(access,"production.work") && current.stage === "Engraving" && (
-              <EvidenceCapture config={{jobId,jobItemId:current.id,type:"Production Evidence",defaultVisibility:"customer"}} />
+              <EvidenceCapture photosOnly config={{jobId,jobItemId:current.id,type:"Production Evidence",defaultVisibility:"customer"}} />
             )}
 
             {can(access,"production.work") &&

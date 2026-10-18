@@ -2928,3 +2928,33 @@ test('Intake photo reservations are server-only, rate bounded, and private to th
   await assert.rejects(value('select public.reserve_intake_photo(gen_random_uuid(),$1,$2,$3,3145729)',[await value<string>('select gen_random_uuid()'),'b'.repeat(64),'image/jpeg']),/file_size|check constraint/);
  }finally{await db.exec('rollback');}
 });
+
+
+test('Status agreement resend binds frozen recipient and document, deduplicates and rate limits',async()=>{
+ await db.exec('begin');try{
+ const c=await createCustomer('Agreement resend','agreement-resend'),q=await createQuote(c.id);
+ const review=await value<string>('select public.send_quote($1)',[q]);const {job_id:job}=await acceptWithLogistics(review,{option_code:'dropoff_pickup'});
+ const token=await value<string>('select private.ensure_job_status_link($1)',[job]);
+ const accepted=await value<string>('select id from public.accepted_documents where job_id=$1',[job]);
+ const document=await value<string>('select id from public.documents where accepted_document_id=$1',[accepted]);
+ assert.ok(document);
+ const snapshot=await value<string>('select canonical_snapshot from public.accepted_documents where id=$1',[accepted]);
+ await db.query("insert into private.accepted_pdf_artifacts(document_id,pdf,pdf_sha256) values($1,convert_to('unchanged PDF','UTF8'),encode(sha256(convert_to('unchanged PDF','UTF8')),'hex'))",[accepted]);
+ await db.query("update public.accepted_document_status set pdf_status='Ready' where document_id=$1",[accepted]);
+ const recipient=await value<string>("select coalesce(customer_recipient_email,snapshot->>'customer_email') from public.accepted_documents where id=$1",[accepted]);
+ await db.query("update public.customers set email='changed@example.test' where id=$1",[c.id]);
+ const request='90000000-0000-4000-8000-000000000001';
+ const event=await value<string>('select public.request_agreement_document_copy($1,$2,$3)',[token,document,request]);
+ assert.equal(await value<string>('select public.request_agreement_document_copy($1,$2,$3)',[token,document,request]),event);
+ assert.equal(await value<string>('select recipient from public.notifications where id=$1',[event]),recipient);
+ assert.equal(await value<string>('select delivery_phase from public.notifications where id=$1',[event]),'production');
+ const mail=await value<{recipient:string;payload:{accepted_agreement_attachment:boolean;document_id:string}}>('select private.notification_mail(n) from public.notifications n where id=$1',[event]);assert.equal(mail.recipient,recipient);assert.equal(mail.payload.accepted_agreement_attachment,true);assert.equal(mail.payload.document_id,accepted);
+ assert.equal(await value<number>('select count(*)::int from private.sms_deliveries where notification_id=$1',[event]),0);
+ assert.equal(await value<string>('select canonical_snapshot from public.accepted_documents where id=$1',[accepted]),snapshot);
+ await db.exec('savepoint check_denied');await assert.rejects(value('select public.request_agreement_document_copy($1,$2,$3)',['f'.repeat(64),document,request]),/Status link unavailable/);await db.exec('rollback to check_denied');
+ await db.exec('savepoint check_pending');await assert.rejects(value('select public.request_agreement_document_copy($1,$2,gen_random_uuid())',[token,document]),/awaiting confirmation/);await db.exec('rollback to check_pending');
+ await db.query("update public.notifications set status='Sent' where id=$1",[event]);
+ await db.exec('savepoint check_cooldown');await assert.rejects(value('select public.request_agreement_document_copy($1,$2,gen_random_uuid())',[token,document]),/90 seconds/);await db.exec('rollback to check_cooldown');
+ assert.equal(await value<number>("select count(*)::int from public.notifications where event='AGREEMENT_DOCUMENT_RESENT' and entity_id=$1",[q]),1);
+ }finally{await db.exec('rollback');}
+});

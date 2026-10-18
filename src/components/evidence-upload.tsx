@@ -1,5 +1,7 @@
 "use client";
 import {ModalClose} from "./modal-close";
+import {usePhotoSelection} from "./use-photo-selection";
+import {photoAccept} from "@/lib/photos/normalize";
 import {expenseProofError} from "@/lib/domain/expense-proof";
 import { useAccess } from "./permission-provider";
 import { canAny, evidencePermissions } from "@/lib/auth/permissions";
@@ -28,7 +30,7 @@ export function EvidenceUpload({
     {},
   );
 
-  const [fileError,setFileError]=useState("");
+  const photo=usePhotoSelection(config.expenseProof?expenseProofError:undefined);
   const input = useRef<HTMLInputElement>(null);
   const approved = useRef(false);
   const openPicker = () => {approved.current = true; input.current?.click(); approved.current = false;};
@@ -42,9 +44,9 @@ export function EvidenceUpload({
   return (
     <form action={action} className="evidence-upload">
       <div className="photo-choice-buttons">
-        {config.photoOnly && <button type="button" disabled={pending} onClick={() => choose("camera")}>Take photo</button>}
-        <button type="button" className="secondary" disabled={pending} onClick={() => choose("file")}>Choose file</button>
-        <input ref={input} onClick={(event) => {if(warn && !approved.current){event.preventDefault(); setWarning(choice ?? "file");}}} onChange={event=>{if(config.expenseProof){const file=event.target.files?.[0];const error=file?expenseProofError(file):null;setFileError(error??"");if(error)event.target.value="";}}} name="file" type="file" required accept={accept ?? (config.photoOnly ? "image/*" : undefined)} capture={choice === "camera" ? "environment" : undefined} />
+        {config.photoOnly && <button type="button" disabled={pending||photo.preparing} onClick={() => choose("camera")}>Take photo</button>}
+        <button type="button" className="secondary" disabled={pending||photo.preparing} onClick={() => choose("file")}>Choose file</button>
+        <input ref={input} onClick={(event) => {if(warn && !approved.current){event.preventDefault(); setWarning(choice ?? "file");}}} onChange={photo.onChange} name="file" type="file" required accept={photoAccept(accept ?? (config.photoOnly ? "image/*" : undefined))} capture={choice === "camera" ? "environment" : undefined} />
       </div>
       {warning && <div className="delivery-ack-backdrop"><section className="delivery-ack-panel" role="dialog" aria-modal="true" aria-labelledby="photo-warning-title">
         <ModalClose type="button" className="modal-close" aria-label="Close photo guidance" onClick={()=>setWarning(null)}>×</ModalClose><h2 id="photo-warning-title">Item evidence</h2>
@@ -70,7 +72,7 @@ export function EvidenceUpload({
         <textarea name="notes" rows={2} maxLength={2000} />
       </label>
 
-      {fileError&&<p className="notice error" role="alert">{fileError}</p>}
+      {photo.preparing&&<p role="status">Preparing your photo…</p>}{photo.error&&<p className="notice error" role="alert">{photo.error}</p>}
       {state.error && (
         <p className="notice error wide" role="alert">
           {state.error}
@@ -83,7 +85,7 @@ export function EvidenceUpload({
         </p>
       )}
 
-      <button disabled={pending}>{pending ? "Uploading…" : button}</button>
+      <button disabled={pending||photo.preparing}>{pending ? "Uploading…" : button}</button>
     </form>
   );
 }

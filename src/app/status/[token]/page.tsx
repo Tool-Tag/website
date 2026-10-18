@@ -252,6 +252,7 @@ export default async function JobStatusPage({
           </p>
           <EvidenceGallery
             files={visibleDocuments}
+            statusToken={token}
             publicView
             viewerBase={`/status/${token}/documents`}
           />

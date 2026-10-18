@@ -1,13 +1,16 @@
 "use client";
+import {normalizePhoto,PHOTO_ACCEPT} from "@/lib/photos/normalize";
 import { useRef, useState } from "react";
 export function QuoteImageInput({value,onChange}:{value:string;onChange:(url:string)=>void}) {
  const [busy,setBusy]=useState(false),[error,setError]=useState("");
  const sequence=useRef(0);
  async function upload(file:File) {
   const current=++sequence.current;
-  if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>3*1024*1024) {setError("Select a PNG, JPG, or WebP up to 3 MB.");return;}
+
   setBusy(true);setError("");
   try {
+   file=await normalizePhoto(file);
+   if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>3*1024*1024)throw new Error("Select a PNG, JPG, or WebP up to 3 MB.");
    const body=new FormData();body.set("file",file);
    const response=await fetch("/api/quote-images",{method:"POST",body});
    const result=await response.json();
@@ -17,7 +20,7 @@ export function QuoteImageInput({value,onChange}:{value:string;onChange:(url:str
   finally {if(sequence.current===current)setBusy(false);}
  }
  return <div>
-  {[true,false].map(camera=><label key={String(camera)}>{camera?"Take photo":"Choose file"}<input type="file" capture={camera?"environment":undefined} accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void upload(file);}}/></label>)}
+  {[true,false].map(camera=><label key={String(camera)}>{camera?"Take photo":"Choose file"}<input type="file" capture={camera?"environment":undefined} accept={PHOTO_ACCEPT} disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void upload(file);}}/></label>)}
   <p className="muted">PNG, JPG, or WebP · 3 MB maximum. You can also paste a link.</p>
   {busy&&<p role="status">Uploading image…</p>}
   {error&&<p role="alert" className="notice error">{error}</p>}

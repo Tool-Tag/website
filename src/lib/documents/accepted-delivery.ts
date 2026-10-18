@@ -34,6 +34,15 @@ async function acceptedPdfBytes(
   throw new Error("ACCEPTED_PDF_UNAVAILABLE");
 }
 
+/** Load the stored acceptance artifact; never reconstruct it from live customer/quote data. */
+export async function acceptedAgreementAttachment(db:SupabaseClient,id:string){
+ const {data:artifact,error}=await db.rpc("accepted_pdf_file",{p_id:id});
+ if(error||!artifact)throw new Error("ACCEPTED_PDF_UNAVAILABLE");
+ const bytes=await acceptedPdfBytes(db,artifact as Record<string,unknown>);
+ if(createHash("sha256").update(bytes).digest("hex")!==artifact.sha256)throw new Error("ACCEPTED_PDF_INTEGRITY_FAILED");
+ return {filename:artifact.file_name as string,content:bytes};
+}
+
 export async function processAcceptedDocument(db: SupabaseClient, id: string) {
   const { data: document, error: readError } = await db
     .from("accepted_documents")
