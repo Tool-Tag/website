@@ -1855,3 +1855,8 @@ button:not(.main-tab,.folder-tab,.job-tab,.modal-close,.menu-link-gold,.gold):no
  .support-list-head {display:none;}
  .support-list-row {grid-template-columns:minmax(0,1fr);gap:6px;padding:16px 4px;}
 }
+
+/* Destructive actions use the app's existing error palette. */
+button.danger {border-color:#7e3445;background:#25141a;color:#ffb8c7;}
+button.danger:hover:not(:disabled) {border-color:#ffb8c7;background:#381e27;color:#ffb8c7;}
+.support-reply-actions .support-end-inquiry {margin-left:auto;}
