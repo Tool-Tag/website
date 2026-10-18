@@ -652,6 +652,7 @@ export async function Jobs({ id }: { id?: string }) {
               config={{
                 jobId: id,
                 type: "Issue / Review Evidence",
+              photoOnly: true,
                 defaultVisibility: "internal",
               }}
               button="Upload File"

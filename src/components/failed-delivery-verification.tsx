@@ -1,4 +1,5 @@
 "use client";
+import {ModalClose} from "./modal-close";
 import {useState,useTransition} from "react";
 import {useRouter} from "next/navigation";
 import type {RouteChecklist} from "./route-item-verification";
@@ -16,6 +17,6 @@ export function FailedDeliveryVerification({rows}:{rows:FailedVerification[]}){
  {row&&<div className="delivery-ack-backdrop"><section className="delivery-ack-panel" role="dialog" aria-modal="true" aria-label="Verify returned items"><h2>{row.job} · Shop arrival</h2>{!missing.length&&!loss&&<>{items.map(i=><label className="checkbox" key={i.id}><input type="checkbox" checked={selected.includes(i.id)} disabled={pending||i.checked} onChange={e=>setSelected(old=>e.target.checked?[...old,i.id]:old.filter(id=>id!==i.id))}/>{i.sequence}. {i.article}</label>)}<button disabled={pending||!items.length} onClick={verify}>Verified</button></>}
  {missing.length>0&&!loss&&<><h3>Missing verification</h3><ul>{missing.map(i=><li key={i.id}>Missing verification: {i.article} from job {row.job}.</li>)}</ul><div className="actions"><button className="secondary" onClick={()=>setMissing([])}>Go back</button><button onClick={()=>setLoss(true)}>Mark as lost</button></div></>}
  {loss&&<><label>Total market value of missing items (USD)<input type="number" min="0.01" step="0.01" required disabled={pending} value={marketValue} onChange={e=>setMarketValue(e.target.value)}/></label><label>Explain what happened<textarea value={notes} onChange={e=>setNotes(e.target.value)} required disabled={pending}/></label><div className="actions"><button className="secondary" disabled={pending} onClick={()=>setLoss(false)}>Go back</button><button disabled={pending||!notes.trim()||!marketValue} onClick={()=>start(async()=>{const result=await markFailedDeliveryLost(row.stop,selected,notes,marketValue);if(result.error)setError(result.error);else{setRow(null);router.refresh();}})}>Confirm lost report</button></div></>}
- <button className="secondary modal-close" disabled={pending} onClick={()=>setRow(null)} aria-label="Close dialog">×</button>{error&&<p role="alert">{error}</p>}</section></div>}
+ <ModalClose className="secondary modal-close" disabled={pending} onClick={()=>setRow(null)} aria-label="Close dialog">×</ModalClose>{error&&<p role="alert">{error}</p>}</section></div>}
  </section>;
 }

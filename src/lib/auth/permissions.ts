@@ -26,7 +26,7 @@ export function can(access: Access, permission: string) {
   return access.owner || access.blocks.includes(permission);
 }
 export function canAny(access: Access, permissions: readonly string[]) {
-  return permissions.some(permission => can(access, permission));
+  return access.owner || permissions.some(permission => can(access, permission));
 }
 export function driverOnly(access: Access) {
   return !access.owner && can(access, "driver.routes") && !access.blocks.some(block => block !== "driver.routes");

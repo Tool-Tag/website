@@ -1,4 +1,5 @@
 "use client";
+import {ModalClose} from "./modal-close";
 import {DialogClose} from "./dialog-close";
 import { useAccess } from "./permission-provider";
 import { can } from "@/lib/auth/permissions";
@@ -238,12 +239,12 @@ export function QuoteBuilder({
             <h2 id="article-title">
               {editing === null ? "Add Item" : "Edit Item"}
             </h2>
-            <button
+            <ModalClose
               type="button"
               className="secondary modal-close"
               aria-label="Close"
               onClick={() => dialog.current?.close()}
-            >×</button>
+            >×</ModalClose>
           </div>
           {confirming ? (
             <>

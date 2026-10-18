@@ -106,6 +106,9 @@ export async function Quotes({
             Create Revision
           </Link></PermissionGate>
         </Heading>
+        {Array.isArray(intake.items)&&intake.items.some((item:{photo_id?:string})=>item.photo_id)&&<Panel title="Submitted tool photos">
+                {(intake.items as {article?:string;photo_id?:string}[]|undefined)?.filter(i=>i.photo_id).map((item,index)=><p key={index}><Link href={`/api/get-tagged/photos/${item.photo_id}`} target="_blank" rel="noopener noreferrer">View tool photo · {item.article||`Item ${index+1}`}</Link></p>)}
+        </Panel>}
         {needsIntakeReview ? (
           <>
             <Panel title="Review Get Tagged Request">

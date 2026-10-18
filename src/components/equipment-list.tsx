@@ -1,4 +1,5 @@
 "use client";
+import {ModalClose} from "./modal-close";
 
 import Link from "next/link";
 import {useRouter} from "next/navigation";
@@ -50,11 +51,11 @@ export function EquipmentList({assets, categories, expenses, expense}: {
       </tr>)}
     </Table> : <Empty>No equipment registered yet.</Empty>}</Panel>
     <dialog ref={registration} className="equipment-registration-modal" aria-labelledby={registrationTitle} onClose={() => setRegistering(false)}>
-      <header className="pagehead"><h2 id={registrationTitle}>Register Equipment</h2><button type="button" className="secondary modal-close" onClick={closeRegistration} aria-label="Close dialog">×</button></header>
+      <header className="pagehead"><h2 id={registrationTitle}>Register Equipment</h2><ModalClose type="button" className="secondary modal-close" onClick={closeRegistration} aria-label="Close dialog">×</ModalClose></header>
       {registering && allowed && <AssetForm categories={categories} expenses={expenses} expense={expense} back="" onSaved={() => {closeRegistration(); router.refresh();}}/>}
     </dialog>
     <dialog ref={detail} className="equipment-registration-modal" aria-labelledby={detailTitle} onClose={() => setSelected(null)}>
-      <header className="pagehead"><h2 id={detailTitle}>{selected?.name ?? "Equipment details"}</h2><button type="button" className="secondary modal-close" onClick={closeDetail} aria-label="Close dialog">×</button></header>
+      <header className="pagehead"><h2 id={detailTitle}>{selected?.name ?? "Equipment details"}</h2><ModalClose type="button" className="secondary modal-close" onClick={closeDetail} aria-label="Close dialog">×</ModalClose></header>
       {selected && <dl className="equipment-detail-grid">
         <dt>Equipment ID</dt><dd>{selected.id}</dd>
         <dt>Category</dt><dd>{selected.category}</dd>

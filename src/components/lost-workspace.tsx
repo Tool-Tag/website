@@ -1,4 +1,5 @@
 "use client";
+import {ModalClose} from "./modal-close";
 import {DialogClose} from "./dialog-close";
 import {DriverLossOwnerControls} from "./driver-loss-owner-controls";
 import {MovementForm} from "./movement-form";
@@ -28,11 +29,11 @@ function LostCaseRow({row,canApprove,expenseOptions}:{row:LostCase;canApprove:bo
  return <div className="lost-case-entry">
  {status==="In Process"&&<p className="lost-response">Response: <strong>{row.customer_choice??"Waiting for customer response"}</strong></p>}
  <button type="button" className="lost-case-row blue-electric" aria-haspopup="dialog" onClick={()=>{setError("");if(status==="In Process"&&!row.customer_choice)waiting.current?.showModal();else dialog.current?.showModal();}}>
-  <strong>{row.job}</strong><span>{row.customer}</span><span>{denverDateTime(row.reported_at)}</span><span>{status}</span>
+  <strong>{row.job}</strong><span>{row.customer}</span><span>{denverDateTime(row.reported_at)}</span><span>{status}{row.missing_receipt&&" · Missing Receipt"}</span>
  </button>
- <dialog ref={waiting} className="lost-case-modal" aria-label="Waiting for customer response"><h2>Waiting for customer response</h2><p>The customer has not chosen a resolution yet.</p><button type="button" className="secondary modal-close" onClick={()=>waiting.current?.close()} aria-label="Close dialog">×</button></dialog>
+ <dialog ref={waiting} className="lost-case-modal" aria-label="Waiting for customer response"><h2>Waiting for customer response</h2><p>The customer has not chosen a resolution yet.</p><ModalClose type="button" className="secondary modal-close" onClick={()=>waiting.current?.close()} aria-label="Close dialog">×</ModalClose></dialog>
  <dialog ref={dialog} className="lost-case-modal" aria-labelledby={id}>
-  <header className="actions" style={{justifyContent:"space-between"}}><h2 id={id}>{row.job} · {row.customer}</h2><button type="button" className="secondary modal-close" disabled={pending} onClick={()=>dialog.current?.close()} aria-label="Close dialog">×</button></header>
+  <header className="actions" style={{justifyContent:"space-between"}}><h2 id={id}>{row.job} · {row.customer}</h2><ModalClose type="button" className="secondary modal-close" disabled={pending} onClick={()=>dialog.current?.close()} aria-label="Close dialog">×</ModalClose></header>
   <p>Lost ID: {row.id}</p><p>Status: {status}</p><p>Customer phone: {row.phone||"Not provided"}</p>
   <p>Driver: {row.driver} {row.driver_id?`· ${row.driver_id}`:""}</p><p>Driver contact: {row.driver_email||"Not provided"}</p>
   <p>Route: {row.route_date} · Reported: {denverDateTime(row.reported_at)}</p>
@@ -47,6 +48,7 @@ function LostCaseRow({row,canApprove,expenseOptions}:{row:LostCase;canApprove:bo
   {status==="New"&&manage&&<><p>Notify sends the customer an apology and a secure choice link. SMS requires an eligible phone and consent. The market value is frozen after notification.</p><button type="button" disabled={pending||!value} onClick={()=>run("notify")}>Notify</button></>}
   {status==="In Process"&&!row.approved_at&&row.customer_choice&&(canApprove?<button type="button" disabled={pending} onClick={()=>run("approve")}>Approved</button>:<p>Awaiting Owner or Manager approval.</p>)}
   {row.replacement_at_shop_at&&<p>Replacement confirmed at shop: {denverDateTime(row.replacement_at_shop_at)}</p>}
+  {row.missing_receipt&&<p className="notice" role="status">Missing Receipt</p>}
   {row.replacement_expense_id&&<p>Expense transaction ID: {access.owner||canAny(access,["payments.view"])?<Link href={`/app/finance/transactions/${row.replacement_expense_id}`}>{row.replacement_expense_id}</Link>:row.replacement_expense_id}</p>}
   {status==="In Process"&&row.approved_at&&manage&&<>
    {row.customer_choice==="Replace Item"&&!row.replacement_expense_id&&<><button type="button" disabled={pending||!expenseOptions} onClick={()=>confirmation.current?.showModal()}>Process</button>{!expenseOptions&&<p>Owner access and available Finance accounts/categories are required to record the replacement expense.</p>}</>}
@@ -58,6 +60,6 @@ function LostCaseRow({row,canApprove,expenseOptions}:{row:LostCase;canApprove:bo
   {error&&<p className="notice error" role="alert">{error}</p>}
  </dialog>
  <dialog ref={confirmation} className="lost-case-modal" aria-label="Confirm replacement at shop"><DialogClose/><h2>Make sure the replacement is already at the shop</h2><p>Do not continue until the replacement is physically at the shop.</p><div className="actions"><button type="button" disabled={pending} onClick={()=>{setError("");start(async()=>{const result=await lostStaffAction(row.id,"confirm-replacement");if(result.error)setError(result.error);else{confirmation.current?.close();expense.current?.showModal();router.refresh();}});}}>Confirmed</button><button type="button" className="secondary" disabled={pending} onClick={()=>confirmation.current?.close()}>Not yet</button></div>{error&&<p role="alert" className="notice error">{error}</p>}</dialog>
- <dialog ref={expense} className="lost-case-modal" aria-label="Record replacement expense"><header className="actions" style={{justifyContent:"space-between"}}><h2>Record replacement expense · {row.job}</h2><button type="button" className="secondary modal-close" onClick={()=>expense.current?.close()} aria-label="Close dialog">×</button></header>{expenseOptions&&<MovementForm requestId={row.id} lostCaseId={row.id} defaultType="EXPENSE" accounts={expenseOptions.accounts} categories={expenseOptions.categories} vendors={expenseOptions.vendors} sales={[]} expenses={[]} collections={[]} destinationAccounts={[]} onSaved={()=>{expense.current?.close();router.refresh();}}/>}</dialog>
+ <dialog ref={expense} className="lost-case-modal" aria-label="Record replacement expense"><header className="actions" style={{justifyContent:"space-between"}}><h2>Record replacement expense · {row.job}</h2><ModalClose type="button" className="secondary modal-close" onClick={()=>expense.current?.close()} aria-label="Close dialog">×</ModalClose></header>{expenseOptions&&<MovementForm requestId={row.id} lostCaseId={row.id} defaultType="EXPENSE" accounts={expenseOptions.accounts} categories={expenseOptions.categories} vendors={expenseOptions.vendors} sales={[]} expenses={[]} collections={[]} destinationAccounts={[]} onSaved={()=>{expense.current?.close();router.refresh();}}/>}</dialog>
  </div>;
 }

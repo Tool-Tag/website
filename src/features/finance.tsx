@@ -270,6 +270,7 @@ export async function Finance({
           <EvidenceUpload
             config={{
               transactionId: id,
+              photoOnly: true,
               type: "Receipt",
               defaultVisibility: "internal",
             }}
