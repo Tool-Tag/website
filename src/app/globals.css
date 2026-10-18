@@ -1869,3 +1869,17 @@ dialog:not([popover]) {max-width:calc(100vw - 100px);max-height:calc(100dvh - 72
 .tool-photo-preview img {width:100%;max-height:180px;object-fit:contain;}
 .tool-photo-preview button {position:absolute;top:0;right:0;}
 .photo-choice-buttons {display:flex;gap:12px;flex-wrap:wrap;}
+
+/* Customer job timeline: one continuous row at every viewport width. */
+.job-timeline-scroll{overflow-x:auto;padding:18px 8px 12px;margin-top:12px}
+.job-timeline-line{display:flex;flex-flow:row nowrap;align-items:flex-start;width:max-content;min-width:100%}
+.job-timeline-line>.status-step{flex:1 0 160px;width:160px;min-height:70px;gap:10px}
+.job-timeline-line>.status-step::before{display:block;top:17px;left:-50%;width:100%;height:2px}
+.job-timeline-line>.status-step:first-child::before{display:none}
+.job-timeline-line .status-step strong{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.job-timeline-line .status-step.active strong{font-weight:800;color:var(--gold)}
+.job-timeline-line .upcoming-group{display:flex;justify-content:center;align-items:flex-start}
+.timeline-upcoming-pill{position:relative;z-index:1;margin:0;height:34px;min-height:34px;border-radius:20px;padding:5px 12px;font-size:12px;white-space:nowrap;background:#0d1218;border:1px solid #344052}
+.timeline-completed-toggle{display:block;margin:0 0 18px;padding:6px 10px;font-size:12px;background:transparent;border:1px solid #344052}
+.status-help-modal{width:min(560px,calc(100vw - 48px));max-height:85dvh;overflow:auto;padding:28px;border:1px solid #344052;border-radius:12px;background:#0d1218;color:var(--ink)}
+.status-help-modal textarea{width:100%;margin:10px 0}.support-job-context{max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}

@@ -2958,3 +2958,22 @@ test('Status agreement resend binds frozen recipient and document, deduplicates 
  assert.equal(await value<number>("select count(*)::int from public.notifications where event='AGREEMENT_DOCUMENT_RESENT' and entity_id=$1",[q]),1);
  }finally{await db.exec('rollback');}
 });
+
+
+test('Status Help creates a private job-linked Support case and one acknowledgment without changing job state',async()=>{
+ await db.exec('begin');try{
+ const c=await createCustomer('Status Help','status-help'),q=await createQuote(c.id);const review=await value<string>('select public.send_quote($1)',[q]);const {job_id:job}=await acceptWithLogistics(review,{option_code:'dropoff_pickup'});
+ const token=await value<string>('select private.ensure_job_status_link($1)',[job]),request='90000000-0000-4000-8000-000000000003';
+ const before=await value<string>('select status from public.jobs where id=$1',[job]);
+ const reference=await value<string>('select public.submit_status_support($1,$2,$3)',[token,request,'Please review the tool finish.']);assert.match(reference,/TT-C-/);
+ assert.equal(await value<string>('select public.submit_status_support($1,$2,$3)',[token,request,'Please review the tool finish.']),reference);
+ const result=(await db.query<{id:string;job_id:string;customer_id:string;origin:string;mailbox:string;job_context:{job:{id:string};items:unknown[]}}>('select * from public.support_conversations where status_request_id=$1',[request])).rows[0];
+ assert.equal(result.job_id,job);assert.equal(result.customer_id,c.id);assert.equal(result.origin,'Job');assert.equal(result.mailbox,'support');assert.equal(result.job_context.job.id,job);assert.equal(result.job_context.items.length,1);
+ assert.equal(await value<number>('select count(*)::int from public.support_messages where conversation_id=$1',[result.id]),1);
+ assert.equal(await value<number>('select count(*)::int from public.support_acknowledgments where conversation_id=$1',[result.id]),1);
+ assert.equal(await value<string>('select status from public.jobs where id=$1',[job]),before);
+ await db.exec('savepoint invalid_help');await assert.rejects(value('select public.submit_status_support($1,gen_random_uuid(),$2)',['f'.repeat(64),'Invalid job']),/Status link unavailable/);await db.exec('rollback to invalid_help');
+ for(let n=0;n<4;n++)await value('select public.submit_status_support($1,gen_random_uuid(),$2)',[token,'Another inquiry '+n]);
+ await db.exec('savepoint help_limit');await assert.rejects(value('select public.submit_status_support($1,gen_random_uuid(),$2)',[token,'Too many']),/Too many inquiries/);await db.exec('rollback to help_limit');
+ }finally{await db.exec('rollback');}
+});
