@@ -6,6 +6,7 @@
   --ink: #f3f4f7;
   --muted: #98a3b3;
   --blue: #3177ff;
+  --blue-electric-border: #59616d;
   --gold: #d9b366;
 }
 * {
@@ -1680,7 +1681,7 @@ body:has(.get-tagged-react-dialog[open]) {
 
 /* Blue Electric: general interaction skin, independent of component/layout.
    Hosts own display, spacing, sizing and wrapping. Not applied to UI yet. */
-.blue-electric,.menu-link-blue-electric {border-radius:6px;}
+.blue-electric,.menu-link-blue-electric {border:1px solid var(--blue-electric-border);border-radius:6px;}
 .blue-electric:hover,.blue-electric:focus-visible,.menu-link-blue-electric:hover,.menu-link-blue-electric:focus-visible {background:var(--bg);outline:2px solid var(--line);color:var(--blue);}
 
 .support-controls {display:flex;flex-direction:column;gap:12px;margin-bottom:20px;min-width:0;max-width:100%;}
@@ -1832,7 +1833,7 @@ body:has(.get-tagged-react-dialog[open]) {
 :where(dialog,[role="dialog"]) h2 {padding-right:40px;}
 .modal-close {position:absolute!important;top:10px;right:10px;width:36px;min-height:36px;padding:4px!important;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font-size:24px;line-height:1;z-index:3;}
 button:not(.main-tab,.folder-tab,.job-tab,.modal-close,.menu-link-gold,.gold),a.button:not(.main-tab,.folder-tab,.job-tab,.menu-link-gold) {border-radius:6px;}
-button:not(.main-tab,.folder-tab,.job-tab,.modal-close,.menu-link-gold,.gold):not(:disabled),a.button:not(.main-tab,.folder-tab,.job-tab,.menu-link-gold,.gold) {background:var(--bg);}
+button:not(.main-tab,.folder-tab,.job-tab,.modal-close,.menu-link-gold,.gold):not(:disabled),a.button:not(.main-tab,.folder-tab,.job-tab,.menu-link-gold,.gold) {background:var(--bg);border:1px solid var(--blue-electric-border);}
 button:not(.main-tab,.folder-tab,.job-tab,.modal-close,.menu-link-gold,.gold):not(:disabled):is(:hover,:focus-visible),a.button:not(.main-tab,.folder-tab,.job-tab,.menu-link-gold,.gold):is(:hover,:focus-visible) {background:var(--bg);color:var(--blue);}
 .pagination {margin:20px 0;gap:12px;}
 .pagination :is(a,button) {border-radius:6px;background:var(--bg);color:var(--ink);}
@@ -1840,5 +1841,17 @@ button:not(.main-tab,.folder-tab,.job-tab,.modal-close,.menu-link-gold,.gold):no
 .tabs-with-action {display:flex;align-items:start;justify-content:space-between;gap:16px;flex-wrap:wrap;}
 .tabs-with-action > nav {flex:1;min-width:0;}
 .tabs-with-action > button {flex:0 0 auto;}
-.support-list-row {display:grid;gap:6px;padding:14px 4px;border-bottom:1px solid var(--line);border-radius:0;}
-.support-list-row:last-child {border-bottom:0;}
+/* Flat Support/Questions lists: dividers, never individual cards. */
+.support-case-list > ul {list-style:none;padding:0;margin:0;}
+.support-case-list > ul > li + li {border-top:1px solid var(--line);}
+.support-list-head,.support-list-row {display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,.9fr) minmax(0,1.6fr) minmax(0,1fr);gap:16px;align-items:start;padding:14px 4px;}
+.support-list-head {font-size:.8rem;color:var(--muted);border-bottom:1px solid var(--line);}
+.support-list-row {border:0;border-radius:0;background:transparent;overflow-wrap:anywhere;}
+.support-list-row > * {min-width:0;}
+.support-list-row small {display:block;color:var(--muted);margin-top:5px;font-weight:normal;}
+.support-list-row:is(:hover,:focus-visible) {color:var(--blue);background:var(--bg);}
+.support-list-row:focus-visible {outline:2px solid var(--blue);outline-offset:2px;}
+@media(max-width:760px) {
+ .support-list-head {display:none;}
+ .support-list-row {grid-template-columns:minmax(0,1fr);gap:6px;padding:16px 4px;}
+}
