@@ -1,3 +1,4 @@
+import {StatusHelp} from "@/components/status-help";
 import {TaxBreakdown} from "@/components/tax-breakdown";
 import { StatusSmsOptIn } from "@/components/sms-consent";
 import {CustomerArrivalBanner,CustomerDeliveryAcknowledgment} from "@/components/customer-arrival-banner";
@@ -11,7 +12,6 @@ import {RouteCalendar} from "@/components/route-calendar";
 import {StatusRefresh} from "@/components/status-refresh";
 import {StatusTimeline} from "@/components/status-timeline";
 import {denverDateTime, denverTime} from "@/lib/domain/time";
-import Link from "next/link";
 import { CancellationBalanceForm } from "@/components/cancellation-balance-form";
 import { EvidenceGallery } from "@/components/evidence-gallery";
 import { StatusCancellation } from "@/components/status-cancellation";
@@ -236,9 +236,7 @@ export default async function JobStatusPage({
           {!data.cancelled && data.job_status !== "Completed" && (
             <StatusCancellation token={token} />
           )}
-          <Link className="button secondary" href="/help">
-            Help Center
-          </Link>
+          <StatusHelp token={token}/>
         </div>
       </section>
 

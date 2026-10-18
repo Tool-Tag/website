@@ -1,0 +1,9 @@
+"use client";
+import {useRef,useState,useTransition} from "react";
+import {ModalClose} from "./modal-close";
+import {submitStatusSupport} from "@/app/status-support-actions";
+export const STATUS_HELP_CONFIRMATION="We'll stay on it and do our best to resolve your inquiry as soon as possible. Please keep an eye on the email linked to this project.";
+export function StatusHelp({token}:{token:string}){
+ const dialog=useRef<HTMLDialogElement>(null),request=useRef<string|null>(null),[message,setMessage]=useState(""),[error,setError]=useState(""),[reference,setReference]=useState(""),[pending,start]=useTransition();
+ return <><button type="button" className="button secondary" onClick={()=>{setReference("");setError("");dialog.current?.showModal();}}>Help</button><dialog ref={dialog} className="status-help-modal" aria-labelledby="status-help-title"><ModalClose disabled={pending} onClick={()=>dialog.current?.close()}/>{reference?<><h2 id="status-help-title">Inquiry received</h2><p role="status">{STATUS_HELP_CONFIRMATION}</p><p>Support reference: {reference}</p></>:<form onSubmit={e=>{e.preventDefault();if(pending)return;start(async()=>{request.current??=crypto.randomUUID();const result=await submitStatusSupport(token,request.current,message);if(result.error)setError(result.error);else{setReference(result.reference||"Received");setMessage("");request.current=null;}});}}><h2 id="status-help-title">How can we help?</h2><p>Your inquiry and this job’s details will go directly to ToolTag Support. We will reply to the email linked to this project.</p><label>Your inquiry<textarea required maxLength={10000} rows={6} value={message} disabled={pending} onChange={e=>{setMessage(e.target.value);request.current=null;}}/></label>{error&&<p role="alert" className="notice error">{error}</p>}<button disabled={pending||!message.trim()}>{pending?"Sending…":"Send inquiry"}</button></form>}</dialog></>;
+}
