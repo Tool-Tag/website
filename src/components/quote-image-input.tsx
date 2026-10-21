@@ -20,7 +20,7 @@ export function QuoteImageInput({value,onChange}:{value:string;onChange:(url:str
   finally {if(sequence.current===current)setBusy(false);}
  }
  return <div>
-  {[true,false].map(camera=><label key={String(camera)}>{camera?"Take photo":"Choose file"}<input type="file" capture={camera?"environment":undefined} accept={PHOTO_ACCEPT} disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void upload(file);}}/></label>)}
+  <label>Upload engraving image<input type="file" accept={PHOTO_ACCEPT} disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void upload(file);}}/></label>
   <p className="muted">PNG, JPG, or WebP · 3 MB maximum. You can also paste a link.</p>
   {busy&&<p role="status">Uploading image…</p>}
   {error&&<p role="alert" className="notice error">{error}</p>}
