@@ -1,3 +1,4 @@
+import {MobileWorkspaceNav} from "@/components/mobile-workspace-nav";
 import { StaffLoginAttention } from "@/components/staff-login-attention";
 import { SessionTimeout } from "@/components/session-timeout";
 import { PermissionProvider } from "@/components/permission-provider";
@@ -41,6 +42,7 @@ export default async function AppLayout({
         <Nav attention={attention} access={ctx?.access} />
       </aside>
       <div className="workspace">
+        <MobileWorkspaceNav name={ctx?userName:"Initial setup"} canSearch={!!ctx&&canAny(ctx.access,["customers.view"])} navigation={<Nav attention={attention} access={ctx?.access} grouped utilities={userLinks}/>} signOut={ctx?<form action={logout}><button>Sign Out</button></form>:null} bottomLinks={[{label:"Dashboard",href:"/app",section:""},{label:"Quotes",href:"/app/quotes",section:"quotes"},{label:"Jobs",href:"/app/jobs",section:"jobs"},{label:"Finance",href:"/app/finance",section:"finance"}].filter(link=>ctx&&canAny(ctx.access,sectionPermissions(link.section)))}/>
         <header className="topbar workspace-topbar">
           <nav className="workspace-header-links" aria-label="Workspace utilities">
             {userLinks.map(link=><Link key={link.href} className="button secondary gold menu-link-gold" href={link.href}>{link.label}</Link>)}

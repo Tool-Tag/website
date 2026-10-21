@@ -765,3 +765,16 @@ test('Agreement resend attachment uses the stored PDF and rejects corrupt artifa
  assert.equal(attachment.filename,'agreement.pdf');assert.deepEqual(attachment.content,bytes);
  artifact.sha256='corrupt';await assert.rejects(acceptedAgreementAttachment(db as unknown as Parameters<typeof acceptedAgreementAttachment>[0],'test'),/INTEGRITY/);
 });
+
+test('Dashboard activity uses readable descriptions without exposing audit column names',async()=>{
+ const {activityDescription,activityRecordLabel}=await import('../src/lib/domain/activity-description');
+ assert.equal(activityDescription('documents','accepted_document_id,agreement_id,storage_bucket,file_name'),'Document uploaded');
+ assert.equal(activityDescription('jobs','work_stage,status'),'Job status updated');
+ assert.equal(activityRecordLabel('unknown_internal_table'),'Record');
+ assert.equal(activityDescription('customers','email,address'),'Customer updated');
+});
+test('Modal close stays outside phone panels and uses the top gutter for wide panels',async()=>{
+ const {modalClosePosition}=await import('../src/lib/domain/modal-close-position');
+ const normal=modalClosePosition({top:80,right:340},390,844);assert.ok(normal.left>340);assert.ok(normal.left+36<=390);
+ const wide=modalClosePosition({top:80,right:390},390,844);assert.ok(wide.top+36<80);assert.ok(wide.left+36<=390);
+});
