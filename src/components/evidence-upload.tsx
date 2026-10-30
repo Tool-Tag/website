@@ -34,26 +34,23 @@ export function EvidenceUpload({
   const input = useRef<HTMLInputElement>(null);
   const approved = useRef(false);
   const openPicker = () => {approved.current = true; input.current?.click(); approved.current = false;};
-  const [choice, setChoice] = useState<"camera" | "file" | null>(null);
-  const [warning, setWarning] = useState<"camera" | "file" | null>(null);
+  const [warning, setWarning] = useState(false);
   const warn = config.type === "Receiving Evidence" || config.type === "Delivery Evidence";
-  const choose = (next: "camera" | "file") => { setChoice(next); if(next==="camera")input.current?.setAttribute("capture","environment");else input.current?.removeAttribute("capture");if (warn) setWarning(next); else openPicker(); };
+
   const router=useRouter();
   useEffect(()=>{if(state.ok&&state.documentId){onStored?.(state.documentId);if(!config.expenseProof)router.refresh();}},[state.ok,state.documentId,router,onStored,config.expenseProof]);
   if (!canAny(access,evidencePermissions(config.type,Boolean(config.pickReturnStopId)))) return null;
   return (
     <form action={action} className="evidence-upload">
       <div className="photo-choice-buttons">
-        {config.photoOnly && <button type="button" disabled={pending||photo.preparing} onClick={() => choose("camera")}>Take photo</button>}
-        <button type="button" className="secondary" disabled={pending||photo.preparing} onClick={() => choose("file")}>Choose file</button>
-        <input ref={input} onClick={(event) => {if(warn && !approved.current){event.preventDefault(); setWarning(choice ?? "file");}}} onChange={photo.onChange} name="file" type="file" required accept={photoAccept(accept ?? (config.photoOnly ? "image/*" : undefined))} capture={choice === "camera" ? "environment" : undefined} />
+        <label>Upload file<input ref={input} onClick={(event) => {if(warn && !approved.current){event.preventDefault();setWarning(true);}}} onChange={photo.onChange} name="file" type="file" required disabled={pending||photo.preparing} accept={photoAccept(accept ?? (config.photoOnly ? "image/*" : undefined))}/></label>
       </div>
       {warning && <div className="delivery-ack-backdrop"><section className="delivery-ack-panel" role="dialog" aria-modal="true" aria-labelledby="photo-warning-title">
-        <ModalClose type="button" className="modal-close" aria-label="Close photo guidance" onClick={()=>setWarning(null)}>×</ModalClose><h2 id="photo-warning-title">Item evidence</h2>
+        <ModalClose type="button" className="modal-close" aria-label="Close photo guidance" onClick={()=>setWarning(false)}>×</ModalClose><h2 id="photo-warning-title">Item evidence</h2>
         <p>Take clear photos of every side of each item, including existing damage and work details.</p>
         <p className="notice">Missing photos may result in charges under the service policies. Review the evidence before continuing.</p>
-        <button type="button" onClick={() => {setWarning(null); openPicker();}}>Understood · continue</button>
-        <button type="button" className="secondary" onClick={() => setWarning(null)}>Cancel</button>
+        <button type="button" onClick={() => {setWarning(false); openPicker();}}>Understood · continue</button>
+        <button type="button" className="secondary" onClick={() => setWarning(false)}>Cancel</button>
       </section></div>}
 
       {config.expenseProof ? <input type="hidden" name="visibility" value="internal"/> : <label>

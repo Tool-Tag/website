@@ -1883,3 +1883,28 @@ dialog:not([popover]) {max-width:calc(100vw - 100px);max-height:calc(100dvh - 72
 .timeline-completed-toggle{display:block;margin:0 0 18px;padding:6px 10px;font-size:12px;background:transparent;border:1px solid #344052}
 .status-help-modal{width:min(560px,calc(100vw - 48px));max-height:85dvh;overflow:auto;padding:28px;border:1px solid #344052;border-radius:12px;background:#0d1218;color:var(--ink)}
 .status-help-modal textarea{width:100%;margin:10px 0}.support-job-context{max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Mobile workspace chrome only; desktop navigation remains unchanged. */
+.mobile-workspace-topbar,.mobile-bottom-nav,.mobile-workspace-drawer,.mobile-workspace-search{display:none}
+@media(max-width:850px){
+ .shell{display:block;min-width:0}.shell>.sidebar,.workspace>.workspace-topbar{display:none}
+ .workspace{min-width:0}.workspace>.content{padding:20px 16px 88px;min-width:0}.workspace>.footer{padding-bottom:90px}
+ .mobile-workspace-topbar{display:flex;position:sticky;top:0;z-index:100;align-items:center;gap:10px;min-height:64px;padding:8px 12px;background:var(--bg);border-bottom:1px solid var(--line)}
+ .mobile-workspace-topbar .brand{margin:0;padding:0;font-size:24px;white-space:nowrap}.mobile-workspace-topbar button,.mobile-user-menu summary{display:grid;place-items:center;width:44px;min-height:44px;padding:10px;margin:0}
+ .mobile-workspace-topbar svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8}.mobile-topbar-icons{margin-left:auto;display:flex;align-items:center;gap:8px}
+ .mobile-user-menu{margin:0;position:relative}.mobile-user-menu summary{list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:6px}.mobile-user-menu summary::-webkit-details-marker{display:none}
+ .mobile-user-menu>div{position:absolute;top:52px;right:0;min-width:210px;max-width:calc(100vw - 32px);padding:16px;border:1px solid var(--line);border-radius:8px;background:var(--panel);box-shadow:0 12px 24px #0008}.mobile-user-menu strong{display:block;overflow-wrap:anywhere}.mobile-user-menu form{margin-top:12px}.mobile-user-menu form button{width:100%}
+ .mobile-workspace-drawer[open],.mobile-workspace-search[open]{display:block;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:18px;overflow:auto}
+ .mobile-workspace-drawer{width:min(330px,calc(100vw - 100px));height:calc(100dvh - 88px);margin:44px 50px 44px 12px;animation:mobile-drawer-enter .16s ease-out}
+ .mobile-workspace-search{width:calc(100vw - 100px);margin:70px auto}.mobile-workspace-search form,.mobile-workspace-search label{display:grid;gap:14px;min-width:0}.mobile-workspace-search input{width:100%;min-width:0}.mobile-workspace-search::backdrop,.mobile-workspace-drawer::backdrop{background:#000b}
+ .mobile-nav-section{border-bottom:1px solid var(--line);padding:14px 0}.mobile-nav-section:last-child{border:0}.mobile-nav-section h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin:0 0 10px}.mobile-nav-section .workspace-nav-link{display:flex;justify-content:space-between;align-items:center;min-height:44px;padding:10px 8px;border-radius:6px;text-decoration:none}.mobile-nav-section a[aria-current=page]{color:var(--gold);background:#171a20}
+ .mobile-bottom-nav{display:flex;position:fixed;z-index:100;bottom:0;left:0;right:0;padding:8px 8px max(8px,env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--line);justify-content:space-around;gap:4px}.mobile-bottom-nav a{padding:12px 5px;min-height:44px;text-align:center;flex:1;font-size:13px}.mobile-bottom-nav a[aria-current=page]{color:var(--gold);font-weight:700}
+ .pagehead{flex-wrap:wrap;gap:14px}.pagehead h1{overflow-wrap:anywhere}.grid,.grid.two{grid-template-columns:minmax(0,1fr)}.panel,.item{min-width:0}.tablewrap{max-width:100%;overflow-x:auto}input,select,textarea{max-width:100%;min-width:0}input[type=file]{width:100%}.actions{flex-wrap:wrap}.tabs,.folder-tab-list{max-width:100%;overflow-x:auto;flex-wrap:nowrap}.content form{min-width:0}
+ .recent-activity .tablewrap{overflow:visible}.recent-activity table{table-layout:fixed;width:100%;min-width:0}.recent-activity th,.recent-activity td{padding:12px 6px;white-space:normal;overflow-wrap:anywhere}.recent-activity th:first-child{width:24%}.recent-activity th:last-child{width:32%}
+ /* Reserve a real exterior gutter, including role-based and nested dialogs. */
+ dialog:not([popover]),[role=dialog]{box-sizing:border-box;max-width:calc(100vw - 100px)!important;max-height:calc(100dvh - 88px)!important;overflow:auto}
+ .floating-modal-close{position:fixed!important;min-width:36px!important;max-width:36px!important}
+}
+@keyframes mobile-drawer-enter{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.mobile-workspace-drawer{animation:none}}
+@media(max-width:850px){.mobile-user-menu>div button{width:100%;white-space:nowrap}}

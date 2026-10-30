@@ -3,8 +3,9 @@
  const seen=new WeakSet();
  const position=()=>document.querySelectorAll('dialog[open]').forEach(dialog=>{
   const r=dialog.getBoundingClientRect();dialog.querySelectorAll('.floating-modal-close').forEach(button=>{
-   button.style.setProperty('--close-top',`${Math.max(6,r.top-18)}px`);
-   button.style.setProperty('--close-left',`${Math.min(innerWidth-42,r.right+6)}px`);
+   const outside=r.right+42<=innerWidth;
+   button.style.setProperty('--close-top',`${outside?Math.max(6,r.top-18):Math.max(6,r.top-42)}px`);
+   button.style.setProperty('--close-left',`${outside?r.right+6:Math.max(6,Math.min(innerWidth-42,r.right-36))}px`);
   });
  });
  const resize=new ResizeObserver(position);

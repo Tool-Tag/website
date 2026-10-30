@@ -1,3 +1,4 @@
+import {activityDescription,activityRecordLabel} from "@/lib/domain/activity-description";
 import { DashboardAttention } from "@/components/dashboard-attention";
 import { can } from "@/lib/auth/permissions";
 import { PermissionGate } from "@/components/permission-provider";
@@ -49,7 +50,7 @@ export async function Dashboard() {
           label="Pending Quotes"
           currency={false}
           value={stats?.pending_quotes ?? quoteRows.filter(q=>["Draft","Sent","Viewed","Agreement Pending"].includes(q.status)).length}
-          help={`${stats?.accepted_quotes ?? 0} aceptadas`}
+          help={`${stats?.accepted_quotes ?? 0} accepted`}
         />
         <PermissionGate blocks={["payments.view"]}><Metric
           label="Main Account"
@@ -93,13 +94,13 @@ export async function Dashboard() {
       </Panel>
       </PermissionGate><PermissionGate owner><Panel title="Recent Activity">
         {activityResult.error ? <p className="notice" role="status">Recent activity is temporarily unavailable. Refresh to retry.</p> : activity.length ? (
-          <Table headers={["Record", "Change", "Date"]}>
+          <div className="recent-activity"><Table headers={["Record", "Change", "Date"]}>
             {activity.map((a) => (
               <tr key={a.id}>
                 <td>
-                  <Badge>{a.entity}</Badge>
+                  <Badge>{activityRecordLabel(a.entity)}</Badge>
                 </td>
-                <td>{a.changed_fields}</td>
+                <td>{activityDescription(a.entity,a.changed_fields)}</td>
                 <td>
                   {new Date(a.created_at).toLocaleString("en-US", {
                     timeZone: "America/Denver",
@@ -107,7 +108,7 @@ export async function Dashboard() {
                 </td>
               </tr>
             ))}
-          </Table>
+          </Table></div>
         ) : (
           <Empty />
         )}

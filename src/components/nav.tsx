@@ -72,7 +72,9 @@ function parseAttention(value: unknown): WorkspaceAttention | null {
 export function Nav({
   attention,
   access = { owner: false, blocks: [] },
+  grouped = false, utilities = [],
 }: {
+  grouped?: boolean; utilities?: {label:string;href:string}[];
   access?: Access;
   attention?: WorkspaceAttention;
 }) {
@@ -319,9 +321,7 @@ export function Nav({
         { path: "equipment", label: "Equipment" },
       ];
 
-  return (
-    <nav>
-      {links.filter(link => link.path === "settings" ? access.owner : canAny(access,sectionPermissions(link.path))).map((link) => {
+  const renderLink = (link:LinkSpec) => {
         const href = `/app${link.path ? "/" + link.path : ""}`;
         const active = pathIsInside(path, href);
         const count = Number(link.count ?? 0);
@@ -355,7 +355,9 @@ export function Nav({
             )}
           </Link>
         );
-      })}
-    </nav>
-  );
+      };
+  const visible=links.filter(link=>canAny(access,sectionPermissions(link.path)));
+  if(!grouped)return <nav>{visible.map(renderLink)}</nav>;
+  const groups=[{name:"Main",paths:["","get-tagged","quotes"],utility:[]},{name:"Operations",paths:["jobs","pick-return","lost"],utility:["/pick-return","/hub"]},{name:"Business",paths:["customers","finance","refunds","support","equipment"],utility:["/app/finance-hub","/"]},{name:"System",paths:[],utility:["/app/settings"]}];
+  return <nav aria-label="Mobile workspace navigation">{groups.map(group=><section key={group.name} className="mobile-nav-section"><h3>{group.name}</h3>{visible.filter(link=>group.paths.includes(link.path)).map(renderLink)}{utilities.filter(link=>group.utility.includes(link.href)).map(link=><Link className="workspace-nav-link" key={link.href} href={link.href}>{link.label}</Link>)}</section>)}</nav>;
 }
