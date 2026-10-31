@@ -778,3 +778,18 @@ test('Modal close stays outside phone panels and uses the top gutter for wide pa
  const normal=modalClosePosition({top:80,right:340},390,844);assert.ok(normal.left>340);assert.ok(normal.left+36<=390);
  const wide=modalClosePosition({top:80,right:390},390,844);assert.ok(wide.top+36<80);assert.ok(wide.left+36<=390);
 });
+
+test('Shop Floor groups existing states without inventing persistent workflow states',async()=>{
+ const {shopFloorStage}=await import('../src/lib/domain/shop-floor');
+ assert.equal(shopFloorStage({status:'In Process',work_stage:'Receiving Evidence'}),'Reception');
+ assert.equal(shopFloorStage({status:'In Process',work_stage:'Received at Shop'}),'Verification');
+ assert.equal(shopFloorStage({status:'In Process',work_stage:'Preparing'}),'Falcon Queue');
+ assert.equal(shopFloorStage({status:'In Process',work_stage:'Final Details'}),'In Process');
+ assert.equal(shopFloorStage({status:'Ready for Delivery',work_stage:'Final Details'}),'Ready for pickup/delivery');
+ assert.equal(shopFloorStage({status:'Completed',work_stage:'Closed'}),null);
+});
+test('Shop Floor sorts every view by the full timestamp, then stable code and ID',async()=>{
+ const {sortShopFloor}=await import('../src/lib/domain/shop-floor');
+ const rows=[{id:'b',code:'B',arrivalSort:'2026-10-31T09:00:00-06:00'},{id:'a',code:'A',arrivalSort:'2026-10-30T11:00:00-06:00'},{id:'c',code:'C',arrivalSort:'2026-10-31T08:00:00-06:00'}];
+ assert.deepEqual(sortShopFloor(rows).map(r=>r.id),['a','c','b']);assert.equal(rows[0].id,'b');
+});

@@ -1,5 +1,8 @@
 "use client";
+import {HexModalFrame,ModalActions} from "./hex-modal-frame";
+
 import {ModalClose} from "./modal-close";
+import Image from "next/image";
 import {usePhotoSelection} from "./use-photo-selection";
 import {photoAccept} from "@/lib/photos/normalize";
 import {expenseProofError} from "@/lib/domain/expense-proof";
@@ -31,11 +34,14 @@ export function EvidenceUpload({
   );
 
   const photo=usePhotoSelection(config.expenseProof?expenseProofError:undefined);
+  const driverPhoto=Boolean(config.pickReturnStopId&&config.photoOnly);
+  const [capture,setCapture]=useState(false),[preview,setPreview]=useState('');
+  useEffect(()=>()=>{if(preview)URL.revokeObjectURL(preview);},[preview]);
   const input = useRef<HTMLInputElement>(null);
   const approved = useRef(false);
   const openPicker = () => {approved.current = true; input.current?.click(); approved.current = false;};
   const [warning, setWarning] = useState(false);
-  const warn = config.type === "Receiving Evidence" || config.type === "Delivery Evidence";
+  const warn = !driverPhoto && (config.type === "Receiving Evidence" || config.type === "Delivery Evidence");
 
   const router=useRouter();
   useEffect(()=>{if(state.ok&&state.documentId){onStored?.(state.documentId);if(!config.expenseProof)router.refresh();}},[state.ok,state.documentId,router,onStored,config.expenseProof]);
@@ -43,15 +49,16 @@ export function EvidenceUpload({
   return (
     <form action={action} className="evidence-upload">
       <div className="photo-choice-buttons">
-        <label>Upload file<input ref={input} onClick={(event) => {if(warn && !approved.current){event.preventDefault();setWarning(true);}}} onChange={photo.onChange} name="file" type="file" required disabled={pending||photo.preparing} accept={photoAccept(accept ?? (config.photoOnly ? "image/*" : undefined))}/></label>
+        {driverPhoto&&<><button type="button" disabled={pending||photo.preparing} onClick={()=>{setCapture(true);input.current?.setAttribute('capture','environment');input.current?.click();}}>Take photo</button><button type="button" disabled={pending||photo.preparing} onClick={()=>{setCapture(false);input.current?.removeAttribute('capture');input.current?.click();}}>Upload</button></>}<label hidden={driverPhoto}>Upload file<input hidden={driverPhoto} capture={driverPhoto&&capture?"environment":undefined} ref={input} onClick={(event) => {if(warn && !approved.current){event.preventDefault();setWarning(true);}}} onChange={async e=>{const element=e.currentTarget;await photo.onChange(e);const file=element.files?.[0];if(driverPhoto&&file&&element.validity.valid)setPreview(URL.createObjectURL(file));}} name="file" type="file" required disabled={pending||photo.preparing} accept={photoAccept(accept ?? (config.photoOnly ? "image/*" : undefined))}/></label>
       </div>
-      {warning && <div className="delivery-ack-backdrop"><section className="delivery-ack-panel" role="dialog" aria-modal="true" aria-labelledby="photo-warning-title">
+      {driverPhoto&&preview&&<Image unoptimized src={preview} alt="Selected evidence preview" width={280} height={180}/> }
+      {warning && <div className="delivery-ack-backdrop"><section className="delivery-ack-panel" role="dialog" aria-modal="true" aria-labelledby="photo-warning-title"><HexModalFrame>
         <ModalClose type="button" className="modal-close" aria-label="Close photo guidance" onClick={()=>setWarning(false)}>×</ModalClose><h2 id="photo-warning-title">Item evidence</h2>
         <p>Take clear photos of every side of each item, including existing damage and work details.</p>
         <p className="notice">Missing photos may result in charges under the service policies. Review the evidence before continuing.</p>
-        <button type="button" onClick={() => {setWarning(false); openPicker();}}>Understood · continue</button>
-        <button type="button" className="secondary" onClick={() => setWarning(false)}>Cancel</button>
-      </section></div>}
+        <ModalActions><button type="button" onClick={() => {setWarning(false); openPicker();}}>Understood · continue</button>
+        <button type="button" className="secondary" onClick={() => setWarning(false)}>Cancel</button></ModalActions>
+      </HexModalFrame></section></div>}
 
       {config.expenseProof ? <input type="hidden" name="visibility" value="internal"/> : <label>
         Visibility
@@ -65,7 +72,7 @@ export function EvidenceUpload({
       </label>}
 
       <label className="wide">
-        Notes (optional)
+        {driverPhoto?"Driver note (optional)":"Notes (optional)"}
         <textarea name="notes" rows={2} maxLength={2000} />
       </label>
 

@@ -1,4 +1,6 @@
 "use client";
+import {HexModalFrame} from "./hex-modal-frame";
+
 import {ModalClose} from "./modal-close";
 
 import Link from "next/link";
@@ -108,7 +110,7 @@ export function EvidenceGallery({
         </p>
       )}
 
-      <dialog ref={dialog} className="quote-dialog evidence-dialog">
+      <dialog ref={dialog} className="hex-dialog quote-dialog evidence-dialog"><HexModalFrame>
         {file && (
           <>
             <p className="eyebrow">{file.type || "ToolTag Document"}</p>
@@ -187,7 +189,7 @@ export function EvidenceGallery({
             <ModalClose type="button" onClick={() => dialog.current?.close()} aria-label="Close dialog" className="modal-close">×</ModalClose>
           </>
         )}
-      </dialog>
+      </HexModalFrame></dialog>
     </>
   );
 }

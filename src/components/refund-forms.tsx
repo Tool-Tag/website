@@ -1,4 +1,5 @@
 "use client";
+import {ModalActions} from "./hex-modal-frame";
 import {useActionModal} from "./action-modal";
 import { useActionState, useState, useEffect } from "react";
 import { refundAction, type RefundState } from "@/app/refund-actions";
@@ -18,7 +19,7 @@ function Feedback({ state, pending, label }: {
     state: RefundState;
     pending: boolean;
     label: string;
-}) { return <><button disabled={pending}>{pending ? "Saving…" : label}</button>{state.error && <p role="alert" className="notice error">{state.error}</p>}{state.ok && <p role="status" className="notice success">Saved.</p>}</>; }
+}) { return <><ModalActions><button disabled={pending}>{pending ? "Saving…" : label}</button></ModalActions>{state.error && <p role="alert" className="notice error">{state.error}</p>}{state.ok && <p role="status" className="notice success">Saved.</p>}</>; }
 function RefundDate({ name, label, fixedDate }: {
     name: string;
     label: string;

@@ -29,9 +29,10 @@ test("modal route reuses GetTaggedForm and keeps success inside the modal", () =
 
   assert.match(modal, /<GetTaggedForm modal onSuccess=\{setReference\}/);
   assert.match(modal, /REQUEST RECEIVED/);
-  assert.match(modal, /aria-label="Close dialog"[^>]*>×<\/ModalClose>/);
+  assert.doesNotMatch(modal, /<ModalClose/);
+  assert.match(read("src/components/get-tagged-modal-link.tsx"), /aria-label="Close Get Tagged form"/);
   assert.match(modal, /event\.key === "Escape"/);
-  assert.match(form, /intake-submit-sticky/);
+  assert.match(form, /intake-wizard-actions/);
   assert.match(form, /if \(onSuccess\)/);
   assert.match(page, /GetTaggedModalContent/);
   assert.match(css, /\.intake-submit-sticky/);

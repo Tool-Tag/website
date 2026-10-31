@@ -1,5 +1,7 @@
+import {HextechEnhancements} from "@/components/hextech-enhancements";
 import type { Metadata } from "next";
 import "./globals.css";
+import "../../public/hextech.css";
 export const metadata: Metadata = {
   title: "ToolTag · Workspace",
   description: "ToolTag operations and shared finance",
@@ -11,8 +13,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
-      <body>{children}</body>
+    <html lang="en">
+      <body><HextechEnhancements/>{children}</body>
     </html>
   );
 }

@@ -20,7 +20,7 @@ export default async function PickReturnPage({searchParams}:{searchParams:Promis
  if(pickups.error)throw new Error("Could not load confirmed Pickups");
  const confirmedPickups=new Set((pickups.data??[]).map(p=>p.job_id));
  return <section className="driver-landing">
-  <p className="eyebrow">TOOLTAG / ON THE ROAD</p><h1>Pick up & Delivery</h1><p className="muted">Choose your route. One stop at a time.</p>
+  <p className="eyebrow">TOOLTAG / ON THE ROAD</p><h1>Pick up and Delivery</h1><p className="muted">Choose your route. One stop at a time.</p>
   <form className="driver-date" action="/pick-return"><label htmlFor="route-day">View another day<input id="route-day" type="date" name="date" defaultValue={dates.selected} required /></label><button className="secondary">View routes</button></form>
   <div className="driver-cards">{(["pickup","return"] as const).map(leg=>{
    const date=dates[leg];const routeIds=new Set((routes??[]).filter(r=>r.leg===(leg==="pickup"?"Pickup":"Return")&&r.route_date===date).map(r=>r.id));

@@ -1,4 +1,6 @@
 "use client";
+import {HexModalFrame,ModalActions} from "./hex-modal-frame";
+
 import {ModalClose} from "./modal-close";
 import {DialogClose} from "./dialog-close";
 import {DriverLossOwnerControls} from "./driver-loss-owner-controls";
@@ -17,7 +19,7 @@ export function LostWorkspace({rows,canApprove,expenseOptions}:{rows:LostCase[];
  const [tab,setTab]=useState<LostStatus>("New");
  const list=rows.filter(row=>(row.status??"New")===tab).sort((a,b)=>Date.parse(tab==="History"?b.finalized_at??b.reported_at:a.reported_at)-Date.parse(tab==="History"?a.finalized_at??a.reported_at:b.reported_at));
  return <><nav className="main-tab-list" aria-label="Lost cases">{(["New","In Process","History"] as const).map(name=><button type="button" key={name} className={`main-tab ${tab===name?"active":""}`} aria-pressed={tab===name} onClick={()=>setTab(name)}>{name} ({rows.filter(r=>(r.status??"New")===name).length})</button>)}</nav>
- <section aria-label={`${tab} Lost cases`}><div className="lost-case-list">{!list.length&&<p>No {tab.toLowerCase()} cases.</p>}{list.map(row=><LostCaseRow key={row.id} row={row} canApprove={canApprove} expenseOptions={expenseOptions}/>)}</div></section></>;
+ <section aria-label={`${tab} Lost cases`}><div className="lost-case-list"><div className="lost-list-head"><span>Job</span><span>Customer</span><span>Reported</span><span>Status</span></div>{!list.length&&<p>No {tab.toLowerCase()} cases.</p>}{list.map(row=><LostCaseRow key={row.id} row={row} canApprove={canApprove} expenseOptions={expenseOptions}/>)}</div></section></>;
 }
 function LostCaseRow({row,canApprove,expenseOptions}:{row:LostCase;canApprove:boolean;expenseOptions:LostExpenseOptions|null}) {
  const dialog=useRef<HTMLDialogElement>(null),waiting=useRef<HTMLDialogElement>(null);const id=useId();
@@ -29,10 +31,10 @@ function LostCaseRow({row,canApprove,expenseOptions}:{row:LostCase;canApprove:bo
  return <div className="lost-case-entry">
  {status==="In Process"&&<p className="lost-response">Response: <strong>{row.customer_choice??"Waiting for customer response"}</strong></p>}
  <button type="button" className="lost-case-row blue-electric" aria-haspopup="dialog" onClick={()=>{setError("");if(status==="In Process"&&!row.customer_choice)waiting.current?.showModal();else dialog.current?.showModal();}}>
-  <strong>{row.job}</strong><span>{row.customer}</span><span>{denverDateTime(row.reported_at)}</span><span>{status}{row.missing_receipt&&" · Missing Receipt"}</span>
+  <strong>{row.job}</strong><span>{row.customer}</span><span>{denverDateTime(row.reported_at)}</span><span className="badge">{status}{row.missing_receipt&&" · Missing Receipt"}</span>
  </button>
- <dialog ref={waiting} className="lost-case-modal" aria-label="Waiting for customer response"><h2>Waiting for customer response</h2><p>The customer has not chosen a resolution yet.</p><ModalClose type="button" className="secondary modal-close" onClick={()=>waiting.current?.close()} aria-label="Close dialog">×</ModalClose></dialog>
- <dialog ref={dialog} className="lost-case-modal" aria-labelledby={id}>
+ <dialog ref={waiting} className="hex-dialog lost-case-modal" aria-label="Waiting for customer response"><HexModalFrame><h2>Waiting for customer response</h2><p>The customer has not chosen a resolution yet.</p><ModalClose type="button" className="secondary modal-close" onClick={()=>waiting.current?.close()} aria-label="Close dialog">×</ModalClose></HexModalFrame></dialog>
+ <dialog ref={dialog} className="hex-dialog lost-case-modal" aria-labelledby={id}><HexModalFrame>
   <header className="actions" style={{justifyContent:"space-between"}}><h2 id={id}>{row.job} · {row.customer}</h2><ModalClose type="button" className="secondary modal-close" disabled={pending} onClick={()=>dialog.current?.close()} aria-label="Close dialog">×</ModalClose></header>
   <p>Lost ID: {row.id}</p><p>Status: {status}</p><p>Customer phone: {row.phone||"Not provided"}</p>
   <p>Driver: {row.driver} {row.driver_id?`· ${row.driver_id}`:""}</p><p>Driver contact: {row.driver_email||"Not provided"}</p>
@@ -53,13 +55,13 @@ function LostCaseRow({row,canApprove,expenseOptions}:{row:LostCase;canApprove:bo
   {status==="In Process"&&row.approved_at&&manage&&<>
    {row.customer_choice==="Replace Item"&&!row.replacement_expense_id&&<><button type="button" disabled={pending||!expenseOptions} onClick={()=>confirmation.current?.showModal()}>Process</button>{!expenseOptions&&<p>Owner access and available Finance accounts/categories are required to record the replacement expense.</p>}</>}
    {row.customer_choice==="Refund money"&&row.refund_id&&row.refund_status!=="Completed"&&<><p>Process the linked refund through the standard Refunds workflow. This case moves to History when the refund is issued.</p>{canAny(access,["payments.refund","payments.view"])&&<Link className="button" href="/app/refunds">Process</Link>}</>}
-   {lostCanFinalize({...row,status})&&<><label>Resolution details<textarea value={notes} maxLength={5000} disabled={pending} onChange={e=>setNotes(e.target.value)} placeholder={row.customer_choice==="Replace Item"?"Record the replacement ready at the shop. Finalize notifies the customer to choose shop pickup or free delivery.":"Record the completed refund resolution."}/></label><button type="button" disabled={pending||!notes.trim()} onClick={()=>run("finalize")}>Finalize</button></>}
+   {lostCanFinalize({...row,status})&&<><label>Resolution details<textarea value={notes} maxLength={5000} disabled={pending} onChange={e=>setNotes(e.target.value)} placeholder={row.customer_choice==="Replace Item"?"Record the replacement ready at the shop. Finalize notifies the customer to choose shop pickup or free delivery.":"Record the completed refund resolution."}/></label><ModalActions><button type="button" disabled={pending||!notes.trim()} onClick={()=>run("finalize")}>Finalize</button></ModalActions></>}
   </>}
 
   {status==="History"&&<><p>Completed: {denverDateTime(row.finalized_at)}</p><p>{row.resolution_notes}</p><p>This record is read-only.</p></>}
   {error&&<p className="notice error" role="alert">{error}</p>}
- </dialog>
- <dialog ref={confirmation} className="lost-case-modal" aria-label="Confirm replacement at shop"><DialogClose/><h2>Make sure the replacement is already at the shop</h2><p>Do not continue until the replacement is physically at the shop.</p><div className="actions"><button type="button" disabled={pending} onClick={()=>{setError("");start(async()=>{const result=await lostStaffAction(row.id,"confirm-replacement");if(result.error)setError(result.error);else{confirmation.current?.close();expense.current?.showModal();router.refresh();}});}}>Confirmed</button><button type="button" className="secondary" disabled={pending} onClick={()=>confirmation.current?.close()}>Not yet</button></div>{error&&<p role="alert" className="notice error">{error}</p>}</dialog>
- <dialog ref={expense} className="lost-case-modal" aria-label="Record replacement expense"><header className="actions" style={{justifyContent:"space-between"}}><h2>Record replacement expense · {row.job}</h2><ModalClose type="button" className="secondary modal-close" onClick={()=>expense.current?.close()} aria-label="Close dialog">×</ModalClose></header>{expenseOptions&&<MovementForm requestId={row.id} lostCaseId={row.id} defaultType="EXPENSE" accounts={expenseOptions.accounts} categories={expenseOptions.categories} vendors={expenseOptions.vendors} sales={[]} expenses={[]} collections={[]} destinationAccounts={[]} onSaved={()=>{expense.current?.close();router.refresh();}}/>}</dialog>
+ </HexModalFrame></dialog>
+ <dialog ref={confirmation} className="hex-dialog lost-case-modal" aria-label="Confirm replacement at shop"><HexModalFrame><DialogClose/><h2>Make sure the replacement is already at the shop</h2><p>Do not continue until the replacement is physically at the shop.</p><ModalActions><button type="button" disabled={pending} onClick={()=>{setError("");start(async()=>{const result=await lostStaffAction(row.id,"confirm-replacement");if(result.error)setError(result.error);else{confirmation.current?.close();expense.current?.showModal();router.refresh();}});}}>Confirmed</button><button type="button" className="secondary" disabled={pending} onClick={()=>confirmation.current?.close()}>Not yet</button></ModalActions>{error&&<p role="alert" className="notice error">{error}</p>}</HexModalFrame></dialog>
+ <dialog ref={expense} className="hex-dialog lost-case-modal" aria-label="Record replacement expense"><HexModalFrame><header className="actions" style={{justifyContent:"space-between"}}><h2>Record replacement expense · {row.job}</h2><ModalClose type="button" className="secondary modal-close" onClick={()=>expense.current?.close()} aria-label="Close dialog">×</ModalClose></header>{expenseOptions&&<MovementForm requestId={row.id} lostCaseId={row.id} defaultType="EXPENSE" accounts={expenseOptions.accounts} categories={expenseOptions.categories} vendors={expenseOptions.vendors} sales={[]} expenses={[]} collections={[]} destinationAccounts={[]} onSaved={()=>{expense.current?.close();router.refresh();}}/>}</HexModalFrame></dialog>
  </div>;
 }

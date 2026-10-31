@@ -1,4 +1,6 @@
 "use client";
+import {HexModalFrame,ModalActions} from "./hex-modal-frame";
+
 import {DialogClose} from "./dialog-close";
 import {useEffect,useRef} from "react";
 import Link from "next/link";
@@ -11,7 +13,7 @@ export function LoginAttention({sessionId,bands}:{sessionId:string;bands:ReturnT
   ref.current?.showModal();
  },[sessionId]);
  const total=bands.reduce((sum,band)=>sum+band.count,0);
- return <dialog ref={ref} className="login-attention" aria-labelledby="login-attention-title"><DialogClose/><h2 id="login-attention-title">Pending attention</h2><p>Support, Refunds and Lost.</p>
+ return <dialog ref={ref} className="hex-dialog login-attention" aria-labelledby="login-attention-title"><HexModalFrame><DialogClose/><h2 id="login-attention-title">Pending attention</h2><p>Support, Refunds and Lost.</p>
  {bands.map(band=><section className={`urgency-band urgency-${band.color}`} key={band.color}><h3>{band.count} pending</h3><div className="urgency-categories">{band.categories.slice(0,3).map(category=><Link key={category.kind} href={category.href} onClick={()=>ref.current?.close()}>{category.count} {category.label}</Link>)}</div>{!band.count&&<p>No pending items.</p>}{band.categories.length>3&&<details><summary>See more</summary><div className="urgency-categories">{band.categories.slice(3).map(category=><Link key={category.kind} href={category.href} onClick={()=>ref.current?.close()}>{category.count} {category.label}</Link>)}</div></details>}</section>)}
- {!total&&<p>No pending attention items.</p>}<form method="dialog"><button>Continue</button></form></dialog>;
+ {!total&&<p>No pending attention items.</p>}<form method="dialog"><ModalActions><button>Continue</button></ModalActions></form></HexModalFrame></dialog>;
 }

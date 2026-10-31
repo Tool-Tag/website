@@ -63,7 +63,8 @@ export function Empty({
   return <p className="empty">{children}</p>;
 }
 export function Badge({ children }: { children: React.ReactNode }) {
-  return <span className="badge">{typeof children==="string"?displayLabel(children):children}</span>;
+  const value=typeof children==="string"?children:"";const tone=/Accepted|Completed|Approved|Ready|Delivered|Verified/.test(value)?"gold":/Process|Review|Scheduled|Pending|Draft/.test(value)?"blue":"neutral";
+  return <span className="badge" data-tone={tone}>{typeof children==="string"?displayLabel(children):children}</span>;
 }
 export function Table({
   headers,

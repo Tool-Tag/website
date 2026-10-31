@@ -1,4 +1,6 @@
 "use client";
+import {HexModalFrame,ModalActions} from "./hex-modal-frame";
+
 import {DialogClose} from "./dialog-close";
 
 import { useActionState, useState } from "react";
@@ -78,7 +80,7 @@ export function CancellationAction({
       )}
 
       {open && (
-        <dialog open><DialogClose/>
+        <dialog open><HexModalFrame><DialogClose/>
           <form action={action}>
             {id && <input type="hidden" name="id" value={id} />}
             <h2>Cancel {code}?</h2>
@@ -144,7 +146,7 @@ export function CancellationAction({
 
             {state.error && <div className="notice error">{state.error}</div>}
 
-            <div className="actions">
+            <ModalActions>
               <button type="submit" disabled={pending}>
                 {pending ? "Cancelling…" : "Yes, cancel"}
               </button>
@@ -156,9 +158,9 @@ export function CancellationAction({
               >
                 Keep service
               </button>
-            </div>
+            </ModalActions>
           </form>
-        </dialog>
+        </HexModalFrame></dialog>
       )}
     </>
   );
