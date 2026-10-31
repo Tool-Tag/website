@@ -13,10 +13,13 @@ const compiled = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
  compilerOptions: {module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022},
 }).outputText;
 const closureContext = React.createContext(null);
+const hexExports={};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.resolve(__dirname,'../src/components/hex-modal-frame.tsx'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022}}).outputText,{exports:hexExports,require});
 const exportsObject = {};
 vm.runInNewContext(compiled, {
  exports: exportsObject,
  require(name) {
+  if (name === './hex-modal-frame') return hexExports;
   if (name === './support-case-modal') return {SupportClosureContext: closureContext};
   if (name === 'next/navigation') return {useRouter: () => ({refresh() {}})};
   if (name === '@/app/support-actions') return {

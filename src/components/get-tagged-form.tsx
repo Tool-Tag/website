@@ -30,6 +30,9 @@ export function GetTaggedForm({
 }: GetTaggedFormProps = {}) {
   const [request, setRequest] = useState<GetTaggedRequest>(emptyGetTaggedRequest);
   const [token, setToken] = useState("");
+  const [step,setStep]=useState(1);
+  const [preferredDay,setPreferredDay]=useState('');
+  const formRef=useRef<HTMLFormElement>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [refreshNeeded, setRefreshNeeded] = useState(false);
@@ -68,6 +71,7 @@ export function GetTaggedForm({
       try {
         const saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null");
         if (saved?.request) setRequest(saved.request);
+        if(typeof saved?.preferredDay==='string')setPreferredDay(saved.preferredDay);
         if (saved?.token) {
           setToken(saved.token);
           return;
@@ -83,9 +87,9 @@ export function GetTaggedForm({
   useEffect(() => {
     if (!token) return;
     try {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ request, token }));
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ request, token,preferredDay }));
     } catch {}
-  }, [request, token]);
+  }, [request, token,preferredDay]);
 
   function updateItem(index: number, patch: Partial<GetTaggedItem>) {
     setRequest((current) => ({
@@ -116,15 +120,24 @@ export function GetTaggedForm({
     }));
   }
 
+  function nextStep(){
+    const fields=formRef.current?.querySelectorAll<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement>(`fieldset[data-step="${step}"] input,fieldset[data-step="${step}"] select,fieldset[data-step="${step}"] textarea`);
+    for(const field of fields??[]){if(!field.checkValidity()){field.reportValidity();return;}}
+    const parsed=getTaggedRequestSchema.safeParse(request);
+    if(!parsed.success){const issue=parsed.error.issues.find(issue=>step===1?issue.path[0]==='contact':issue.path[0]==='items');if(issue){setError(issue.message);return;}}
+    setError('');setStep(value=>Math.min(3,value+1));
+  }
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if(step<3){nextStep();return;}
     if (submitting.current) return;
 
     setError("");
     const fields = new FormData(event.currentTarget);
-    const parsed = getTaggedRequestSchema.safeParse({...request,sms_opt_in:fields.get("sms_opt_in")==="on",sms_policy_accepted:fields.get("sms_policy_accepted")==="on",sms_phone:String(fields.get("sms_phone") || request.contact.phone)});
+    const parsed = getTaggedRequestSchema.safeParse({...request,notes:request.notes+(preferredDay?`\nPreferred day (request only, not confirmed): ${preferredDay}`:''),sms_opt_in:fields.get("sms_opt_in")==="on",sms_policy_accepted:fields.get("sms_policy_accepted")==="on",sms_phone:String(fields.get("sms_phone") || request.contact.phone)});
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Review the form and try again.");
+      const first=parsed.error.issues[0];setStep(first?.path[0]==='contact'?1:first?.path[0]==='items'?2:3);
+      setError(first?.message ?? "Review the form and try again.");
       return;
     }
 
@@ -176,10 +189,11 @@ export function GetTaggedForm({
 
   return (
     <form
-      onSubmit={submit}
+      ref={formRef} noValidate onSubmit={submit}
       className={modal ? "intake-form intake-form-modal" : "intake-form"}
     >
-      <fieldset disabled={pending} className="intake-section">
+      <ol className="hex-stepper" aria-label="Request steps">{["Your Details","Your Engraving","Service and Notes"].map((label,index)=><li key={label} aria-current={step===index+1?"step":undefined}><span className="hex-node">{index+1<step?"✓":index+1}</span>{label}</li>)}</ol>
+      <fieldset disabled={pending} className="intake-section" data-step="1" hidden={step!==1}>
         <legend>1. Your details</legend>
         <div className="intake-grid">
           <label>
@@ -294,7 +308,7 @@ export function GetTaggedForm({
         </details>
       </fieldset>
 
-      <fieldset disabled={pending} className="intake-section">
+      <fieldset disabled={pending} className="intake-section" data-step="2" hidden={step!==2}>
         <legend>2. What would you like engraved?</legend>
 
         {request.items.map((item, itemIndex) => (
@@ -602,7 +616,7 @@ export function GetTaggedForm({
         </button>
       </fieldset>
 
-      <fieldset disabled={pending} className="intake-section">
+      <fieldset disabled={pending} className="intake-section" data-step="3" hidden={step!==3}>
         <legend>3. Service & notes</legend>
 
         <label>
@@ -668,6 +682,7 @@ export function GetTaggedForm({
           </>
         )}
 
+        <label>Preferred day (optional)<input type="date" value={preferredDay} onChange={e=>setPreferredDay(e.target.value)}/><small>A preference only. ToolTag will confirm availability separately.</small></label>
         <label>
           Anything else we should know? (optional)
           <textarea
@@ -717,11 +732,8 @@ export function GetTaggedForm({
         </div>
       )}
 
-      <div className={modal ? "intake-submit intake-submit-sticky" : "intake-submit"}>
-        <button type="submit" disabled={pending || !token}>
-          {pending ? "Submitting…" : "Submit Request"}
-        </button>
-      </div>
+      {step===3&&<section className="intake-summary"><h3>Request summary</h3>{preferredDay&&<p>Preferred day: {preferredDay} · not confirmed</p>}<p>{request.contact.name} · {request.contact.email}</p><p>{request.items.reduce((count,item)=>count+item.quantity,0)} pieces · {request.items.length} item types · {request.service.method==='Pickup'?'Pickup & Delivery':request.service.method}</p><p>{request.items.map(item=>`${item.quantity} × ${item.article}`).join(' · ')}</p></section>}
+      <div className="intake-wizard-actions"><button type="button" className="menu-link-gold" disabled={pending||step===1} onClick={()=>{setError('');setStep(value=>value-1);}}>Back</button><span>Step {step} of 3</span>{step<3?<button key="next" type="button" disabled={pending} onClick={e=>{e.preventDefault();nextStep();}}>Next</button>:<button key="submit" type="submit" disabled={pending||!token}>{pending?'Submitting…':'Submit Request'}</button>}</div>
     </form>
   );
 }

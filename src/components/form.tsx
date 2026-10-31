@@ -1,4 +1,5 @@
 "use client";
+import {ModalActions} from "./hex-modal-frame";
 import {useActionModal} from "./action-modal";
 import { useActionPermission } from "./permission-provider";
 import { PhoneVerification } from "./phone-verification";
@@ -134,7 +135,7 @@ export function Form({
       )}
       {state.mailStatus && <p className="notice wide">{state.mailStatus}</p>}
       {state.ok && <div className="notice success wide">Saved.</div>}
-      <button onClick={e=>{if(validateSubmit&&!validateSubmit())e.preventDefault();}} disabled={pending||submitDisabled}>{pending ? "Saving…" : button}</button>
+      <ModalActions><button onClick={e=>{if(validateSubmit&&!validateSubmit())e.preventDefault();}} disabled={pending||submitDisabled}>{pending ? "Saving…" : button}</button></ModalActions>
     </form>
   );
 }

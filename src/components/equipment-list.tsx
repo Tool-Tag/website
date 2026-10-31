@@ -1,4 +1,6 @@
 "use client";
+import {HexModalFrame} from "./hex-modal-frame";
+
 import {ModalClose} from "./modal-close";
 
 import Link from "next/link";
@@ -50,11 +52,11 @@ export function EquipmentList({assets, categories, expenses, expense}: {
         <td>{asset.origin === "Purchased" ? money(asset.purchaseCost ?? 0) : <>{money(asset.estimatedValue ?? 0)} <small>(estimated value)</small></>}</td>
       </tr>)}
     </Table> : <Empty>No equipment registered yet.</Empty>}</Panel>
-    <dialog ref={registration} className="equipment-registration-modal" aria-labelledby={registrationTitle} onClose={() => setRegistering(false)}>
+    <dialog ref={registration} className="hex-dialog equipment-registration-modal" aria-labelledby={registrationTitle} onClose={() => setRegistering(false)}><HexModalFrame>
       <header className="pagehead"><h2 id={registrationTitle}>Register Equipment</h2><ModalClose type="button" className="secondary modal-close" onClick={closeRegistration} aria-label="Close dialog">×</ModalClose></header>
       {registering && allowed && <AssetForm categories={categories} expenses={expenses} expense={expense} back="" onSaved={() => {closeRegistration(); router.refresh();}}/>}
-    </dialog>
-    <dialog ref={detail} className="equipment-registration-modal" aria-labelledby={detailTitle} onClose={() => setSelected(null)}>
+    </HexModalFrame></dialog>
+    <dialog ref={detail} className="hex-dialog equipment-registration-modal" aria-labelledby={detailTitle} onClose={() => setSelected(null)}><HexModalFrame>
       <header className="pagehead"><h2 id={detailTitle}>{selected?.name ?? "Equipment details"}</h2><ModalClose type="button" className="secondary modal-close" onClick={closeDetail} aria-label="Close dialog">×</ModalClose></header>
       {selected && <dl className="equipment-detail-grid">
         <dt>Equipment ID</dt><dd>{selected.id}</dd>
@@ -76,6 +78,6 @@ export function EquipmentList({assets, categories, expenses, expense}: {
         <dt>Registered</dt><dd>{denverDateTime(selected.createdAt)}</dd>
         <dt>Notes</dt><dd className="equipment-notes">{selected.notes || "—"}</dd>
       </dl>}
-    </dialog>
+    </HexModalFrame></dialog>
   </>;
 }

@@ -1,4 +1,6 @@
 "use client";
+import {HexModalFrame,ModalActions} from "./hex-modal-frame";
+
 import {ModalClose} from "./modal-close";
 
 import Link from "next/link";
@@ -25,17 +27,17 @@ export function DashboardAttention({ items }: { items: AttentionItem[] }) {
   return <>
     {rows(items.slice(0, 5))}
     {items.length > 5 && <button type="button" className="secondary gold" aria-haspopup="dialog" onClick={() => { setPage(0); dialog.current?.showModal(); }}>View more</button>}
-    <dialog ref={dialog} className="dashboard-attention-modal" aria-labelledby={titleId}>
+    <dialog ref={dialog} className="hex-dialog dashboard-attention-modal" aria-labelledby={titleId}><HexModalFrame>
       <header className="actions dashboard-attention-modal-header">
         <h2 id={titleId}>Needs Attention</h2>
         <ModalClose type="button" className="secondary modal-close" onClick={() => dialog.current?.close()} aria-label="Close dialog">×</ModalClose>
       </header>
       {rows(items.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE), true)}
-      <footer className="actions pagination dashboard-attention-pagination">
-        <button type="button" className="secondary" disabled={current === 0} onClick={() => setPage(current - 1)}>Previous</button>
+      <ModalActions className="actions pagination dashboard-attention-pagination">
+        <button type="button" className="menu-link-gold" disabled={current === 0} onClick={() => setPage(current - 1)}>Previous</button>
         <span role="status" aria-live="polite">Page {current + 1} of {pages}</span>
-        <button type="button" className="secondary" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>Next</button>
-      </footer>
-    </dialog>
+        <button type="button" className="menu-link-gold" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>Next</button>
+      </ModalActions>
+    </HexModalFrame></dialog>
   </>;
 }
