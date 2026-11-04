@@ -2,6 +2,8 @@ import {HextechEnhancements} from "@/components/hextech-enhancements";
 import type { Metadata } from "next";
 import "./globals.css";
 import "../../public/hextech.css";
+import "../../public/fonts/hextech-fonts.css";
+import "../../public/hextech-reference.css";
 export const metadata: Metadata = {
   title: "ToolTag · Workspace",
   description: "ToolTag operations and shared finance",

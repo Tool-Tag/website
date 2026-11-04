@@ -1,3 +1,4 @@
+import {HexIcon} from "./hex-icon";
 import {displayLabel} from "@/lib/domain/ui-labels";
 import { money } from "@/lib/domain/money";
 export function Heading({
@@ -29,7 +30,7 @@ export function Panel({
 }) {
   return (
     <section className="panel">
-      {title && <h2>{title}</h2>}
+      {title && <header className="hex-panel-head"><h2>{title}</h2></header>}
       {children}
     </section>
   );
@@ -49,7 +50,8 @@ export function Metric({
 }) {
   return (
     <div className={`metric${tone ? ` metric-${tone}` : ""}`}>
-      <span className="muted">{label}</span>
+      <HexIcon name={/Quote/.test(label)?"quote":/Job/.test(label)?"job":/Request/.test(label)?"request":"finance"}/>
+      <span className="muted metric-label">{label}</span>
       <strong>{currency ? money(value) : String(value ?? 0)}</strong>
       {help && <small>{help}</small>}
     </div>

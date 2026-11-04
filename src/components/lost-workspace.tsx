@@ -18,8 +18,8 @@ import {money} from "@/lib/domain/money";
 export function LostWorkspace({rows,canApprove,expenseOptions}:{rows:LostCase[];canApprove:boolean;expenseOptions:LostExpenseOptions|null}) {
  const [tab,setTab]=useState<LostStatus>("New");
  const list=rows.filter(row=>(row.status??"New")===tab).sort((a,b)=>Date.parse(tab==="History"?b.finalized_at??b.reported_at:a.reported_at)-Date.parse(tab==="History"?a.finalized_at??a.reported_at:b.reported_at));
- return <><nav className="main-tab-list" aria-label="Lost cases">{(["New","In Process","History"] as const).map(name=><button type="button" key={name} className={`main-tab ${tab===name?"active":""}`} aria-pressed={tab===name} onClick={()=>setTab(name)}>{name} ({rows.filter(r=>(r.status??"New")===name).length})</button>)}</nav>
- <section aria-label={`${tab} Lost cases`}><div className="lost-case-list"><div className="lost-list-head"><span>Job</span><span>Customer</span><span>Reported</span><span>Status</span></div>{!list.length&&<p>No {tab.toLowerCase()} cases.</p>}{list.map(row=><LostCaseRow key={row.id} row={row} canApprove={canApprove} expenseOptions={expenseOptions}/>)}</div></section></>;
+ return <><nav className="main-tab-list" aria-label="Lost cases">{(["New","In Process","History"] as const).map(name=><button type="button" key={name} className={`main-tab ${tab===name?"active":""}`} aria-pressed={tab===name} onClick={()=>setTab(name)}>{name} <span className="tab-count">{rows.filter(r=>(r.status??"New")===name).length}</span></button>)}</nav>
+ <section aria-label={`${tab} Lost cases`}><div className="lost-case-list"><div className="lost-list-head"><span>Case / Job</span><span>Customer</span><span>Item</span><span>Reported</span><span>Status</span><span aria-hidden="true"/></div>{!list.length&&<p>No {tab.toLowerCase()} cases.</p>}{list.map(row=><LostCaseRow key={row.id} row={row} canApprove={canApprove} expenseOptions={expenseOptions}/>)}</div></section></>;
 }
 function LostCaseRow({row,canApprove,expenseOptions}:{row:LostCase;canApprove:boolean;expenseOptions:LostExpenseOptions|null}) {
  const dialog=useRef<HTMLDialogElement>(null),waiting=useRef<HTMLDialogElement>(null);const id=useId();
@@ -31,7 +31,7 @@ function LostCaseRow({row,canApprove,expenseOptions}:{row:LostCase;canApprove:bo
  return <div className="lost-case-entry">
  {status==="In Process"&&<p className="lost-response">Response: <strong>{row.customer_choice??"Waiting for customer response"}</strong></p>}
  <button type="button" className="lost-case-row blue-electric" aria-haspopup="dialog" onClick={()=>{setError("");if(status==="In Process"&&!row.customer_choice)waiting.current?.showModal();else dialog.current?.showModal();}}>
-  <strong>{row.job}</strong><span>{row.customer}</span><span>{denverDateTime(row.reported_at)}</span><span className="badge">{status}{row.missing_receipt&&" · Missing Receipt"}</span>
+  <strong title={row.id}><span className="lost-case-code">{row.id.slice(0,8)}</span><small>{row.job}</small></strong><span>{row.customer}</span><span className="lost-item-summary">{row.items?.[0]?.article||"Item details in case"}{(row.items?.length??0)>1&&` +${row.items.length-1}`}</span><span className="lost-reported">{denverDateTime(row.reported_at)}</span><span className="badge">{status}{row.missing_receipt&&" · Missing Receipt"}</span><span className="row-chevron" aria-hidden="true">›</span>
  </button>
  <dialog ref={waiting} className="hex-dialog lost-case-modal" aria-label="Waiting for customer response"><HexModalFrame><h2>Waiting for customer response</h2><p>The customer has not chosen a resolution yet.</p><ModalClose type="button" className="secondary modal-close" onClick={()=>waiting.current?.close()} aria-label="Close dialog">×</ModalClose></HexModalFrame></dialog>
  <dialog ref={dialog} className="hex-dialog lost-case-modal" aria-labelledby={id}><HexModalFrame>

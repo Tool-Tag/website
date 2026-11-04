@@ -793,3 +793,9 @@ test('Shop Floor sorts every view by the full timestamp, then stable code and ID
  const rows=[{id:'b',code:'B',arrivalSort:'2026-10-31T09:00:00-06:00'},{id:'a',code:'A',arrivalSort:'2026-10-30T11:00:00-06:00'},{id:'c',code:'C',arrivalSort:'2026-10-31T08:00:00-06:00'}];
  assert.deepEqual(sortShopFloor(rows).map(r=>r.id),['a','c','b']);assert.equal(rows[0].id,'b');
 });
+
+
+test('Reference-sized modal X keeps its full 42px rectangle inside phone viewports',async()=>{
+ const {modalClosePosition}=await import('../src/lib/domain/modal-close-position');
+ for(const width of [320,390,768]){for(const right of [width-24,width-42,width-60]){const position=modalClosePosition({top:50,right},width,844,42);assert.ok(position.left>=6);assert.ok(position.left+42<=width-6);assert.ok(position.top>=6);assert.ok(position.top+42<50||position.left>right);}}
+});

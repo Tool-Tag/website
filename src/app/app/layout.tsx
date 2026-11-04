@@ -1,3 +1,5 @@
+import {WorkspaceSidebarToggle} from "@/components/workspace-sidebar-toggle";
+import {WorkspaceBrand} from "@/components/hex-icon";
 import {MobileWorkspaceNav} from "@/components/mobile-workspace-nav";
 import { StaffLoginAttention } from "@/components/staff-login-attention";
 import { SessionTimeout } from "@/components/session-timeout";
@@ -33,17 +35,12 @@ export default async function AppLayout({
   return (
     <PermissionProvider access={ctx?.access ?? {owner:false,blocks:[]}}>{ctx && <><SessionTimeout expiresAt={ctx.session.expires_at} serverNow={ctx.session.server_now}/><StaffLoginAttention db={ctx.db} sessionId={ctx.session.session_id}/></>}<div className="shell">
       <aside className="sidebar">
-        <Link className="brand" href="/app">
-          Tool<span>Tag</span>
-          <small style={{ fontSize: 10, display: "block", letterSpacing: 3 }}>
-            WORKSPACE
-          </small>
-        </Link>
-        <Nav attention={attention} access={ctx?.access} />
+        <Nav attention={attention} access={ctx?.access} grouped /><p className="hex-sidebar-note">ToolTag operations<br/>Bandits of the Framing LLC</p>
       </aside>
       <div className="workspace">
         <MobileWorkspaceNav name={ctx?userName:"Initial setup"} canSearch={!!ctx&&canAny(ctx.access,["customers.view"])} navigation={<Nav attention={attention} access={ctx?.access} grouped utilities={userLinks}/>} signOut={ctx?<form action={logout}><button>Sign Out</button></form>:null} bottomLinks={[{label:"Dashboard",href:"/app",section:""},{label:"Quotes",href:"/app/quotes",section:"quotes"},{label:"Jobs",href:"/app/jobs",section:"jobs"},{label:"Finance",href:"/app/finance",section:"finance"}].filter(link=>ctx&&canAny(ctx.access,sectionPermissions(link.section)))}/>
-        <header className="topbar workspace-topbar">
+        <header className="topbar workspace-topbar"><WorkspaceSidebarToggle/>
+          <Link className="hex-desktop-brand" href="/app" aria-label="ToolTag workspace"><WorkspaceBrand/></Link>
           <nav className="workspace-header-links" aria-label="Workspace utilities">
             {userLinks.map(link=><Link key={link.href} className="button secondary gold menu-link-gold" href={link.href}>{link.label}</Link>)}
           </nav>

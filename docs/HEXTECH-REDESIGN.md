@@ -40,3 +40,20 @@ Existing route data/actions now appear as compact stop cards, a segmented progre
 - Production schema inspected read-only: all seven Shop Floor source tables and their required fields exist, with RLS enabled. No production writes or customer notifications were performed.
 - Local visual fixtures were removed before commit. Their screenshots contain synthetic TEST labels only.
 - Real camera hardware, authenticated role-by-role production navigation and live storage submissions were not exercised. Review the Vercel preview on a phone before approval.
+
+## November 4 — alignment to supplied visual references
+
+Martin supplied two standalone HTML references (Tooltag App Sample Hextech and Tooltag Public Page Hextech example). The first pass was too generic. This follow-up maps their actual visual system onto the existing ToolTag components:
+
+- Self-hosted Barlow body text, Rajdhani app headings/navigation, Oswald public headings and Barlow Condensed labels. Font files and upstream SIL Open Font Licenses are in `public/fonts`; no runtime Google Fonts request or build-time font download is required.
+- `hextech-reference.css` adapts the app reference's dark grid, 264px grouped navigation, hex icons, chamfered metric cards/buttons, thin table rules, four gold corner brackets, typography and modal framing. Existing utilities/search/name/Sign Out remain available. The desktop menu toggle collapses navigation locally; the mobile drawer uses the same permission-filtered links.
+- `hextech-public.css` and the public homepage adopt the supplied public composition: bracketed hero, blue emphasized heading, gear icons/cards, mark chips, connected process nodes, service options and CTA/footer. Real branding, `/help`, `/privacy`, `/terms`, original gallery IDs/data and all three real `/get-tagged` entry links are retained. The existing iframe/form submission still handles requests.
+- Lost displays the actual case UUID prefix (full UUID on hover), job, customer, missing-item summary, reported time and status. Lost/Support selector tabs follow the reference blue selection; logistics retains its gold leg indicator. No case numbering or workflow rules changed.
+- Modal positioning measures the rendered X so the reference's complete 42px control stays outside the panel even on narrow screens. A regression check covers 320/390/768px bounds. Native form validation and submission through a fixed footer were checked in the browser.
+- Public intake now has an explicit responsive page container and form spacing, with the same real wizard, validation, optional photo upload and existing consent fields. Upload/Take photo controls use the existing handlers; other uploader rules are unchanged.
+
+Intentional differences from the demo: no fake metrics, demo shortcuts, test customer content, demo notification bell, sample storage, mock form submission or new business logic were copied. Existing real data and permission gates remain authoritative. The approved muted action blue is retained; #3177ff stays an accent. The customer Agreement and the approved Spanish driver-policy exception remain untouched.
+
+Visual review uses local temporary fixtures of the real components and the real public/intake routes. Temporary fixtures are removed before commit. No production data, payments, file uploads or customer messages are created during visual checks. Authenticated production role-by-role review and a physical phone camera remain outside these local checks.
+
+Follow-up validation: typecheck, lint (zero warnings), 216 tests (38 CommonJS + 178 TypeScript) and webpack production build passed. Browser checks covered 320/390/1280 px, full-height drawer, desktop collapse, responsive table/cards, the 42px exterior X, native required-field submission through the fixed footer, and Get Tagged steps 1–3 without final submission. All source changes are visual; database migrations, server business actions and dependencies are unchanged.

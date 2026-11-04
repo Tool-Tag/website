@@ -29,7 +29,7 @@ export async function Dashboard() {
   return (
     <>
       <Heading
-        title="Everything under control."
+        title="Dashboard"
         subtitle="Customers, work, and finances in one place."
       >
         <PermissionGate blocks={["quotes.manage"]}><Link className="button" href="/app/quotes/new">
