@@ -799,3 +799,18 @@ test('Reference-sized modal X keeps its full 42px rectangle inside phone viewpor
  const {modalClosePosition}=await import('../src/lib/domain/modal-close-position');
  for(const width of [320,390,768]){for(const right of [width-24,width-42,width-60]){const position=modalClosePosition({top:50,right},width,844,42);assert.ok(position.left>=6);assert.ok(position.left+42<=width-6);assert.ok(position.top>=6);assert.ok(position.top+42<50||position.left>right);}}
 });
+
+test('Header attention links never expose queues outside the caller-permitted navigation',async()=>{
+ const {workspaceQueueLinks}=await import('../src/lib/domain/workspace-queues');
+ const counts={getTagged:3,quotes:2,jobs:4,notifications:5,refunds:6,lost:7};
+ assert.deepEqual(workspaceQueueLinks(counts,['/app/support']).map(row=>[row.href,row.count]),[['/app/support',5]]);
+ assert.deepEqual(workspaceQueueLinks(counts,[]),[]);
+ assert.deepEqual(workspaceQueueLinks({...counts,notifications:-1},['/app/support']),[]);
+ assert.deepEqual(workspaceQueueLinks({...counts,lost:0},['/app/lost']),[]);
+});
+test('Dashboard week boundaries use Denver calendar dates across DST and UTC midnight',async()=>{
+ const {dashboardWeekRange}=await import('../src/lib/domain/dashboard-layout');
+ assert.deepEqual(dashboardWeekRange(new Date('2026-11-02T01:00:00Z')),{today:'2026-11-01',monday:'2026-10-26'});
+ assert.deepEqual(dashboardWeekRange(new Date('2026-11-02T08:00:00Z')),{today:'2026-11-02',monday:'2026-11-02'});
+ assert.deepEqual(dashboardWeekRange(new Date('2026-03-09T01:00:00Z')),{today:'2026-03-08',monday:'2026-03-02'});
+});

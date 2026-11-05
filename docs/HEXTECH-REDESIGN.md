@@ -57,3 +57,20 @@ Intentional differences from the demo: no fake metrics, demo shortcuts, test cus
 Visual review uses local temporary fixtures of the real components and the real public/intake routes. Temporary fixtures are removed before commit. No production data, payments, file uploads or customer messages are created during visual checks. Authenticated production role-by-role review and a physical phone camera remain outside these local checks.
 
 Follow-up validation: typecheck, lint (zero warnings), 216 tests (38 CommonJS + 178 TypeScript) and webpack production build passed. Browser checks covered 320/390/1280 px, full-height drawer, desktop collapse, responsive table/cards, the 42px exterior X, native required-field submission through the fixed footer, and Get Tagged steps 1–3 without final submission. All source changes are visual; database migrations, server business actions and dependencies are unchanged.
+
+
+## November 4 — app reference structure
+
+The app sample now also guides composition, beyond its colors and typography:
+
+- One compact 60px header: navigation toggle, ToolTag branding, real customer search, permission-filtered attention queues and user account menu. Utility links move into the grouped sidebar/drawer. Existing logout, four-hour session and login attention behavior remain intact. Desktop navigation can collapse; mobile uses the drawer.
+- Dashboard hierarchy: four permission-filtered metrics (active jobs, new requests, next pickup block stops, collected this week), daily Support/Refund/Lost urgency bands and quick actions. Existing operational attention, financial details and activity remain accessible in disclosures. No sample metrics or hardcoded counts are used. Weekly collection reporting uses existing transactions and Denver calendar boundaries, without changing accounting or scheduling.
+- Requests and Quotes use compact icon rows opening a read-only summary modal. Its action continues into the existing review/detail workflow. Existing tabs, pagination and permissions remain in place.
+- Lost uses one tabs/list panel and a metadata grid in the case modal. Existing Notify/Approve/Process actions use the fixed footer; their handlers, workflow and rules are unchanged.
+- Pick Up and Delivery keeps the existing leg/subtab controls in a single panel and renders route/history blocks as compact rows. Stop assignment, ordering, verification and closure actions remain unchanged.
+- Settings retains its five Owner-only sections. Configuration groups open the existing forms in compact row-triggered dialogs; the existing ActionModal save/refresh context is preserved. Users/roles retains its dedicated management UI; no demo toggles or security/configuration rules were invented.
+- Support modal prioritizes subject, customer and job details; its existing reply/closure actions are unchanged. Record Transaction adds two convenience selectors for existing Expense/Collection types, retaining the full type selector and receipt gates.
+
+Local visual checks use synthetic props only, without database writes, message delivery, uploads or financial submissions. Checked desktop and 390/320px navigation, account menu, record summary modal, exterior X, Settings dialog and transaction type/proof controls. Temporary visual fixtures are removed from the committed application. Actual phone hardware and a live authenticated end-to-end test remain for review; these checks do not claim to validate those integrations.
+
+Structure validation: typecheck, lint (zero warnings), and 218 tests (38 CommonJS + 180 TypeScript) passed. Production build uses non-secret placeholder public Supabase values, as the checkout intentionally has no live credentials; no live integration test is claimed.

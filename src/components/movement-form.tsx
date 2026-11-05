@@ -113,6 +113,7 @@ export function MovementForm({
   );
   return (
     <>
+      {!saleId&&!lostCaseId&&<div className="hex-movement-segments" aria-label="Common transaction types">{[["EXPENSE","Expense"],["COLLECTION","Collection"]].map(([value,label])=><button type="button" key={value} aria-pressed={type===value} className={type===value?"active":""} onClick={()=>{setType(value);setAmount("");setReceiptAttempted(false);}}>{label}</button>)}</div>}
       <div className="formgrid" style={{ marginBottom: 20 }}>
         <label>Type<select
             value={type}

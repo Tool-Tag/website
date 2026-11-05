@@ -25,7 +25,7 @@ export function QuoteTabs({
   if (!current) return null;
 
   return (
-    <div className="job-tabs">
+    <div className="job-tabs hex-record-tabs">
       <nav
         className="job-tab-list no-print"
         role="tablist"

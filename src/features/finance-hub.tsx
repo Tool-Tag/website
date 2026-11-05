@@ -23,11 +23,11 @@ export async function FinanceHub() {
               Open BOFT ↗
             </a>
           ) : (
-            <p className="muted">Configura el enlace en Settings.</p>
+            <p className="muted">Configure the link in Settings.</p>
           )}
           <p className="muted" style={{ marginTop: 14 }}>
             BOFT remains in its current system. Its historical data is not yet
-            migrados.
+            migrated.
           </p>
         </Panel>
         <Link className="button" href="/app/finance">

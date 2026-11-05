@@ -1,6 +1,4 @@
-import {WorkspaceSidebarToggle} from "@/components/workspace-sidebar-toggle";
-import {WorkspaceBrand} from "@/components/hex-icon";
-import {MobileWorkspaceNav} from "@/components/mobile-workspace-nav";
+import {WorkspaceHeader} from "@/components/workspace-header";
 import { StaffLoginAttention } from "@/components/staff-login-attention";
 import { SessionTimeout } from "@/components/session-timeout";
 import { PermissionProvider } from "@/components/permission-provider";
@@ -8,7 +6,6 @@ import {type UserMenuLink} from "@/components/workspace-user-menu";
 import { canAny, driverOnly, sectionPermissions } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
 import { BackNavigation } from "@/components/back-navigation";
-import Link from "next/link";
 import { context } from "@/lib/domain/context";
 import { isConfigured } from "@/lib/supabase/server";
 import { Nav } from "@/components/nav";
@@ -35,31 +32,10 @@ export default async function AppLayout({
   return (
     <PermissionProvider access={ctx?.access ?? {owner:false,blocks:[]}}>{ctx && <><SessionTimeout expiresAt={ctx.session.expires_at} serverNow={ctx.session.server_now}/><StaffLoginAttention db={ctx.db} sessionId={ctx.session.session_id}/></>}<div className="shell">
       <aside className="sidebar">
-        <Nav attention={attention} access={ctx?.access} grouped /><p className="hex-sidebar-note">ToolTag operations<br/>Bandits of the Framing LLC</p>
+        <Nav attention={attention} access={ctx?.access} grouped utilities={userLinks}/><p className="hex-sidebar-note">ToolTag operations<br/>Bandits of the Framing LLC</p>
       </aside>
       <div className="workspace">
-        <MobileWorkspaceNav name={ctx?userName:"Initial setup"} canSearch={!!ctx&&canAny(ctx.access,["customers.view"])} navigation={<Nav attention={attention} access={ctx?.access} grouped utilities={userLinks}/>} signOut={ctx?<form action={logout}><button>Sign Out</button></form>:null} bottomLinks={[{label:"Dashboard",href:"/app",section:""},{label:"Quotes",href:"/app/quotes",section:"quotes"},{label:"Jobs",href:"/app/jobs",section:"jobs"},{label:"Finance",href:"/app/finance",section:"finance"}].filter(link=>ctx&&canAny(ctx.access,sectionPermissions(link.section)))}/>
-        <header className="topbar workspace-topbar"><WorkspaceSidebarToggle/>
-          <Link className="hex-desktop-brand" href="/app" aria-label="ToolTag workspace"><WorkspaceBrand/></Link>
-          <nav className="workspace-header-links" aria-label="Workspace utilities">
-            {userLinks.map(link=><Link key={link.href} className="button secondary gold menu-link-gold" href={link.href}>{link.label}</Link>)}
-          </nav>
-          {ctx && canAny(ctx.access,["customers.view"]) && <form action="/app/customers">
-            <input
-              name="q"
-              placeholder="Search customer, Job, or Quote…"
-              aria-label="Search customer or record"
-            />
-          </form>}
-          <div className="workspace-user-actions">
-          <span className="workspace-user-label" title={`User: ${ctx?userName:"Initial setup"}`}>User: {ctx?userName:"Initial setup"}</span>
-          {ctx && (
-            <form action={logout} className="workspace-sign-out">
-              <button className="secondary">Sign Out</button>
-            </form>
-          )}
-          </div>
-        </header>
+        <WorkspaceHeader name={ctx?userName:"Initial setup"} role={ctx?.access.owner?"Owner":ctx?"Team member":"Initial setup"} canSearch={!!ctx&&canAny(ctx.access,["customers.view"])} navigation={<Nav attention={attention} access={ctx?.access} grouped utilities={userLinks}/>} accountLinks={userLinks.filter(link=>["/app/settings","/"].includes(link.href))} attention={attention} allowedQueues={["get-tagged","quotes","jobs","support","refunds","lost"].filter(section=>ctx&&canAny(ctx.access,sectionPermissions(section))).map(section=>`/app/${section}`)} signOut={ctx?<form action={logout}><button>Sign Out</button></form>:null}/>
         <main className="content">
           {!ctx && (
             <div className="notice">

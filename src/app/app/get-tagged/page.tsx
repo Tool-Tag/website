@@ -1,8 +1,10 @@
+import {GetTaggedModalLink} from "@/components/get-tagged-modal-link";
+import {RecordList} from "@/components/record-list";
 import {paginateList} from "@/lib/domain/list-pagination";
 import {denverDateTime} from "@/lib/domain/time";
 import Link from "next/link";
 import { requirePermission } from "@/lib/domain/context";
-import { Heading, Panel, Empty, Badge } from "@/components/ui";
+import { Heading, Panel, Empty } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -38,35 +40,12 @@ export default async function GetTaggedRequestsPage({searchParams}:{searchParams
     <>
       <Heading
         title="Get Tagged Requests"
-        subtitle="Review public requests before a Customer and Quote are created."
-      />
+        subtitle="Public requests waiting for review and pricing."
+      ><GetTaggedModalLink className="button menu-link-gold">New request · Steps</GetTaggedModalLink></Heading>
 
       <nav className="main-tab-list" aria-label="Request status"><Link href="/app/get-tagged" className={`main-tab ${history?"":"active"}`}>Pending</Link><Link href="/app/get-tagged?tab=history" className={`main-tab ${history?"active":""}`}>History</Link></nav>
       {requests.length ? (
-        <div className="stack">
-          {paging.items.map((request) => (
-            <Panel key={request.id}>
-              <div className="pick-return-row">
-                <div>
-                  <p className="eyebrow">{request.reference}</p>
-                  <h2>{request.name}</h2>
-                  <p className="muted">
-                    {request.service_method || "Service method not selected"} ·{" "}
-                    {denverDateTime(request.created_at)}
-                  </p>
-                </div>
-                <div className="actions">
-                  <Badge>{request.request_status}</Badge>
-                  <Badge>{request.matching}</Badge>
-                </div>
-              </div>
-
-              <Link className="button" href={`/app/get-tagged/${request.id}`}>
-                Review Request
-              </Link>
-            </Panel>
-          ))}
-        </div>
+        <Panel><RecordList label="Get Tagged Request" empty="No requests in this view." rows={paging.items.map(request=>({id:request.id,title:request.name,reference:request.reference,description:`${request.service_method||'Service to be confirmed'} · ${denverDateTime(request.created_at)}`,status:request.request_status,icon:'request',details:[{label:'Reference',value:request.reference},{label:'Received',value:denverDateTime(request.created_at)},{label:'Service',value:request.service_method||'To be confirmed'},{label:'Customer matching',value:request.matching},{label:'Status',value:request.request_status}],actions:[{label:'Review Request',href:`/app/get-tagged/${request.id}`}]}))}/></Panel>
       ) : (
         <Empty>No Get Tagged requests need attention.</Empty>
       )}

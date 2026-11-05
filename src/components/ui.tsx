@@ -50,7 +50,7 @@ export function Metric({
 }) {
   return (
     <div className={`metric${tone ? ` metric-${tone}` : ""}`}>
-      <HexIcon name={/Quote/.test(label)?"quote":/Job/.test(label)?"job":/Request/.test(label)?"request":"finance"}/>
+      <HexIcon name={/request/i.test(label)?"request":/quote/i.test(label)?"quote":/job/i.test(label)?"job":/stop|pickup|delivery|route/i.test(label)?"route":"finance"}/>
       <span className="muted metric-label">{label}</span>
       <strong>{currency ? money(value) : String(value ?? 0)}</strong>
       {help && <small>{help}</small>}
