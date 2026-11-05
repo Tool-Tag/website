@@ -1,3 +1,4 @@
+import {isStaffAuthEntry} from "@/lib/domain/staff-auth";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 export async function proxy(request: NextRequest) {
@@ -19,7 +20,7 @@ export async function proxy(request: NextRequest) {
     },
   });
   const {data:{user}} = await client.auth.getUser();
-  if (user && request.nextUrl.pathname !== "/login") {
+  if (user && request.nextUrl.pathname !== "/login" && !isStaffAuthEntry(request.nextUrl.pathname)) {
     const {data:session,error} = await client.rpc("staff_session_state");
     if (error || !session?.active) {
       await client.auth.signOut({scope:"local"});
