@@ -18,3 +18,13 @@ export function loginFailure(error: AuthFailure) {
   if (error.status === 429) return { reference: 'AUTH_RATE_LIMIT', message: 'Too many attempts. Wait a few minutes before trying again. Reference: AUTH_RATE_LIMIT.' };
   return { reference: 'AUTH_UNAVAILABLE', message: 'The Supabase connection could not be completed. Reference: AUTH_UNAVAILABLE.' };
 }
+
+/** Staff email errors must not mislabel transport failures as duplicate accounts. */
+export function staffMailFailure(error:AuthFailure,operation:'invitation'|'recovery'){
+  if(error.code==='over_email_send_rate_limit')return 'Supabase has reached its authentication email limit. Wait for the limit to reset or configure custom SMTP in Supabase. No email was sent.';
+  if(error.status===429||error.code==='over_request_rate_limit')return 'Too many authentication email requests. Wait before retrying. No email was sent.';
+  if(error.code==='email_address_not_authorized')return 'Supabase cannot send authentication emails to this address with its built-in email service. Configure custom SMTP in Supabase.';
+  if(['email_exists','user_already_exists'].includes(error.code??''))return operation==='invitation'?'This email already has a Supabase account. Add its User ID as an existing user instead of inviting it again.':'This account requires review before a recovery email can be sent.';
+  if(error.code==='invalid_api_key'||error.code==='not_admin'||error.status===401||error.status===403)return 'Supabase rejected the server authentication configuration. Contact the ToolTag Owner.';
+  return operation==='invitation'?'Supabase could not send the invitation. Check Auth email delivery and server configuration.':'Supabase could not send the recovery email. Check Auth email delivery and server configuration.';
+}

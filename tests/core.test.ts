@@ -53,6 +53,18 @@ test("Login errors distinguish configuration from credentials without leaking ra
   assert.ok(!unknown.message.includes("private token"));
 });
 
+test("Staff invitation errors distinguish exhausted email delivery from duplicate users without exposing provider details",async()=>{
+ const {staffMailFailure}=await import('../src/lib/domain/auth-errors');
+ const rate=staffMailFailure({code:'over_email_send_rate_limit',status:429,message:'private SMTP data'},'invitation');
+ assert.match(rate,/authentication email limit/);assert.ok(!rate.includes('existing'));assert.ok(!rate.includes('private'));
+ assert.match(staffMailFailure({status:429},'recovery'),/Too many/);
+ assert.match(staffMailFailure({code:'email_address_not_authorized'},'invitation'),/custom SMTP/);
+ assert.match(staffMailFailure({code:'email_exists'},'invitation'),/already has/);
+ for(const code of ['unexpected_failure',undefined]){const message=staffMailFailure({code,status:500,message:'secret internal values'},'invitation');assert.ok(!message.includes('existing'));assert.ok(!message.includes('secret'));}
+ assert.match(staffMailFailure({status:403},'invitation'),/server authentication configuration/);
+ assert.match(staffMailFailure({status:500},'recovery'),/could not send the recovery/);
+});
+
 import { blankItem, withAdaptation } from "../src/lib/domain/quote-items";
 test('Staff callback accepts only fixed local destinations',async()=>{
  const {staffAuthDestination,staffAuthContinuation}=await import('../src/lib/domain/staff-auth');

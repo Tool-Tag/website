@@ -1,5 +1,6 @@
 "use server";
 import { z } from "zod";
+import {staffMailFailure} from "@/lib/domain/auth-errors";
 import { revalidatePath } from "next/cache";
 import { requireOwner, requirePermission } from "@/lib/domain/context";
 import { storageAdmin } from "@/lib/storage/admin";
@@ -31,7 +32,8 @@ export async function inviteStaffUser(_: RbacResult, form: FormData): Promise<Rb
     const redirectTo=staffPasswordRedirect(process.env.TOOLTAG_PUBLIC_URL,process.env.NODE_ENV!=="production");
     if(!redirectTo)return {error:"Configure TOOLTAG_PUBLIC_URL with the approved site origin before sending staff invitations."};
     const {data,error} = await storageAdmin().auth.admin.inviteUserByEmail(email,{redirectTo});
-    if (error || !data.user) return {error:"Invitation could not be sent. For an existing account, add its User ID below."};
+    if(error){console.error("Staff invitation failed",{code:error.code??"unknown",status:error.status});return {error:staffMailFailure(error,"invitation")};}
+    if(!data.user)return {error:"Supabase did not return an invited user. Check Auth email delivery before retrying."};
     const saved = await db.rpc("rbac_save_user",{p_user:data.user.id,p_name:String(form.get("name") || "").slice(0,100),p_active:true,p_roles:roles});
     if(saved.error) return {error:"Invitation sent, but access was not assigned. Add the invited User ID before they can enter ToolTag."};
     revalidatePath("/app/settings");return {ok:true};
@@ -49,7 +51,7 @@ export async function resetStaffCredentials(_: RbacResult, form: FormData): Prom
     const redirectTo=staffPasswordRedirect(process.env.TOOLTAG_PUBLIC_URL,process.env.NODE_ENV!=="production");
     if(!redirectTo)return {error:"Configure TOOLTAG_PUBLIC_URL with the approved site origin before sending recovery emails."};
     const {error} = await storageAdmin().auth.resetPasswordForEmail(target.email,{redirectTo});
-    if(error) return {error:"Recovery email could not be sent."};
+    if(error){console.error("Staff recovery failed",{code:error.code??"unknown",status:error.status});return {error:staffMailFailure(error,"recovery")};}
     const logged=await db.rpc("rbac_log_credential_reset",{p_user:id});
     if(logged.error)return {error:"Recovery requested, but the audit record could not be saved."};
     return {ok:true};
