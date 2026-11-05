@@ -1,4 +1,3 @@
-import {GetTaggedModalLink} from "@/components/get-tagged-modal-link";
 import {RecordList} from "@/components/record-list";
 import {paginateList} from "@/lib/domain/list-pagination";
 import {denverDateTime} from "@/lib/domain/time";
@@ -41,7 +40,7 @@ export default async function GetTaggedRequestsPage({searchParams}:{searchParams
       <Heading
         title="Get Tagged Requests"
         subtitle="Public requests waiting for review and pricing."
-      ><GetTaggedModalLink className="button menu-link-gold">New request · Steps</GetTaggedModalLink></Heading>
+      />
 
       <nav className="main-tab-list" aria-label="Request status"><Link href="/app/get-tagged" className={`main-tab ${history?"":"active"}`}>Pending</Link><Link href="/app/get-tagged?tab=history" className={`main-tab ${history?"active":""}`}>History</Link></nav>
       {requests.length ? (

@@ -33,6 +33,7 @@ export function GetTaggedForm({
   const [step,setStep]=useState(1);
   const [preferredDay,setPreferredDay]=useState('');
   const formRef=useRef<HTMLFormElement>(null);
+  const stepBody=useRef<HTMLDivElement>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [refreshNeeded, setRefreshNeeded] = useState(false);
@@ -125,7 +126,7 @@ export function GetTaggedForm({
     for(const field of fields??[]){if(!field.checkValidity()){field.reportValidity();return;}}
     const parsed=getTaggedRequestSchema.safeParse(request);
     if(!parsed.success){const issue=parsed.error.issues.find(issue=>step===1?issue.path[0]==='contact':issue.path[0]==='items');if(issue){setError(issue.message);return;}}
-    setError('');setStep(value=>Math.min(3,value+1));
+    setError('');setStep(value=>Math.min(3,value+1));stepBody.current?.scrollTo({top:0});
   }
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -190,9 +191,10 @@ export function GetTaggedForm({
   return (
     <form
       ref={formRef} noValidate onSubmit={submit}
-      className={modal ? "intake-form intake-form-modal" : "intake-form"}
+      className={modal ? "intake-form intake-form-modal customer-request-wizard" : "intake-form customer-request-wizard"}
     >
-      <ol className="hex-stepper" aria-label="Request steps">{["Your Details","Your Engraving","Service and Notes"].map((label,index)=><li key={label} aria-current={step===index+1?"step":undefined}><span className="hex-node">{index+1<step?"✓":index+1}</span>{label}</li>)}</ol>
+      <ol className="hex-stepper" aria-label="Request steps">{["Your Details","What would you like engraved?","Service and Notes"].map((label,index)=><li key={label} data-completed={index+1<step} aria-current={step===index+1?"step":undefined}><span className="hex-node">{index+1<step?"✓":index+1}</span>{label}</li>)}</ol>
+      <div ref={stepBody} className="intake-step-body" role="region" aria-label={`Request step ${step}`} tabIndex={0}>
       <fieldset disabled={pending} className="intake-section" data-step="1" hidden={step!==1}>
         <legend>1. Your details</legend>
         <div className="intake-grid">
@@ -733,7 +735,8 @@ export function GetTaggedForm({
       )}
 
       {step===3&&<section className="intake-summary"><h3>Request summary</h3>{preferredDay&&<p>Preferred day: {preferredDay} · not confirmed</p>}<p>{request.contact.name} · {request.contact.email}</p><p>{request.items.reduce((count,item)=>count+item.quantity,0)} pieces · {request.items.length} item types · {request.service.method==='Pickup'?'Pickup & Delivery':request.service.method}</p><p>{request.items.map(item=>`${item.quantity} × ${item.article}`).join(' · ')}</p></section>}
-      <div className="intake-wizard-actions"><button type="button" className="menu-link-gold" disabled={pending||step===1} onClick={()=>{setError('');setStep(value=>value-1);}}>Back</button><span>Step {step} of 3</span>{step<3?<button key="next" type="button" disabled={pending} onClick={e=>{e.preventDefault();nextStep();}}>Next</button>:<button key="submit" type="submit" disabled={pending||!token}>{pending?'Submitting…':'Submit Request'}</button>}</div>
+      </div>
+      <footer className="intake-wizard-actions"><button type="button" className="menu-link-gold" disabled={pending||step===1} onClick={()=>{setError('');setStep(value=>value-1);stepBody.current?.scrollTo({top:0});}}>Back</button><span>Step {step} of 3</span>{step<3?<button key="next" type="button" disabled={pending} onClick={e=>{e.preventDefault();nextStep();}}>Next</button>:<button key="submit" type="submit" disabled={pending||!token}>{pending?'Submitting…':'Submit Request'}</button>}</footer>
     </form>
   );
 }

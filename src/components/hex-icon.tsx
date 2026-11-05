@@ -15,4 +15,4 @@ const paths:Record<string,string>={
  globe:'M3 12h18M12 3c6 5 6 13 0 18-6-5-6-13 0-18zM12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z',
 };
 export function HexIcon({name='job',style}:{name?:string;style?:CSSProperties}){return <span className="hex-icon" style={style} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="miter"><path d={paths[name]??paths.job}/></svg></span>;}
-export function WorkspaceBrand(){return <span className="hex-workspace-brand"><span className="hex-brand-mark" aria-hidden="true">T</span><span><span className="hex-wordmark">Tool<em>Tag</em></span><small>Workspace</small></span></span>;}
+export function WorkspaceBrand({subtitle='Workspace'}:{subtitle?:string}={}){return <span className="hex-workspace-brand"><span className="hex-brand-mark" aria-hidden="true">T</span><span><span className="hex-wordmark">Tool<em>Tag</em></span><small>{subtitle}</small></span></span>;}

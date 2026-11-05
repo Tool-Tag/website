@@ -77,7 +77,8 @@ export function Table({
 }) {
   return (
     <div className="tablewrap">
-      <table>
+      <table className="hex-data-table">
+        <colgroup>{headers.map((header,index)=><col key={`${header}-${index}`} style={{width:`${100/headers.length}%`}}/>)}</colgroup>
         <thead>
           <tr>
             {headers.map((h) => (

@@ -814,3 +814,13 @@ test('Dashboard week boundaries use Denver calendar dates across DST and UTC mid
  assert.deepEqual(dashboardWeekRange(new Date('2026-11-02T08:00:00Z')),{today:'2026-11-02',monday:'2026-11-02'});
  assert.deepEqual(dashboardWeekRange(new Date('2026-03-09T01:00:00Z')),{today:'2026-03-08',monday:'2026-03-02'});
 });
+
+test('Shop Floor keeps five ordered sections and the same chronological order in a filtered grid',async()=>{
+ const {SHOP_FLOOR_STAGES,shopFloorGroups}=await import('../src/lib/domain/shop-floor');
+ const jobs=[{id:'today',code:'A',stage:'Reception' as const,arrivalSort:'2026-11-02T09:00:00-07:00'},{id:'yesterday',code:'Z',stage:'Reception' as const,arrivalSort:'2026-11-01T11:00:00-07:00'},{id:'queue',code:'B',stage:'Falcon Queue' as const,arrivalSort:'2026-11-01T08:00:00-07:00'}];
+ const all=shopFloorGroups(jobs);
+ assert.deepEqual(all.map(group=>group.stage),[...SHOP_FLOOR_STAGES]);
+ assert.deepEqual(all[0].jobs.map(job=>job.id),['yesterday','today']);
+ const filtered=shopFloorGroups(jobs,'Reception');assert.equal(filtered.length,1);assert.deepEqual(filtered[0].jobs,all[0].jobs);assert.equal(jobs[0].id,'today');
+ assert.equal(shopFloorGroups(jobs,'Verification')[0].jobs.length,0);
+});

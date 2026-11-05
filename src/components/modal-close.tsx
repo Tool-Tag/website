@@ -1,14 +1,18 @@
 "use client";
 import {modalClosePosition} from "@/lib/domain/modal-close-position";
+import {createPortal} from "react-dom";
 import {useEffect,useRef,useState,type ButtonHTMLAttributes,type CSSProperties} from "react";
 /** Remains in its dialog's top layer/focus scope, but sits outside the visible panel. */
 export function ModalClose({className="",style,children="×",...props}:ButtonHTMLAttributes<HTMLButtonElement>){
+ const anchor=useRef<HTMLSpanElement>(null),[host,setHost]=useState<Element|null>(null);
+ useEffect(()=>{const panel=anchor.current?.closest('dialog,[role="dialog"]');if(panel)queueMicrotask(()=>setHost(panel));},[]);
  const button=useRef<HTMLButtonElement>(null),[position,setPosition]=useState<CSSProperties>({top:8,right:8});
  useEffect(()=>{
   const panel=button.current?.closest('dialog,[role="dialog"]');if(!panel)return;
   const update=()=>{const r=panel.getBoundingClientRect();if(!r.width)return;const next=modalClosePosition(r,window.visualViewport?.width??window.innerWidth,window.visualViewport?.height??window.innerHeight,Math.max(button.current?.offsetWidth??36,button.current?.offsetHeight??36));setPosition(old=>old.top===next.top&&old.left===next.left?old:next);};
   const resize=new ResizeObserver(update),mutation=new MutationObserver(update);resize.observe(panel);if(button.current)resize.observe(button.current);mutation.observe(panel,{attributes:true,attributeFilter:["open","style","class"]});window.addEventListener("resize",update);window.addEventListener("scroll",update,true);window.visualViewport?.addEventListener("resize",update);window.visualViewport?.addEventListener("scroll",update);update();
   return()=>{window.visualViewport?.removeEventListener("resize",update);window.visualViewport?.removeEventListener("scroll",update);resize.disconnect();mutation.disconnect();window.removeEventListener("resize",update);window.removeEventListener("scroll",update,true);};
- },[]);
- return <button {...props} ref={button} type="button" aria-label={props["aria-label"]||"Close dialog"} className={`modal-close floating-modal-close ${className}`} style={{...style,...position}}>{children}</button>;
+ },[host]);
+ const control=<button {...props} ref={button} type="button" aria-label={props["aria-label"]||"Close dialog"} className={`modal-close floating-modal-close ${className}`} style={{...style,...position}}>{children}</button>;
+ return <><span ref={anchor} hidden/>{host?createPortal(control,host):control}</>;
 }

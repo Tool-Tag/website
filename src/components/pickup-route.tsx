@@ -6,7 +6,7 @@ import {RouteNotificationControls} from "@/components/route-notification-control
 import Link from "next/link";
 import {context} from "@/lib/domain/context";
 import {denverTime} from "@/lib/domain/time";
-import {routeDateLabel} from "@/lib/domain/driver-dates";
+import {DriverRouteProgress} from "./driver-route-progress";
 import {PickupStopControls} from "@/components/pickup-stop-controls";
 import {EvidenceUpload} from "@/components/evidence-upload";
 import {EvidenceGallery} from "@/components/evidence-gallery";
@@ -37,20 +37,20 @@ export async function PickupRoute({date}:{date:string}){
  const allowed=new Set((orders??[]).filter(o=>o.pickup_window_start&&new Date(o.pickup_window_start).toLocaleDateString("en-CA",{timeZone:"America/Denver"})===date).map(o=>o.job_id));
  const visible=(stops??[]).filter(s=>s.status!=="Cancelled"&&allowed.has(s.job_id));
  return <section className="pickup-route driver-landing"><RouteDeparture/><StatusRefresh channels={liveChannels.filter((value):value is string=>typeof value==="string")} />
- <Link className="button secondary" href="/pick-return">← All routes</Link><p className="eyebrow">SATURDAY / PICK UP</p><h1>{routeDateLabel(date)}</h1><p className="driver-window">8:00 AM–12:00 PM · Denver time</p><p>{visible.filter(s=>s.status==="Completed").length}/{visible.length} picked up</p>
- <div className="driver-segments" aria-label="Route progress">{visible.map(s=><span key={s.id} className={s.status==='Completed'?'done':''}/>)}</div>{(routes??[]).map(r=><p className="driver-block-label" key={r.id}>Block {r.block_number} · {visible.filter(s=>s.route_id===r.id&&s.status==='Completed').length}/{visible.filter(s=>s.route_id===r.id).length} completed</p>)}
+ <DriverRouteProgress leg="pickup" date={date} stops={visible.map(stop=>({id:stop.id,status:stop.status,job:(jobs??[]).find(job=>job.id===stop.job_id)?.code??'Job',address:stop.address||''}))}/>
+ {(routes??[]).map(r=><p className="driver-block-label" key={r.id}>Block {r.block_number} · {visible.filter(s=>s.route_id===r.id&&s.status==='Completed').length}/{visible.filter(s=>s.route_id===r.id).length} completed</p>)}
  {agreements.map(a=><DriverBlockAgreement key={a.snapshot.route_id} agreement={a}/>)}
  {(routes??[]).map(route=><RouteNotificationControls key={route.id} leg="Pickup" route={route.id} departed={route.departed_at} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}
  {(routes??[]).map(route=><RouteExceptionControls key={route.id} arrived={(stops??[]).some(s=>s.route_id===route.id&&s.status==="Arrived")} route={route.id} leg="Pickup" incident={(incidents??[]).find(i=>i.route_id===route.id)} closed={Boolean(route.confirmed_at)||["Completed","Cancelled"].includes(route.status)} />)}
  {!visible.length&&<div className="panel"><h2>No confirmed pickups</h2><p>Only scheduled Pickup services with confirmed payment appear here.</p></div>}
- {visible.map((stop,index)=>{
+ <div className="driver-stop-timeline" aria-label="Route stop timeline">{visible.map((stop,index)=>{
  const job=(jobs??[]).find(j=>j.id===stop.job_id);if(!job)return null;
  const flow=(flows??[]).find(f=>f.id===job.flow_id);const customer=(customers??[]).find(c=>c.id===flow?.customer_id);
  const evidence=(documents??[]).filter(d=>d.pick_return_stop_id===stop.id);
  const pieces=(items??[]).filter(i=>i.job_id===job.id);const summary=new Map<string,number>();pieces.forEach(i=>summary.set(i.article,(summary.get(i.article)??0)+1));
  const paused=(incidents??[]).some(i=>i.route_id===stop.route_id&&i.status==="Open");
  const blocked=paused||job.status==="Cancelled"||/Cancellation Requested|Production Hold/.test(job.work_stage??"");
- return <DriverStopCard completedLabel="Picked Up" id={`pickup-stop-${stop.id}`} sequence={index+1} name={customer?.name??"Customer"} job={job.code} address={stop.address||""} status={stop.status} pieces={pieces.length} next={visible.find(s=>!["Completed","Failed","Cancelled"].includes(s.status))?.id===stop.id} key={stop.id}>
+ return <DriverStopCard completedLabel="Picked Up" id={`pickup-stop-${stop.id}`} sequence={index+1} name={customer?.name??"Customer"} job={job.code} address={stop.address||""} status={stop.status} pieces={pieces.length} eta={stop.approximate_eta?`ETA approx.: ${denverTime(stop.approximate_eta)}`:stop.eta?`ETA: ${denverTime(stop.eta)}`:undefined} next={visible.find(s=>!["Completed","Failed","Cancelled"].includes(s.status))?.id===stop.id} key={stop.id}>
  {customer?.phone&&<a className="button secondary" href={`tel:${customer.phone.replace(/[^+0-9]/g,"")}`}>{customer.phone}</a>}
  <p className="pickup-address">{stop.address||"Pickup address unavailable"}</p><p>Window: 8:00 AM–12:00 PM</p>{stop.approximate_eta&&<p><strong>ETA approx.: {denverTime(stop.approximate_eta)}</strong></p>}{stop.eta&&<p><strong>ETA: {denverTime(stop.eta)}</strong></p>}
  <h3>{pieces.length} pieces</h3><ul>{[...summary].map(([name,count])=><li key={name}>{count} × {name}</li>)}</ul>
@@ -59,7 +59,7 @@ export async function PickupRoute({date}:{date:string}){
  {!["Completed","Failed"].includes(stop.status)&&<details className="pickup-photos"><summary className="button secondary">Take / upload receiving photos</summary><EvidenceUpload config={{jobId:job.id,pickReturnStopId:stop.id,type:"Receiving Evidence",defaultVisibility:"internal",photoOnly:true}} button="Save receiving photo" accept="image/*" /></details>}
  <PickupStopControls nextStop={visible[index+1]?.id} stop={stop.id} status={stop.status} waitUntil={stop.pickup_wait_until} coming={stop.customer_coming_at} blocked={blocked} hasEvidence={evidence.length>0} phone={customer?.phone||stop.customer_phone} />
  </DriverStopCard>;
- })}
+ })}</div>
  {(routes??[]).map(route=>{
  const all=(stops??[]).filter(s=>s.route_id===route.id);const ready=all.length>0&&all.every(s=>["Completed","Failed","Cancelled"].includes(s.status));
  return route.confirmed_at?<p className="notice success" key={route.id}>Arrival at shop confirmed.</p>:<div className="pickup-route-end" key={route.id}><p>The route stays open until arrival at the shop is confirmed.</p>{ready?<Form operation="route-confirm" hidden={{route_id:route.id}} fields={[]} back={`/pick-return/pickup?date=${date}`} button={all.every(s=>s.status==="Cancelled")?"Close interrupted route":"Confirm arrival at shop"} />:<button disabled>Confirm arrival at shop · finish stops first</button>}</div>;

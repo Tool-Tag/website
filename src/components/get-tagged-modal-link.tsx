@@ -57,6 +57,7 @@ export function GetTaggedModalLink({
             <div>
               <p className="eyebrow">GET TAGGED</p>
               <h2 id="get-tagged-react-dialog-title">Start your request.</h2>
+              <p className="muted">Tell us what you have and how you want to make it yours.</p>
             </div>
             <ModalClose
               type="button"

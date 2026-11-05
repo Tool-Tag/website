@@ -7,7 +7,7 @@ export function HexModalFrame({children}:{children:ReactNode}){
  const [footer,setFooter]=useState<HTMLElement|null>(null);const nodes=Children.toArray(children);let header:ReactNode=null;
  const index=nodes.findIndex(node=>isValidElement(node)&&typeof node.type==='string'&&(node.type==='header'||/^h[123]$/.test(node.type)||(node.type==='div'&&Children.toArray((node.props as {children?:ReactNode}).children).some(n=>isValidElement(n)&&typeof n.type==='string'&&/^h[123]$/.test(n.type)))));
  if(index>=0){header=nodes[index];nodes.splice(index,1);}
- return <FooterContext.Provider value={footer}><div className="hex-modal-frame">{header&&<div className="hex-modal-header">{header}</div>}<div className="hex-modal-body">{nodes.map(node=>isValidElement(node)&&node.type==='form'?cloneElement(node as ReactElement<{children?:ReactNode;className?:string}>,{className:`${(node.props as {className?:string}).className??''} hex-modal-form`},<HexModalFrame>{(node.props as {children?:ReactNode}).children}</HexModalFrame>):node)}</div><footer className="hex-modal-footer" ref={setFooter}/></div></FooterContext.Provider>;
+ return <FooterContext.Provider value={footer}><div className="hex-modal-frame">{header&&<div className="hex-modal-header">{header}</div>}<div className="hex-modal-body">{nodes}</div><footer className="hex-modal-footer" ref={setFooter}/></div></FooterContext.Provider>;
 }
 export function ModalActions({children,className='actions'}:{children:ReactNode;className?:string}){
  const footer=useContext(FooterContext),anchor=useRef<HTMLSpanElement>(null),id=useId();const [formId,setFormId]=useState<string>();

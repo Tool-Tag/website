@@ -5,6 +5,7 @@ import "../../public/hextech.css";
 import "../../public/fonts/hextech-fonts.css";
 import "../../public/hextech-reference.css";
 import "../../public/hextech-structure.css";
+import "../../public/hextech-workflow.css";
 export const metadata: Metadata = {
   title: "ToolTag · Workspace",
   description: "ToolTag operations and shared finance",

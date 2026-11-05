@@ -4,7 +4,6 @@ import {dashboardWeekRange} from "@/lib/domain/dashboard-layout";
 import {cents,decimal} from "@/lib/domain/money";
 import {canAny} from "@/lib/auth/permissions";
 import {Movement} from "@/features/finance";
-import {GetTaggedModalLink} from "@/components/get-tagged-modal-link";
 import {activityDescription,activityRecordLabel} from "@/lib/domain/activity-description";
 import { DashboardAttention } from "@/components/dashboard-attention";
 import { can } from "@/lib/auth/permissions";
@@ -65,7 +64,6 @@ export async function Dashboard() {
         <PermissionGate blocks={["quotes.view"]}><Link className="button secondary" href="/app/get-tagged">Review requests</Link></PermissionGate>
         <PermissionGate blocks={["support.inbox"]}><Link className="button secondary" href="/app/support">Support cases</Link></PermissionGate>
         {finance&&ctx&&can(ctx.access,"payments.record")&&<Movement modal/>}
-        <GetTaggedModalLink className="button menu-link-gold">Get Tagged · Steps</GetTaggedModalLink>
       </div></Panel>
       <details className="hex-dashboard-more"><summary>More workspace details</summary>
       <div className="grid two">

@@ -51,10 +51,7 @@ export function GetTaggedModalContent() {
   }
 
   return (
-    <main className="intake-modal-page">
-      <p className="muted intake-modal-intro">
-        Tell us what you have and how you want to make it yours.
-      </p>
+    <main className="intake-modal-page customer-wizard-page">
       <GetTaggedForm modal onSuccess={setReference} />
     </main>
   );
