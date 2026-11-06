@@ -20,6 +20,7 @@ export type Field = {
 };
 export function Form({
   operation,
+  inlineActions = false,
   fields,
   hidden = {},
   button = "Save",
@@ -31,6 +32,7 @@ export function Form({
   validateSubmit,
 }: {
   operation: string;
+  inlineActions?: boolean;
   fields: Field[];
   hidden?: Record<string, string>;
   button?: string;
@@ -135,7 +137,7 @@ export function Form({
       )}
       {state.mailStatus && <p className="notice wide">{state.mailStatus}</p>}
       {state.ok && <div className="notice success wide">Saved.</div>}
-      <ModalActions><button onClick={e=>{if(validateSubmit&&!validateSubmit())e.preventDefault();}} disabled={pending||submitDisabled}>{pending ? "Saving…" : button}</button></ModalActions>
+      <ModalActions inline={inlineActions}><button type="submit" onClick={e=>{if(validateSubmit&&!validateSubmit())e.preventDefault();}} disabled={pending||submitDisabled}>{pending ? "Saving…" : button}</button></ModalActions>
     </form>
   );
 }

@@ -85,11 +85,11 @@ export function EvidenceUpload({
 
       {state.ok && (
         <p className="notice success wide" role="status">
-          {config.expenseProof?"Receipt image uploaded. Save the expense to attach it.":"File stored in Supabase Storage and linked to this record."}
+          {config.expenseProof?"Receipt image uploaded. Save the expense to attach it.":"File uploaded and linked to this record."}
         </p>
       )}
 
-      <button disabled={pending||photo.preparing}>{pending ? "Uploading…" : button}</button>
+      <ModalActions><button type="submit" disabled={pending||photo.preparing}>{pending ? "Uploading…" : button}</button></ModalActions>
     </form>
   );
 }

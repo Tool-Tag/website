@@ -824,3 +824,31 @@ test('Shop Floor keeps five ordered sections and the same chronological order in
  const filtered=shopFloorGroups(jobs,'Reception');assert.equal(filtered.length,1);assert.deepEqual(filtered[0].jobs,all[0].jobs);assert.equal(jobs[0].id,'today');
  assert.equal(shopFloorGroups(jobs,'Verification')[0].jobs.length,0);
 });
+
+
+// Unified Settings reporting selectors preserve the existing four-date storage contract.
+test("Calendar/fiscal selectors preserve custom dates and wrap fiscal years",async()=>{
+ const {fiscalQuarterStarts,fiscalStartMonth}=await import("../src/lib/domain/presentation");
+ assert.deepEqual(fiscalQuarterStarts(1),["01-01","04-01","07-01","10-01"]);
+ assert.deepEqual(fiscalQuarterStarts(10),["10-01","01-01","04-01","07-01"]);
+ assert.equal(fiscalStartMonth(["10-01","01-01","04-01","07-01"]),10);
+ assert.equal(fiscalStartMonth(["01-15","04-15","07-15","10-15"]),null);
+ assert.equal(fiscalStartMonth(["01-01","04-01","08-01","10-01"]),null);
+});
+test("Support and Questions partition by mailbox without exposing internal context IDs",async()=>{
+ const {supportMailboxMatches,supportContextLines}=await import("../src/lib/domain/support-view");
+ assert.equal(supportMailboxMatches("hello",true),true);assert.equal(supportMailboxMatches("support",true),false);
+ assert.equal(supportMailboxMatches("support",false),true);assert.equal(supportMailboxMatches("hello",false),false);
+ assert.equal(supportMailboxMatches("unknown",false),false);
+ assert.deepEqual(supportContextLines({job_code:"TT-J-2026-00001",job_id:"internal",gmail_message_id:"provider",items:[{article:"Drill",quantity:2}]}),[{label:"job code",value:"TT-J-2026-00001"},{label:"items 1 · article",value:"Drill"},{label:"items 1 · quantity",value:"2"}]);
+});
+
+test("Modal submit targets ignore a named id control and retain existing form IDs",async()=>{
+ const {modalFormTarget}=await import("../src/lib/domain/modal-form-target");
+ const attributes=new Map<string,string>();
+ const form={id:{name:"id",value:"record-id"},getAttribute:(name:string)=>attributes.get(name)??null,setAttribute:(name:string,value:string)=>{attributes.set(name,value);}};
+ assert.equal(modalFormTarget(form,"modal-form-1"),"modal-form-1");
+ assert.equal(modalFormTarget(form,"another-fallback"),"modal-form-1");
+ assert.deepEqual(form.id,{name:"id",value:"record-id"});
+ assert.equal(attributes.get("id"),"modal-form-1");
+});

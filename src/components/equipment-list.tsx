@@ -59,7 +59,7 @@ export function EquipmentList({assets, categories, expenses, expense}: {
     <dialog ref={detail} className="hex-dialog equipment-registration-modal" aria-labelledby={detailTitle} onClose={() => setSelected(null)}><HexModalFrame>
       <header className="pagehead"><h2 id={detailTitle}>{selected?.name ?? "Equipment details"}</h2><ModalClose type="button" className="secondary modal-close" onClick={closeDetail} aria-label="Close dialog">×</ModalClose></header>
       {selected && <dl className="equipment-detail-grid">
-        <dt>Equipment ID</dt><dd>{selected.id}</dd>
+
         <dt>Category</dt><dd>{selected.category}</dd>
         <dt>Serial Number</dt><dd>{selected.serialNumber || "—"}</dd>
         <dt>Warranty Expiration</dt><dd>{selected.warrantyExpiration || "—"}</dd>

@@ -88,3 +88,41 @@ Structure validation: typecheck, lint (zero warnings), and 218 tests (38 CommonJ
 Visual validation: desktop table geometry; Shop Floor five sections and filtered chronology; 320/390px grids/cards without horizontal overflow; driver selection/on-route/detail; customer steps 1–3 without submission; fixed modal header/footer, exactly one overflowing body, exterior 42px X on desktop/phone, native required-field rejection and successful local-only fixture submission. Fixtures use synthetic props and are removed before commit. No real request, upload, email, payment or production data was created. Live authenticated and physical-camera review remains for the reviewer.
 
 This round passed typecheck, lint (zero warnings), 219 tests (38 CommonJS + 181 TypeScript) and production build. Build used non-secret placeholder public configuration, not production credentials. No migrations or server business actions changed.
+
+## Unified reference / Settings follow-up (November 2026)
+
+- `hextech-unified.css` is the final app presentation layer: supplied dark palette,
+  gold bracket corners and hex icons, self-hosted Cinzel headings, unified tabs,
+  dark forms, full-width tables, mobile cards, muted action buttons, exterior X.
+- Settings: General, Pick & Return, Prices & Taxes, Notifications, Users & Roles.
+  Business/workspace/departure settings are grouped; rules move to `/app/reference`.
+  Notification delivery monitoring moves to `/app/support/monitoring` and remains
+  Owner-only. Support inbox permissions and all mutation/RLS checks are unchanged.
+- Calendar/fiscal reporting writes the original four `MM-DD` fields to the existing
+  action/RPC. Incompatible custom dates remain the selected, preserved option until
+  the Owner explicitly chooses a new preset. No migration or scheduling change.
+- Categories keep status plus their own inline Archive/Reactivate action. Closed
+  creation disclosures do not leak their actions into the fixed footer.
+- Developer setup instructions and provider IDs are hidden in presentation. Stored
+  credentials, test recipient, account relationships and settings remain untouched.
+  Invite/link-existing remain the same Owner-checked server actions in one UI entry.
+- Approved shared fix: `HTMLFormElement.id` is shadowed by a named `id` input. The
+  previous ModalActions code generated `form="[object HTMLInputElement]"`, so even
+  Approve on a normal page could become detached from its form. Attribute access
+  fixes this; inline/non-modal buttons keep native association. A regression test
+  covers the shadowed property, and an isolated browser test created a draft quote.
+- Support/Questions now have distinct headings and an explicit mailbox partition;
+  selected conversations must also match the selected mailbox/status. The original
+  code already filtered hello from support, so no duplicated production rows have
+  been inferred or relabeled. No changes to ingestion, sending or closure protocol.
+- Production read-only diagnosis: old visual TEST requests have `details.items` but
+  omit `details.quote_items`; `private.get_tagged_scope` returns “Add at least one
+  item” for those records. This is separate from the UI submit bug. No TEST data
+  repair, production approval, reset, or seeding has been performed in this round.
+  MLab will validate the updated preview separately; data repair/reset needs its
+  own reviewed inventory/plan, scoped to ToolTag and preserving BOFT/configuration.
+
+Validation for this follow-up: typecheck, lint, 222 tests (38 CJS + 184 TS),
+and production build passed. Isolated browser checks covered draft creation,
+mailbox separation, fiscal persistence, inline category actions, zero desktop
+table right gap, 320/390px exterior X visibility and fixed header/footer scrolling.
