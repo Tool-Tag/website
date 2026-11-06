@@ -54,6 +54,42 @@ test("Login errors distinguish configuration from credentials without leaking ra
 });
 
 import { blankItem, withAdaptation } from "../src/lib/domain/quote-items";
+test('Staff callback accepts only fixed local destinations',async()=>{
+ const {staffAuthDestination,staffAuthContinuation}=await import('../src/lib/domain/staff-auth');
+ assert.equal(staffAuthDestination('/auth/reset'),'/auth/reset');
+ for(const next of [null,'https://evil.example','//evil.example','/auth/reset?redirect=https://evil.example','/other'])assert.equal(staffAuthDestination(next),'/app');
+ const url=staffAuthContinuation('https://tooltag.martinlab.studio','/auth/reset');assert.equal(url.origin,'https://tooltag.martinlab.studio');assert.equal(url.pathname,'/auth/complete');assert.equal(url.searchParams.get('next'),'/auth/reset');
+});
+test('Staff invite and cross-browser recovery exchange the fragment and validate the user before password setup',async()=>{
+ const {completeStaffAuth}=await import('../src/lib/domain/staff-auth');
+ for(const type of ['invite','recovery']){
+  const calls:string[]=[];const result=await completeStaffAuth(`#type=${type}&access_token=test-access&refresh_token=test-refresh`,{setSession:async tokens=>{calls.push('session');assert.deepEqual(tokens,{access_token:'test-access',refresh_token:'test-refresh'});return {error:null};},getUser:async()=>{calls.push('verify');return {data:{user:{id:'test'}},error:null};}});
+  assert.deepEqual(calls,['session','verify']);assert.deepEqual(result,{ok:true,destination:'/auth/reset'});
+ }
+});
+test('Staff link errors never use an unrelated existing session or expose tokens',async()=>{
+ const {completeStaffAuth}=await import('../src/lib/domain/staff-auth');let calls=0;
+ const auth={setSession:async()=>{calls++;return {error:null};},getUser:async()=>{calls++;return {data:{user:{id:'existing-owner'}},error:null};}};
+ for(const fragment of ['','#type=invite','#access_token=secret&refresh_token=secret&type=signup','#error=secret&type=recovery&access_token=secret&refresh_token=secret']){const result=await completeStaffAuth(fragment,auth);assert.equal(result.ok,false);assert.ok(!JSON.stringify(result).includes('secret'));}assert.equal(calls,0);
+ const fragment='#type=invite&access_token=secret&refresh_token=secret';
+ assert.equal((await completeStaffAuth(fragment,{...auth,setSession:async()=>({error:new Error('secret')})})).ok,false);
+ assert.equal((await completeStaffAuth(fragment,{...auth,getUser:async()=>({data:{user:null},error:null})})).ok,false);
+ assert.equal((await completeStaffAuth(fragment,{...auth,setSession:async()=>{throw new Error('secret');}})).ok,false);
+});
+
+test('An expired prior login cannot block public invitation entry, while protected password/workspace routes retain their session gate',async()=>{
+ const {isStaffAuthEntry}=await import('../src/lib/domain/staff-auth');
+ assert.equal(isStaffAuthEntry('/auth/callback'),true);assert.equal(isStaffAuthEntry('/auth/complete'),true);
+ for(const path of ['/auth/reset','/app','/app/settings','/auth/complete/anything','/pick-return'])assert.equal(isStaffAuthEntry(path),false);
+});
+
+test('Staff emails require an explicit HTTPS origin and never silently fall back to localhost or a preview deployment',async()=>{
+ const {staffPasswordRedirect}=await import('../src/lib/domain/staff-auth');
+ assert.equal(staffPasswordRedirect('https://tooltag.martinlab.studio/'),'https://tooltag.martinlab.studio/auth/callback?next=/auth/reset');
+ for(const origin of [undefined,'','not-a-url','http://tooltag.martinlab.studio','https://localhost','http://localhost:3000','https://user:pass@example.com','https://example.com/path','https://example.com/?next=bad'])assert.equal(staffPasswordRedirect(origin),null);
+ assert.equal(staffPasswordRedirect('http://localhost:3000',true),'http://localhost:3000/auth/callback?next=/auth/reset');
+});
+
 test("Logo adaptation charges once per distinct link, across quantities and articles", () => {
   const a = {
     ...blankItem(),

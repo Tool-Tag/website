@@ -3,7 +3,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { requireOwner, requirePermission } from "@/lib/domain/context";
 import { storageAdmin } from "@/lib/storage/admin";
-import { toolTagPublicUrl } from "@/lib/payments";
+import {staffPasswordRedirect} from "@/lib/domain/staff-auth";
 export type RbacResult = {error?: string; ok?: boolean};
 export async function saveRole(_: RbacResult, form: FormData): Promise<RbacResult> {
   try {
@@ -28,7 +28,9 @@ export async function inviteStaffUser(_: RbacResult, form: FormData): Promise<Rb
     const roles = form.getAll("roles").map(value => z.uuid().parse(value));
     const directory = await db.rpc("rbac_directory");
     if (directory.error || !roles.length || roles.some(id => !directory.data?.roles?.some((r: {id:string}) => r.id === id))) return {error:"Choose valid ToolTag roles."};
-    const {data,error} = await storageAdmin().auth.admin.inviteUserByEmail(email,{redirectTo:`${toolTagPublicUrl()}/auth/callback?next=/auth/reset`});
+    const redirectTo=staffPasswordRedirect(process.env.TOOLTAG_PUBLIC_URL,process.env.NODE_ENV!=="production");
+    if(!redirectTo)return {error:"Configure TOOLTAG_PUBLIC_URL with the approved site origin before sending staff invitations."};
+    const {data,error} = await storageAdmin().auth.admin.inviteUserByEmail(email,{redirectTo});
     if (error || !data.user) return {error:"Invitation could not be sent. For an existing account, add its User ID below."};
     const saved = await db.rpc("rbac_save_user",{p_user:data.user.id,p_name:String(form.get("name") || "").slice(0,100),p_active:true,p_roles:roles});
     if(saved.error) return {error:"Invitation sent, but access was not assigned. Add the invited User ID before they can enter ToolTag."};
@@ -42,7 +44,11 @@ export async function resetStaffCredentials(_: RbacResult, form: FormData): Prom
     const directory = await db.rpc("rbac_directory");
     const target = directory.data?.users?.find((u: {id:string;email:string}) => u.id===id);
     if(directory.error || !target?.email) return {error:"ToolTag user unavailable."};
-    const {error} = await db.auth.resetPasswordForEmail(target.email,{redirectTo:`${toolTagPublicUrl()}/auth/callback?next=/auth/reset`});
+    // A staff Owner requests recovery on behalf of another person/browser.
+    // Do not bind the recipient link to a PKCE verifier in the Owner's cookies.
+    const redirectTo=staffPasswordRedirect(process.env.TOOLTAG_PUBLIC_URL,process.env.NODE_ENV!=="production");
+    if(!redirectTo)return {error:"Configure TOOLTAG_PUBLIC_URL with the approved site origin before sending recovery emails."};
+    const {error} = await storageAdmin().auth.resetPasswordForEmail(target.email,{redirectTo});
     if(error) return {error:"Recovery email could not be sent."};
     const logged=await db.rpc("rbac_log_credential_reset",{p_user:id});
     if(logged.error)return {error:"Recovery requested, but the audit record could not be saved."};
