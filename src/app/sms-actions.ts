@@ -17,9 +17,9 @@ export async function saveSmsSettings(_state: SmsActionState, form: FormData): P
   let encrypted: string | null = null;
   try {
     if (accessKeyId) encrypted = encryptSmsCredentials({ accessKeyId, secretAccessKey, sessionToken: sessionToken || undefined });
-  } catch { return { error: "Configure TOOLTAG_SMS_SETTINGS_ENCRYPTION_KEY in Vercel before saving AWS keys here. Alternatively configure the AWS keys directly in Vercel." }; }
+  } catch { return { error: "Secure credential storage is unavailable. Contact your workspace administrator." }; }
   if (enabled) {
-    if (!["test", "live"].includes(process.env.TOOLTAG_SMS_MODE ?? "") || !smsNetworkAllowed()) return { error: "SMS activation requires TOOLTAG_SMS_MODE=test or live in production. Test mode sends automatic alerts only for TEST- customers to the configured test recipient." };
+    if (!["test", "live"].includes(process.env.TOOLTAG_SMS_MODE ?? "") || !smsNetworkAllowed()) return { error: "SMS delivery is not active for this workspace. Contact your workspace administrator." };
     const admin = smsAdminClient(); if (!admin) return { error: "The server SMS integration is not configured." };
     const current = await admin.rpc("sms_runtime_config");
     try {
@@ -27,13 +27,13 @@ export async function saveSmsSettings(_state: SmsActionState, form: FormData): P
     } catch { return { error: "Stored SMS credentials could not be read. Replace them or check the server encryption key." }; }
   }
   const { error } = await db.rpc("save_sms_settings", { p_config: { enabled, region, origination_number: origin, test_phone: testPhone }, p_encrypted: encrypted });
-  if (error) return { error: "SMS settings could not be saved. Check that the SMS migration is applied." };
+  if (error) return { error: "SMS settings could not be saved. Contact your workspace administrator." };
   revalidatePath("/app/settings"); return { message: enabled ? "SMS enabled for new, consented notifications only." : "Settings saved. Customer SMS is disabled." };
 }
 export async function sendTestSms(_state: SmsActionState, form: FormData): Promise<SmsActionState> {
   const { db, access } = await context(); if (!access.owner) return { error: "Admin access required." };
   if (form.get("test_consent") !== "on") return { error: "Confirm that the configured test number is yours and you consent to this SMS." };
-  const admin = smsAdminClient(); if (!admin || !smsNetworkAllowed()) return { error: "Configure SMS credentials and TOOLTAG_SMS_MODE=test or live in Vercel first." };
+  const admin = smsAdminClient(); if (!admin || !smsNetworkAllowed()) return { error: "SMS delivery is not configured. Contact your workspace administrator." };
   try {
     const result = await admin.rpc("sms_runtime_config"); if (result.error) return { error: "SMS database setup is pending." };
     const config = resolveSmsConfig(result.data ?? {}); if (!config || normalizeSmsPhone(config.testPhone) !== config.testPhone) return { error: "Save AWS credentials, region, origination number and an international-format test recipient first." };

@@ -1,3 +1,4 @@
+import {HexIcon} from "./hex-icon";
 import {displayLabel} from "@/lib/domain/ui-labels";
 import { money } from "@/lib/domain/money";
 export function Heading({
@@ -29,7 +30,7 @@ export function Panel({
 }) {
   return (
     <section className="panel">
-      {title && <h2>{title}</h2>}
+      {title && <header className="hex-panel-head"><h2>{title}</h2></header>}
       {children}
     </section>
   );
@@ -49,7 +50,8 @@ export function Metric({
 }) {
   return (
     <div className={`metric${tone ? ` metric-${tone}` : ""}`}>
-      <span className="muted">{label}</span>
+      <HexIcon name={/request/i.test(label)?"request":/quote/i.test(label)?"quote":/job/i.test(label)?"job":/stop|pickup|delivery|route/i.test(label)?"route":"finance"}/>
+      <span className="muted metric-label">{label}</span>
       <strong>{currency ? money(value) : String(value ?? 0)}</strong>
       {help && <small>{help}</small>}
     </div>
@@ -63,7 +65,8 @@ export function Empty({
   return <p className="empty">{children}</p>;
 }
 export function Badge({ children }: { children: React.ReactNode }) {
-  return <span className="badge">{typeof children==="string"?displayLabel(children):children}</span>;
+  const value=typeof children==="string"?children:"";const tone=/Accepted|Completed|Approved|Ready|Delivered|Verified/.test(value)?"gold":/Process|Review|Scheduled|Pending|Draft/.test(value)?"blue":"neutral";
+  return <span className="badge" data-tone={tone}>{typeof children==="string"?displayLabel(children):children}</span>;
 }
 export function Table({
   headers,
@@ -74,7 +77,8 @@ export function Table({
 }) {
   return (
     <div className="tablewrap">
-      <table>
+      <table className="hex-data-table">
+        <colgroup>{headers.map((header,index)=><col key={`${header}-${index}`} style={{width:`${100/headers.length}%`}}/>)}</colgroup>
         <thead>
           <tr>
             {headers.map((h) => (

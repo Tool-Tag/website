@@ -1,3 +1,4 @@
+import {RecordList} from "@/components/record-list";
 import {can} from "@/lib/auth/permissions";
 import {SmsCosts} from "@/features/sms-costs";
 import { TaxBreakdown } from "@/components/tax-breakdown";
@@ -6,7 +7,7 @@ import { requirePermission } from "@/lib/domain/context";
 import { AcceptedDocuments } from "@/components/accepted-documents";
 import Link from "next/link";
 import { rows, context } from "@/lib/domain/context";
-import { Heading, Panel, Table, Empty, Badge } from "@/components/ui";
+import { Heading, Panel, Empty, Badge } from "@/components/ui";
 import { SendQuote } from "@/components/send-quote";
 import { QuoteScope } from "@/components/quote-scope";
 import { QuoteBuilder } from "@/components/quote-builder";
@@ -247,33 +248,8 @@ export async function Quotes({
   ) => (
     <Panel>
       {quotes.length ? (
-        <Table headers={["Quote", "Version", "Status", "Validity"]}>
-          {quotes.map((q) => {
-            const displayStatus =
-              completedLabel && q.status === "Accepted" && hasClosedJob(q.id)
-                ? "Completed"
-                : quoteStatusLabel(q.status);
+        <RecordList label="Quote" empty={empty} rows={quotes.map(q=>{const status=completedLabel&&q.status==='Accepted'&&hasClosedJob(q.id)?'Completed':quoteStatusLabel(q.status);const validity=q.expires_at?new Date(q.expires_at).toLocaleDateString('en-US',{timeZone:'America/Denver'}):q.status==='Draft'?'Not sent':'—';return {id:q.id,title:q.code,reference:`Revision ${q.revision}`,description:`${status} · ${validity}`,status,icon:'quote',details:[{label:'Quote',value:q.code},{label:'Revision',value:String(q.revision)},{label:'Status',value:status},{label:'Validity',value:validity}],actions:[{label:'Open Quote',href:`/app/quotes/${q.id}`}]};})}/>
 
-            return (
-              <tr key={q.id}>
-                <td>
-                  <Link href={`/app/quotes/${q.id}`}>{q.code}</Link>
-                </td>
-                <td>{q.revision}</td>
-                <td>
-                  <Badge>{displayStatus}</Badge>
-                </td>
-                <td>
-                  {q.expires_at
-                    ? new Date(q.expires_at).toLocaleDateString("en-US", {timeZone:"America/Denver"})
-                    : q.status === "Draft"
-                      ? "Not sent"
-                      : "—"}
-                </td>
-              </tr>
-            );
-          })}
-        </Table>
       ) : (
         <Empty>{empty}</Empty>
       )}

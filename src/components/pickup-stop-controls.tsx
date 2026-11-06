@@ -1,4 +1,5 @@
 "use client";
+import {ModalActions} from "./hex-modal-frame";
 import {useAccess} from "./permission-provider";
 import {canAny} from "@/lib/auth/permissions";
 import {driverLocation} from "@/lib/domain/driver-location";
@@ -6,6 +7,7 @@ import {useEffect,useState,useTransition} from "react";
 import {useRouter} from "next/navigation";
 import {pickupDriverAction} from "@/app/pickup-driver-actions";
 export function PickupStopControls({stop,status,waitUntil,coming,blocked,hasEvidence,phone,nextStop}:{stop:string;status:string;waitUntil?:string|null;coming?:string|null;blocked:boolean;hasEvidence:boolean;phone?:string;nextStop?:string}){
+ const [missingPhoto,setMissingPhoto]=useState(false);
  const access=useAccess();
  const router=useRouter();const [now,setNow]=useState(0);const [pending,start]=useTransition();const [error,setError]=useState("");
  useEffect(()=>{const tick=()=>setNow(Date.now());tick();const id=setInterval(tick,1000);return()=>clearInterval(id);},[]);
@@ -16,11 +18,11 @@ export function PickupStopControls({stop,status,waitUntil,coming,blocked,hasEvid
  if(!canAny(access,["driver.routes","pr.routes.live"]))return null;
  return <div className="pickup-controls">
  {blocked&&<p role="alert" className="notice error">Route paused, Cancellation Requested or Production Hold. Pickup is blocked.</p>}
- {status==="Scheduled"&&<button disabled={pending||blocked} onClick={()=>run("en-route")}>Start · En Route</button>}
- {status==="En Route"&&<button disabled={pending||blocked} onClick={()=>run("arrived")}>Arrived</button>}
+ {status==="Scheduled"&&<ModalActions><button disabled={pending||blocked} onClick={()=>run("en-route")}>Start · En Route</button></ModalActions>}
+ {status==="En Route"&&<ModalActions><button disabled={pending||blocked} onClick={()=>run("arrived")}>Arrived</button></ModalActions>}
  {status==="Arrived"&&<>
- <button disabled={pending||blocked||!hasEvidence} onClick={()=>run("picked-up")}>Picked Up</button>
- {!hasEvidence&&<p className="muted">Add receiving photos before collecting this stop.</p>}
+ <ModalActions><button disabled={pending||blocked} onClick={()=>{if(!hasEvidence){setMissingPhoto(true);return;}run("picked-up");}}>Picked Up</button></ModalActions>
+ {missingPhoto&&!hasEvidence&&<p role="alert" className="notice">Upload receiving photos before saving this pickup.</p>}
  <p className="pickup-timer" aria-live="off">{coming?"Customer is coming out":`Arrival wait · ${count}`}</p>
  <button className="secondary" disabled={pending||blocked||Boolean(coming)||left>0} onClick={()=>run("pickup-miss")}>Continue to next stop{!coming&&left>0?` · ${count}`:""}</button>
  {!coming&&left>0&&<button className="secondary" disabled={pending||blocked} onClick={()=>run("customer-coming")}>Customer said they are coming out</button>}

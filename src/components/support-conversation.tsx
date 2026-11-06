@@ -1,4 +1,5 @@
 "use client";
+import {ModalActions} from "./hex-modal-frame";
 import { useContext, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { closeSupportCase, markSupportRead, replySupport } from "@/app/support-actions";
@@ -11,8 +12,8 @@ export function SupportConversation({id,through,closed,canClose,sendEnabled}:{id
  <label htmlFor="support-reply">Reply · your name is added automatically</label><textarea id="support-reply" value={body} onChange={e=>setBody(e.target.value)} maxLength={20000} rows={6} required disabled={pending} aria-describedby={!sendEnabled?"support-reply-status":undefined}/>
  {!sendEnabled && <p id="support-reply-status" className="muted">You can write a reply, but Gmail sending is not enabled in this environment. Your reply has not been sent.</p>}
  {error && <p className="notice error" role="alert">{error}</p>}
- <div className="actions support-reply-actions"><button disabled={pending || closure?.pending || !sendEnabled || !body.trim()}>{pending ? "Working…":"Send reply"}</button>
+ <ModalActions className="actions support-reply-actions"><button disabled={pending || closure?.pending || !sendEnabled || !body.trim()}>{pending ? "Working…":"Send reply"}</button>
  {canClose && !closed && <button type="button" className="secondary" disabled={pending} onClick={()=>start(async()=>{const result=await closeSupportCase(id);setError(result.error || "");router.refresh();})}>Mark resolved</button>}
- {closure && !closure.closed && <button type="button" className="danger support-end-inquiry" disabled={pending || closure.pending} onClick={closure.open}>{closure.label}</button>}</div>
+ {closure && !closure.closed && <button type="button" className="danger support-end-inquiry" disabled={pending || closure.pending} onClick={closure.open}>{closure.label}</button>}</ModalActions>
  </form></div>;
 }

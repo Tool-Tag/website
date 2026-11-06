@@ -44,12 +44,12 @@ export async function FinanceTransactions({search={},header}:{search?:Transactio
     </section>}>
     <Panel>
     {invalidRange&&<p role="alert">The start date must be on or before the end date.</p>}
-    <p role="status">{total} transaction{total===1?"":"s"} · {total?`${(page-1)*TRANSACTION_PAGE_SIZE+1}–${Math.min(page*TRANSACTION_PAGE_SIZE,total)}`:"0"} shown</p>
+
     {result.data?.length?<Table headers={["Date","Transaction","Type","Amount","Status"]}>{result.data.map(t=><tr key={t.id}><td>{t.transaction_date}</td><td><Link href={`/app/finance/transactions/${t.id}`}>{t.description}</Link></td><td>{t.type}</td><td>{money(t.amount)}</td><td><Badge>{t.status}</Badge></td></tr>)}</Table>:<Empty>No transactions match these filters.</Empty>}
     </Panel><nav className="actions pagination" aria-label="Transaction pages">
-      {page>1?<Link className="button secondary" href={transactionPageUrl(filters,page-1)}>Previous</Link>:<button type="button" disabled>Previous</button>}
+      {page>1?<Link className="button menu-link-gold" href={transactionPageUrl(filters,page-1)}>Previous</Link>:<button type="button" disabled>Previous</button>}
       <span>Page {page} of {pages}</span>
-      {page<pages?<Link className="button secondary" href={transactionPageUrl(filters,page+1)}>Next</Link>:<button type="button" disabled>Next</button>}
+      {page<pages?<Link className="button menu-link-gold" href={transactionPageUrl(filters,page+1)}>Next</Link>:<button type="button" disabled>Next</button>}
     </nav>
   </FinanceListFrame>;
 }

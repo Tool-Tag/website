@@ -1,4 +1,3 @@
-import {TRANSACTION_PAGE_SIZE} from "@/lib/domain/transaction-filters";
 import Link from "next/link";
 import {financePageUrl,type FinanceSelect} from "@/lib/domain/finance-list";
 export function FinanceListControls({path,title,placeholder,values,selects}:{path:string;title:string;placeholder:string;values:Record<string,string>;selects:FinanceSelect[]}){
@@ -12,7 +11,7 @@ export function FinanceListControls({path,title,placeholder,values,selects}:{pat
  {values.from&&values.to&&values.from>values.to&&<p role="alert">The start date must be on or before the end date.</p>}
  </section>;
 }
-export function FinancePagination({path,values,total,page,pages}:{path:string;values:Record<string,string>;total:number;page:number;pages:number}){
- return <><p role="status">{total} record{total===1?"":"s"} · {total?`${(page-1)*TRANSACTION_PAGE_SIZE+1}–${Math.min(page*TRANSACTION_PAGE_SIZE,total)}`:"0"} shown</p>
- <nav className="actions pagination" aria-label="Finance pages">{page>1?<Link className="button secondary" href={financePageUrl(path,values,page-1)}>Previous</Link>:<button type="button" disabled>Previous</button>}<span>Page {page} of {pages}</span>{page<pages?<Link className="button secondary" href={financePageUrl(path,values,page+1)}>Next</Link>:<button type="button" disabled>Next</button>}</nav></>;
+export function FinancePagination({path,values,page,pages}:{path:string;values:Record<string,string>;total:number;page:number;pages:number}){
+ return <>
+ <nav className="actions pagination" aria-label="Finance pages">{page>1?<Link className="button menu-link-gold" href={financePageUrl(path,values,page-1)}>Previous</Link>:<button type="button" disabled>Previous</button>}<span>Page {page} of {pages}</span>{page<pages?<Link className="button menu-link-gold" href={financePageUrl(path,values,page+1)}>Next</Link>:<button type="button" disabled>Next</button>}</nav></>;
 }

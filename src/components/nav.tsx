@@ -2,6 +2,7 @@
 
 import { canAny, sectionPermissions, type Access } from "@/lib/auth/permissions";
 import Link from "next/link";
+import {HexIcon} from "./hex-icon";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorkspaceAttention } from "@/lib/domain/workspace-attention";
@@ -306,6 +307,7 @@ export function Nav({
           title: "Open Jobs",
           attentionKey: "jobs",
         },
+        {path:"shop-floor",label:"Shop Floor"},
         { path: "pick-return", label: "Pick Up & Delivery" },
         { path: "lost", label: "Lost", count:liveAttention.lost,attentionKey:"lost",title:"Lost cases requiring attention" },
         { path: "customers", label: "Customers" },
@@ -344,7 +346,7 @@ export function Nav({
             title={link.title}
             className="workspace-nav-link"
           >
-            <span>{link.label}</span>
+            <HexIcon name={({"":"dashboard","get-tagged":"request",quotes:"quote",jobs:"job","shop-floor":"equipment","pick-return":"route",lost:"lost",refunds:"finance",finance:"finance",customers:"customer",support:"support",equipment:"equipment"} as Record<string,string>)[link.path]}/><span>{link.label}</span>
             {(count > 0 || delicate) && (
               <span
                 className={`workspace-nav-count workspace-nav-count-${color??"neutral"}${isNudging ? " workspace-nav-count-attention" : ""}`}
@@ -356,8 +358,8 @@ export function Nav({
           </Link>
         );
       };
-  const visible=links.filter(link=>canAny(access,sectionPermissions(link.path)));
+  const visible=links.filter(link=>canAny(access,link.path==='shop-floor'?['jobs.view','production.work']:sectionPermissions(link.path)));
   if(!grouped)return <nav>{visible.map(renderLink)}</nav>;
-  const groups=[{name:"Main",paths:["","get-tagged","quotes"],utility:[]},{name:"Operations",paths:["jobs","pick-return","lost"],utility:["/pick-return","/hub"]},{name:"Business",paths:["customers","finance","refunds","support","equipment"],utility:["/app/finance-hub","/"]},{name:"System",paths:[],utility:["/app/settings"]}];
-  return <nav aria-label="Mobile workspace navigation">{groups.map(group=><section key={group.name} className="mobile-nav-section"><h3>{group.name}</h3>{visible.filter(link=>group.paths.includes(link.path)).map(renderLink)}{utilities.filter(link=>group.utility.includes(link.href)).map(link=><Link className="workspace-nav-link" key={link.href} href={link.href}>{link.label}</Link>)}</section>)}</nav>;
+  const groups=[{name:"Main",paths:["","get-tagged","quotes"],utility:[]},{name:"Operations",paths:["pick-return","jobs","shop-floor","lost","support"],utility:["/pick-return","/hub"]},{name:"Business",paths:["customers","finance","refunds","equipment"],utility:["/app/finance-hub","/"]},{name:"System",paths:[],utility:["/app/settings"]}];
+  return <nav aria-label="Workspace navigation">{groups.filter(group=>visible.some(link=>group.paths.includes(link.path))||utilities.some(link=>group.utility.includes(link.href))).map(group=><section key={group.name} className="mobile-nav-section"><h3>{group.name}</h3>{visible.filter(link=>group.paths.includes(link.path)).map(renderLink)}{utilities.filter(link=>group.utility.includes(link.href)).map(link=><Link className="workspace-nav-link" key={link.href} href={link.href}><HexIcon name={link.href==='/hub'?'clock':link.href==='/pick-return'?'route':link.href==='/'?'globe':link.href==='/app/settings'?'settings':'finance'}/><span>{link.label}</span></Link>)}</section>)}</nav>;
 }

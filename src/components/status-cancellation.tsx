@@ -1,4 +1,6 @@
 "use client";
+import {HexModalFrame,ModalActions} from "./hex-modal-frame";
+
 import {DialogClose} from "./dialog-close";
 
 import { useActionState, useEffect, useRef } from "react";
@@ -64,7 +66,7 @@ export function StatusCancellation({ token }: { token: string }) {
         </p>
       )}
 
-      <dialog ref={dialogRef} className="cancel-dialog"><DialogClose/>
+      <dialog ref={dialogRef} className="hex-dialog cancel-dialog"><HexModalFrame><DialogClose/>
         {assessment && (
           <div className="stack">
             <div>
@@ -146,16 +148,16 @@ export function StatusCancellation({ token }: { token: string }) {
               </form>
             )}
 
-            <button
+            <ModalActions><button
               type="button"
               className="secondary"
               onClick={() => dialogRef.current?.close()}
             >
               Keep Service
-            </button>
+            </button></ModalActions>
           </div>
         )}
-      </dialog>
+      </HexModalFrame></dialog>
     </section>
   );
 }

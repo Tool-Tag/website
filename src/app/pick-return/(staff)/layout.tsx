@@ -1,3 +1,4 @@
+import {WorkspaceBrand} from "@/components/hex-icon";
 import { StaffLoginAttention } from "@/components/staff-login-attention";
 import { SessionTimeout } from "@/components/session-timeout";
 import Link from "next/link";
@@ -16,12 +17,9 @@ export default async function PickReturnLayout({
 
   return (
     <PermissionProvider access={ctx.access}><SessionTimeout expiresAt={ctx.session.expires_at} serverNow={ctx.session.server_now}/><StaffLoginAttention db={ctx.db} sessionId={ctx.session.session_id}/><div className="workspace driver-workspace">
-      <header className="topbar">
+      <header className="topbar driver-road-header">
         <Link className="brand" href="/pick-return">
-          Tool<span>Tag</span>
-          <small style={{ fontSize: 10, display: "block", letterSpacing: 3 }}>
-            PICK UP &amp; DELIVERY
-          </small>
+          <WorkspaceBrand subtitle="On the road"/>
         </Link>
         {!driverOnly(ctx.access) && <Link className="button secondary" href="/app">
           Back to Workspace

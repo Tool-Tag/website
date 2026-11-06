@@ -1,4 +1,6 @@
 "use client";
+import {HexModalFrame,ModalActions} from "./hex-modal-frame";
+
 import {ModalClose} from "./modal-close";
 import {DialogClose} from "./dialog-close";
 import { useAccess } from "./permission-provider";
@@ -195,9 +197,9 @@ export function QuoteBuilder({
       </form>
       <dialog
         ref={dialog}
-        className="quote-dialog"
+        className="hex-dialog quote-dialog"
         aria-labelledby="article-title"
-      >
+      ><HexModalFrame>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -472,7 +474,7 @@ export function QuoteBuilder({
                   onChange={(e) => update("notes", e.target.value)}
                 />
               </label>
-              <div className="actions">
+              <ModalActions>
                 <button
                   type="button"
                   className="secondary"
@@ -481,16 +483,16 @@ export function QuoteBuilder({
                   Cancel
                 </button>
                 <button>Save Item</button>
-              </div>
+              </ModalActions>
             </>
           )}
         </form>
-      </dialog>
+      </HexModalFrame></dialog>
       <dialog
         ref={paintDialog}
-        className="quote-dialog"
+        className="hex-dialog quote-dialog"
         aria-labelledby="paint-title"
-      ><DialogClose/>
+      ><HexModalFrame><DialogClose/>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -537,7 +539,7 @@ export function QuoteBuilder({
               />
             </label>
           )}
-          <div className="actions">
+          <ModalActions>
             <button
               type="button"
               className="secondary"
@@ -546,9 +548,9 @@ export function QuoteBuilder({
               Cancel
             </button>
             <button>Save Paint</button>
-          </div>
+          </ModalActions>
         </form>
-      </dialog>
+      </HexModalFrame></dialog>
     </>
   );
 }

@@ -1,4 +1,6 @@
 "use client";
+import {HexModalFrame,ModalActions} from "./hex-modal-frame";
+
 import {ModalClose} from "./modal-close";
 
 import Link from "next/link";
@@ -108,11 +110,10 @@ export function EvidenceGallery({
         </p>
       )}
 
-      <dialog ref={dialog} className="quote-dialog evidence-dialog">
+      <dialog ref={dialog} className="hex-dialog quote-dialog evidence-dialog"><HexModalFrame>
+        <header><p className="eyebrow">{file?.type || "ToolTag Document"}</p><h2>{file?.file_name || file?.original_file_name || file?.name || "Evidence"}</h2></header>
         {file && (
           <>
-            <p className="eyebrow">{file.type || "ToolTag Document"}</p>
-            <h2>{file.file_name || file.original_file_name || file.name}</h2>
 
             <div className="grid two">
               <div>
@@ -144,6 +145,7 @@ export function EvidenceGallery({
             {file.notes && <p>{file.notes}</p>}
             <p className="notice">{publicView&&file.type==="Accepted Agreement"?"To view your agreement, check your email. A copy was sent when you accepted your quote. You can also email yourself another copy using the button below.":storageCopy(file)}</p>
 
+            <ModalActions>
             {publicView&&statusToken&&file.type==="Accepted Agreement"&&<ResendAgreementDocument key={file.id} token={statusToken} document={file.id}/>}
             {publicView && viewerBase && file.type!=="Accepted Agreement" && (
               <p>
@@ -184,10 +186,11 @@ export function EvidenceGallery({
                 </p>
               )}
 
+            </ModalActions>
             <ModalClose type="button" onClick={() => dialog.current?.close()} aria-label="Close dialog" className="modal-close">×</ModalClose>
           </>
         )}
-      </dialog>
+      </HexModalFrame></dialog>
     </>
   );
 }

@@ -13,10 +13,15 @@ const compiled = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
  compilerOptions: {module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022},
 }).outputText;
 const closureContext = React.createContext(null);
+const formTargetExports={};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.resolve(__dirname,'../src/lib/domain/modal-form-target.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:formTargetExports,require});
+const hexExports={};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.resolve(__dirname,'../src/components/hex-modal-frame.tsx'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022}}).outputText,{exports:hexExports,require(name){return name==='@/lib/domain/modal-form-target'?formTargetExports:require(name);}});
 const exportsObject = {};
 vm.runInNewContext(compiled, {
  exports: exportsObject,
  require(name) {
+  if (name === './hex-modal-frame') return hexExports;
   if (name === './support-case-modal') return {SupportClosureContext: closureContext};
   if (name === 'next/navigation') return {useRouter: () => ({refresh() {}})};
   if (name === '@/app/support-actions') return {
