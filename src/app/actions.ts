@@ -309,7 +309,36 @@ export async function mutate(
       default:
         return { error: "Unknown action" };
     }
-    const { data, error } = await db.rpc(name, args);
+    let { data, error } = await db.rpc(name, args);
+    if (
+      operation === "get-tagged-approve" &&
+      !p.customer_id &&
+      error?.code === "23505" &&
+      error.message.includes("This email already belongs to another customer")
+    ) {
+      // The request's candidate snapshot can predate the matching Customer.
+      // Use the same authenticated, unit-scoped access as the approval RPC.
+      const request = await db.rpc("get_get_tagged_request", { p_id: p.id });
+      const contact = request.data?.details?.contact;
+      const email = typeof contact?.email === "string" ? contact.email.trim().toLowerCase() : "";
+      if (!request.error && email && request.data?.request_status === "Pending") {
+        const pattern = email.replace(/[\\%_]/g, "\\$&");
+        const matches = await db.from("customers")
+          .select("id, email, phone")
+          .eq("unit_id", unit)
+          .ilike("email", pattern)
+          .limit(2);
+        const match = matches.data?.length === 1 ? matches.data[0] : null;
+        const phone = typeof contact.phone === "string" ? contact.phone.trim() : "";
+        const samePhone = !phone || (
+          normalizeSmsPhone(phone) !== null &&
+          normalizeSmsPhone(phone) === normalizeSmsPhone(match?.phone ?? "")
+        );
+        if (!matches.error && match && match.email?.trim().toLowerCase() === email && samePhone) {
+          ({ data, error } = await db.rpc(name, { p_id: p.id, p_customer: match.id }));
+        }
+      }
+    }
     if (error) {
       if (error.code === "23505" && operation === "customer") {
         const field = error.message.includes("email") ? "email" : "phone number";

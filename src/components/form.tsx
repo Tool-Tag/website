@@ -51,6 +51,12 @@ export function Form({
     {},
   );
   const handled = useRef<ActionState|null>(null);
+  const approvalError = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (state.error && operation === "get-tagged-approve") {
+      approvalError.current?.focus();
+    }
+  }, [operation, state]);
   useEffect(()=>{if(state.ok && handled.current!==state){handled.current=state;onSaved?.(state.data);closeModal?.();}},[state,onSaved,closeModal]);
   if (!allowed) return null;
   return (
@@ -112,7 +118,10 @@ export function Form({
       {operation==="customer" && <PhoneVerification phone={customerPhone} />}
       {children}
       {state.error && (
-        <div role="alert" className="notice error wide">
+        <div role="alert" className="notice error wide"
+          ref={operation === "get-tagged-approve" ? approvalError : undefined}
+          tabIndex={operation === "get-tagged-approve" ? -1 : undefined}>
+          {operation === "get-tagged-approve" && <strong>Could not create quote draft. </strong>}
           {state.error}
         </div>
       )}
