@@ -26,7 +26,7 @@ export async function Jobs({ id }: { id?: string }) {
   if (!id) {
     const { db, unit } = await context();
     const { jobs, active, pendingLogisticsJobs } = await workspaceJobQueues(db, unit);
-    const newestFirst = (a: {created_at: string}, b: {created_at: string}) =>
+    const newestFirst = (a: (typeof jobs)[number], b: (typeof jobs)[number]) =>
       Date.parse(b.created_at) - Date.parse(a.created_at);
     const list = [...jobs].sort(newestFirst);
     const activeJobs = [...active].sort(newestFirst);

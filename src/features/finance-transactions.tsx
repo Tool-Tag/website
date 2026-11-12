@@ -1,3 +1,4 @@
+import {denverCalendarDate} from "@/lib/domain/time";
 import {WorkspacePagination} from "@/components/workspace-pagination";
 import {FinanceListFrame} from "@/components/finance-list-frame";
 import type {ReactNode} from "react";
@@ -46,7 +47,7 @@ export async function FinanceTransactions({search={},header}:{search?:Transactio
     <Panel>
     {invalidRange&&<p role="alert">The start date must be on or before the end date.</p>}
 
-    {result.data?.length?<Table headers={["Date","Transaction","Type","Amount","Status"]}>{result.data.map(t=><tr key={t.id}><td>{t.transaction_date}</td><td><Link href={`/app/finance/transactions/${t.id}`}>{t.description}</Link></td><td>{t.type}</td><td>{money(t.amount)}</td><td><Badge>{t.status}</Badge></td></tr>)}</Table>:<Empty>No transactions match these filters.</Empty>}
+    {result.data?.length?<Table headers={["Date","Transaction","Type","Amount","Status"]}>{result.data.map(t=><tr key={t.id}><td>{denverCalendarDate(t.transaction_date)}</td><td><Link href={`/app/finance/transactions/${t.id}`}>{t.description}</Link></td><td>{t.type}</td><td>{money(t.amount)}</td><td><Badge>{t.status}</Badge></td></tr>)}</Table>:<Empty>No transactions match these filters.</Empty>}
     </Panel><WorkspacePagination label="Transaction pages" previous={page>1 ? transactionPageUrl(filters,page-1) : undefined} next={page<pages ? transactionPageUrl(filters,page+1) : undefined} />
   </FinanceListFrame>;
 }

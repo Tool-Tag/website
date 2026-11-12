@@ -1964,12 +1964,14 @@ test("Extension proposals and second Return fees preserve their taxable totals",
 test('Refunds reserve paid amounts, enforce 14 calendar days, business-day windows and reject proof from another request',async()=>{
  const c=await createCustomer('Refund policy test','refund-policy');const q=await createQuote(c.id,'40.00');const token=await value<string>('select public.send_quote($1)',[q]);const accepted=await acceptWithLogistics(token,{option_code:'dropoff_pickup'});const job=accepted.job_id;
  const payment=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',40,'Final Balance') returning id",[unit,job]);await value('select public.confirm_payment_request($1)',[payment]);
- const date=await value<string>("select (now()-interval '14 days')::text");const now=await value<string>('select now()::text');
+ const now=await value<string>('select now()::text');
+ const issueDate=(days:number)=>value<string>("select ((($1::timestamptz at time zone 'America/Denver')::date - $2::int)::timestamp at time zone 'America/Denver')::text",[now,days]);
+ const date=await issueDate(14);
  const key=await value<string>('select gen_random_uuid()');const payload={job_id:job,amount:'10.00',reason:'Damage',issue_event:'Pickup',issue_event_at:date,reported_at:now,request_key:key};
  const id=await rpc('create_refund_request',payload);assert.equal(await rpc('create_refund_request',payload),id);
  assert.equal(Number(await value('select count(*) from public.refund_requests where request_key=$1',[key])),1);
  await assert.rejects(rpc('create_refund_request',{...payload,amount:'11.00'}),/different refund information/);
- await assert.rejects(rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),issue_event_at:await value("select (now()-interval '15 days')::text")}),/14 days/);
+ await assert.rejects(rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),issue_event_at:await issueDate(15)}),/14 days/);
  await assert.rejects(rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),amount:'31.00'}),/actually paid/);
  await assert.rejects(rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),method:'Cash'}),/check constraint/);
  assert.equal(await value("select private.refund_business_date('2026-10-09',5)::text"),'2026-10-16');assert.equal(await value("select private.refund_business_date('2026-10-09',7)::text"),'2026-10-20');
@@ -1980,7 +1982,7 @@ test('Refunds reserve paid amounts, enforce 14 calendar days, business-day windo
  const proof=await manualRefundProof(job,id,'Check');await rpc('refund_request_action',{id,action:'complete',method:'Check',account_id:account,reference:'CHECK-101',proof_id:proof});
  assert.equal(await value('select processed_by from public.refund_requests where id=$1',[id]),admin);
  const choice=(await value<{id:string;available:number}[]>('select public.refund_job_choices()')).find(x=>x.id===job)!;assert.equal(Number(choice.available),30);
- await db.query("update public.jobs set completion_email_sent_at=now()-interval '15 days' where id=$1",[job]);
+ await db.query("update public.jobs set completion_email_sent_at=$2 where id=$1",[job,await issueDate(15)]);
  await assert.rejects(rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),issue_event:'Completion notice',issue_event_at:now}),/14 days/);
 });
 

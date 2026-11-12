@@ -25,7 +25,7 @@ function LostCaseRow({row,canApprove,expenseOptions}:{row:LostCase;canApprove:bo
  const dialog=useRef<HTMLDialogElement>(null),waiting=useRef<HTMLDialogElement>(null);const id=useId();
  const confirmation=useRef<HTMLDialogElement>(null),expense=useRef<HTMLDialogElement>(null);
  const access=useAccess(),router=useRouter();const manage=canAny(access,["jobs.manage","pr.returns"]);
- const [value,setValue]=useState(String(row.market_value??"")),[notes,setNotes]=useState(""),[error,setError]=useState("");const [pending,start]=useTransition();
+ const [value,setValue]=useState(row.market_value == null ? "" : Number(row.market_value).toFixed(2)),[notes,setNotes]=useState(""),[error,setError]=useState("");const [pending,start]=useTransition();
  const status=row.status??"New";
  function run(action:"notify"|"approve"|"finalize") {setError("");start(async()=>{const result=await lostStaffAction(row.id,action,{market_value:value,notes});if(result.error)setError(result.error);else {dialog.current?.close();router.refresh();}});}
  return <div className="lost-case-entry">

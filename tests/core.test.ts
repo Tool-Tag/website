@@ -888,3 +888,27 @@ test("Modal submit targets ignore a named id control and retain existing form ID
  assert.deepEqual(form.id,{name:"id",value:"record-id"});
  assert.equal(attributes.get("id"),"modal-form-1");
 });
+
+test("Workspace job queues page quote logistics by quote_id", async () => {
+  const { createClient } = await import("@supabase/supabase-js");
+  const { workspaceJobQueues } = await import("../src/lib/domain/job-queues");
+  const requests = new Map<string, string | null>();
+  const db = createClient("https://tooltag.example.test", "fixture", {
+    auth: { persistSession: false },
+    global: { fetch: async (input) => {
+      const url = new URL(String(input));
+      requests.set(url.pathname, url.searchParams.get("order"));
+      if (url.pathname.endsWith("/quote_logistics") && url.searchParams.get("order") !== "quote_id.asc") {
+        return Response.json({ code: "42703", message: "column quote_logistics.id does not exist" }, { status: 400 });
+      }
+      return Response.json(url.pathname.endsWith("/jobs")
+        ? [{ id: "ready", status: "Authorized", work_stage: "Not Started" }, { id: "unpaid", status: "Authorized", work_stage: "Not Started" }]
+        : [{ job_id: "unpaid" }]);
+    } },
+  });
+
+  const result = await workspaceJobQueues(db, "tooltag");
+  assert.equal(requests.get("/rest/v1/jobs"), "id.asc");
+  assert.equal(requests.get("/rest/v1/quote_logistics"), "quote_id.asc");
+  assert.deepEqual(result.active.map(job => job.id), ["ready"]);
+});

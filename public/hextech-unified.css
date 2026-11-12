@@ -23,7 +23,6 @@
   --gold-tint: rgb(217 179 102 / 12%);
   --blue: #3177ff;
   --button-blue: #234b8c;
-  --button-blue-hover: #2d5a9e;
   --ink: #f2f0ea;
   --muted: #9aa3ae;
   --muted2: #6b7480;
@@ -157,13 +156,13 @@ body::before { content: none; }
   box-shadow: inset 0 0 0 1px var(--gold);
 }
 :is(button[type=submit], .menu-link-blue-electric, .driver-pickup .driver-open):not(.secondary, .danger, .menu-link-gold) {
-  background: var(--button-blue) !important;
-  color: #fff !important;
-  box-shadow: inset 0 0 0 2px var(--button-blue), inset 0 0 0 3px rgb(255 255 255 / 22%);
+  background: var(--gold) !important;
+  color: var(--gold-ink) !important;
+  box-shadow: inset 0 0 0 2px var(--gold), inset 0 0 0 3px rgb(23 19 7 / 35%);
 }
 :is(button[type=submit], .menu-link-blue-electric, .driver-pickup .driver-open):not(.secondary, .danger, .menu-link-gold):hover:not(:disabled) {
-  background: var(--button-blue-hover) !important;
-  box-shadow: inset 0 0 0 2px var(--button-blue-hover), inset 0 0 0 3px rgb(255 255 255 / 22%);
+  background: var(--gold-bright) !important;
+  box-shadow: inset 0 0 0 2px var(--gold-bright), inset 0 0 0 3px rgb(23 19 7 / 35%);
 }
 button.danger {
   background: transparent !important;
@@ -407,10 +406,10 @@ dialog::backdrop {
   .equipment-name-button, .timeline-completed-toggle, .timeline-upcoming-pill, .copy-button,
   .hex-movement-segments button, .hex-header-dropdown button, .driver-return .driver-open
 )) {
-  background: var(--button-blue) !important;
-  color: white !important;
+  background: var(--gold) !important;
+  color: var(--gold-ink) !important;
   border-color: transparent !important;
-  box-shadow: inset 0 0 0 2px var(--button-blue), inset 0 0 0 3px rgb(255 255 255 / 22%);
+  box-shadow: inset 0 0 0 2px var(--gold), inset 0 0 0 3px rgb(23 19 7 / 35%);
 }
 :is(button, a.button, .outline-button):not(:where(
   .secondary, .danger, .gold, .menu-link-gold, .menu-link-blue-electric,
@@ -420,8 +419,8 @@ dialog::backdrop {
   .equipment-name-button, .timeline-completed-toggle, .timeline-upcoming-pill, .copy-button,
   .hex-movement-segments button, .hex-header-dropdown button, .driver-return .driver-open
 )):hover:not(:disabled) {
-  background: var(--button-blue-hover) !important;
-  box-shadow: inset 0 0 0 2px var(--button-blue-hover), inset 0 0 0 3px rgb(255 255 255 / 22%);
+  background: var(--gold-bright) !important;
+  box-shadow: inset 0 0 0 2px var(--gold-bright), inset 0 0 0 3px rgb(23 19 7 / 35%);
 }
 .intake-page h1,
 .intake-page .intake-section legend,
@@ -521,4 +520,14 @@ fieldset.role-chips { border: 1px solid var(--line); border-radius: 8px; padding
   color: var(--gold-bright);
   box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
   pointer-events: none;
+}
+
+:is(a.btn, .btn-primary, .menu-link-blue-electric):not(.secondary, .danger) {
+  background: var(--gold) !important;
+  border-color: var(--gold) !important;
+  color: var(--gold-ink) !important;
+}
+:is(a.btn, .btn-primary, .menu-link-blue-electric):not(.secondary, .danger):hover:not(:disabled) {
+  background: var(--gold-bright) !important;
+  border-color: var(--gold-bright) !important;
 }

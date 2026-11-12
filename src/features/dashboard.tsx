@@ -18,47 +18,54 @@ export async function Dashboard() {
   const ready = isConfigured();
   const ctx = ready ? await context() : null;
   const finance = Boolean(ctx && can(ctx.access,"payments.view"));
-  const [summaries, rawReview] = ready
-    ? await Promise.all([
-        finance ? rows("finance_summary") : Promise.resolve([]),
-        rows("review_items"),
-      ])
-    : [[], []];
+  const range = dashboardWeekRange();
+  const canRoutes = !!ctx && canAny(ctx.access, ["pr.routes.plan", "pr.routes.live", "pr.receiving", "pr.returns"]);
+  const noResult = { data: null, error: null };
+  const [summaries, rawReview, activityResult, { data: stats }, jobQueues, quoteRows, requestsResult, routeResult, urgentResult, weeklyCollection] = await Promise.all([
+    finance ? rows("finance_summary") : [],
+    ctx ? rows("review_items") : [],
+    ctx?.access.owner ? ctx.db.rpc("dashboard_recent_activity", { p_unit: ctx.unit }) : noResult,
+    ctx && finance ? ctx.db.rpc("dashboard_stats", { p_unit: ctx.unit }) : noResult,
+    ctx && can(ctx.access, "jobs.view") ? workspaceJobQueues(ctx.db, ctx.unit).catch(() => null) : null,
+    ctx && can(ctx.access, "quotes.view") ? rows("quotes") : [],
+    ctx && can(ctx.access, "quotes.view") ? ctx.db.rpc("get_tagged_attention") : noResult,
+    ctx && canRoutes ? ctx.db.from("pick_return_routes").select("id,route_date").eq("unit_id", ctx.unit)
+      .eq("leg", "Pickup").neq("status", "Cancelled").is("confirmed_at", null).gte("route_date", range.today)
+      .order("route_date").order("block_number").limit(1) : noResult,
+    ctx ? ctx.db.rpc("urgent_login_attention") : noResult,
+    (async () => {
+      if (!ctx || !finance) return 0n;
+      let collected = 0n;
+      for (let offset = 0; ; offset += 500) {
+        const page = await ctx.db.from("transactions").select("id,amount").eq("unit_id", ctx.unit)
+          .eq("type", "COLLECTION").neq("status", "Voided").gte("transaction_date", range.monday)
+          .lte("transaction_date", range.today).order("id").range(offset, offset + 499);
+        if (page.error) return null;
+        for (const row of page.data) collected += cents(String(row.amount));
+        if (page.data.length < 500) return collected;
+      }
+    })(),
+  ]);
   const review = [...new Map(rawReview.map(row => [
     JSON.stringify([row.path, row.kind, row.entity_id]), row,
   ])).values()];
-  const activityResult=ctx?.access.owner
-    ? await ctx.db.rpc("dashboard_recent_activity",{p_unit:ctx.unit})
-    : {data:[],error:null};
-  if(activityResult.error)console.error("Dashboard recent activity unavailable",{code:activityResult.error.code,message:activityResult.error.message});
-  const activity=Array.isArray(activityResult.data)?activityResult.data as {id:string;entity:string;changed_fields:string;created_at:string}[]:[];
-  const { data: stats } = ctx && finance
-    ? await ctx.db.rpc("dashboard_stats", { p_unit: ctx.unit })
-    : { data: null };
+  if (activityResult.error) console.error("Dashboard recent activity unavailable", { code: activityResult.error.code, message: activityResult.error.message });
+  const activity = Array.isArray(activityResult.data) ? activityResult.data as { id: string; entity: string; changed_fields: string; created_at: string }[] : [];
   const s = summaries[0];
-  const [jobQueues,quoteRows] = ctx ? await Promise.all([can(ctx.access,"jobs.view")?workspaceJobQueues(ctx.db,ctx.unit):Promise.resolve(null),can(ctx.access,"quotes.view")?rows("quotes"):Promise.resolve([])]) : [null,[]];
   const jobCodes = new Map(jobQueues?.jobs.map(job => [job.id, job.code]));
-  const range=dashboardWeekRange();
-  const canRoutes=!!ctx&&canAny(ctx.access,["pr.routes.plan","pr.routes.live","pr.receiving","pr.returns"]);
-  const [requestsResult,routeResult,urgentResult]=ctx?await Promise.all([
-    can(ctx.access,"quotes.view")?ctx.db.rpc("get_tagged_attention"):Promise.resolve({data:[],error:null}),
-    canRoutes?ctx.db.from("pick_return_routes").select("id,route_date").eq("unit_id",ctx.unit).eq("leg","Pickup").neq("status","Cancelled").is("confirmed_at",null).gte("route_date",range.today).order("route_date").order("block_number").limit(1):Promise.resolve({data:[],error:null}),
-    ctx.db.rpc("urgent_login_attention"),
-  ]):[{data:[],error:null},{data:[],error:null},{data:null,error:null}];
-  const nextRoute=routeResult.data?.[0];
-  const stopResult=ctx&&nextRoute?await ctx.db.from("pick_return_stops").select("id",{count:"exact",head:true}).eq("unit_id",ctx.unit).eq("route_id",nextRoute.id).neq("status","Cancelled"):{count:0,error:null};
-  let collected=0n,collectionError=false;
-  if(ctx&&finance){for(let offset=0;;offset+=500){const page=await ctx.db.from("transactions").select("id,amount").eq("unit_id",ctx.unit).eq("type","COLLECTION").neq("status","Voided").gte("transaction_date",range.monday).lte("transaction_date",range.today).order("id").range(offset,offset+499);if(page.error){collectionError=true;break;}for(const row of page.data)collected+=cents(String(row.amount));if(page.data.length<500)break;}}
+  const nextRoute = routeResult.data?.[0];
+  const stopResult = ctx && nextRoute ? await ctx.db.from("pick_return_stops").select("id", { count: "exact", head: true })
+    .eq("unit_id", ctx.unit).eq("route_id", nextRoute.id).neq("status", "Cancelled") : { count: 0, error: null };
   const bands=urgentResult.data?.eligible&&!urgentResult.error?aggregateBands(classifyAttention((urgentResult.data.items??[]) as AttentionRecord[])):null;
   const day=new Intl.DateTimeFormat("en-US",{timeZone:"America/Denver",weekday:"long",month:"short",day:"numeric",year:"numeric"}).format(new Date());
   return (
     <>
       <Heading title="Dashboard" subtitle={`${day} — here's what needs you today.`}/>
       <div className="hex-dashboard-metrics">
-        <PermissionGate blocks={["jobs.view"]}><Metric label="Active jobs" currency={false} value={jobQueues?.active.length??0} help="Same queue as Jobs → Active"/></PermissionGate>
+        <PermissionGate blocks={["jobs.view"]}><Metric label="Active jobs" currency={false} value={jobQueues?.active.length ?? "Unavailable"} help="Same queue as Jobs → Active"/></PermissionGate>
         <PermissionGate blocks={["quotes.view"]}><Metric label="New Get Tagged requests" currency={false} value={requestsResult.error?"Unavailable":requestsResult.data?.length??0}/></PermissionGate>
         {canRoutes&&<Metric label="Stops in next pickup block" currency={false} value={routeResult.error||stopResult.error?"Unavailable":stopResult.count??0} help={nextRoute?new Intl.DateTimeFormat('en-US',{timeZone:'America/Denver',weekday:'long',month:'short',day:'numeric'}).format(new Date(nextRoute.route_date+'T12:00:00Z')):'No block scheduled'}/>}
-        {finance&&<Metric label="Collected this week" currency={!collectionError} value={collectionError?'Unavailable':decimal(collected)}/>}
+        {finance&&<Metric label="Collected this week" currency={weeklyCollection !== null} value={weeklyCollection === null ? "Unavailable" : decimal(weeklyCollection)}/>}
       </div>
       <section className="panel hex-daily-review"><header className="hex-panel-head hex-panel-head-row"><div><p className="eyebrow">Daily review</p><h2>Needs Attention</h2></div>{bands&&<span className="badge">Support · Refund · Lost</span>}</header>
         {bands&&<AttentionBands bands={bands}/>}
