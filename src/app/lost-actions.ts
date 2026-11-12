@@ -3,12 +3,23 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/domain/context";
 import { supabase } from "@/lib/supabase/server";
 import { dispatchWorkerMail } from "@/lib/integrations/mail-dispatch";
+import {cents,decimal} from "@/lib/domain/money";
 import type {LostChoice} from "@/lib/domain/lost-flow";
 
 export async function lostStaffAction(id:string,action:"notify"|"approve"|"finalize"|"confirm-replacement",fields:{market_value?:string;notes?:string}={}) {
  try {
   const {db}=await requirePermission("jobs.manage","pr.returns");
-  const {error}=await db.rpc("lost_staff_action",{p:{id,action,market_value:fields.market_value,notes:fields.notes}});
+  let marketValue: string | undefined;
+  if (action === "notify" && fields.market_value?.trim()) {
+    try {
+      const amount = cents(fields.market_value.trim());
+      if (amount <= 0n || amount > 99999999999999n) throw new Error();
+      marketValue = decimal(amount);
+    } catch {
+      return { error: "Enter a positive market value with at most two decimal places." };
+    }
+  }
+  const {error}=await db.rpc("lost_staff_action",{p:{id,action,market_value:marketValue,notes:fields.notes}});
   if(error)return {error:error.message};
   revalidatePath("/app","layout");
   if(action==="notify"||action==="approve"||action==="finalize")await dispatchWorkerMail();

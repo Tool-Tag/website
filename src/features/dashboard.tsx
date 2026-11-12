@@ -1,3 +1,4 @@
+import { GetTaggedDashboardCount } from "@/components/get-tagged-dashboard-count";
 import {workspaceJobQueues} from "@/lib/domain/job-queues";
 import {denverDateTime} from "@/lib/domain/time";
 import {AttentionBands} from "@/components/attention-bands";
@@ -63,7 +64,7 @@ export async function Dashboard() {
       <Heading title="Dashboard" subtitle={`${day} — here's what needs you today.`}/>
       <div className="hex-dashboard-metrics">
         <PermissionGate blocks={["jobs.view"]}><Metric label="Active jobs" currency={false} value={jobQueues?.active.length ?? "Unavailable"} help="Same queue as Jobs → Active"/></PermissionGate>
-        <PermissionGate blocks={["quotes.view"]}><Metric label="New Get Tagged requests" currency={false} value={requestsResult.error?"Unavailable":requestsResult.data?.length??0}/></PermissionGate>
+        <PermissionGate blocks={["quotes.view"]}><GetTaggedDashboardCount initial={requestsResult.error ? "Unavailable" : requestsResult.data?.length ?? 0}/></PermissionGate>
         {canRoutes&&<Metric label="Stops in next pickup block" currency={false} value={routeResult.error||stopResult.error?"Unavailable":stopResult.count??0} help={nextRoute?new Intl.DateTimeFormat('en-US',{timeZone:'America/Denver',weekday:'long',month:'short',day:'numeric'}).format(new Date(nextRoute.route_date+'T12:00:00Z')):'No block scheduled'}/>}
         {finance&&<Metric label="Collected this week" currency={weeklyCollection !== null} value={weeklyCollection === null ? "Unavailable" : decimal(weeklyCollection)}/>}
       </div>

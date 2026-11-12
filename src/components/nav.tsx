@@ -1,4 +1,5 @@
 "use client";
+import { GET_TAGGED_COUNT_EVENT } from "@/lib/domain/workspace-attention-events";
 
 import { canAny, sectionPermissions, type Access } from "@/lib/auth/permissions";
 import Link from "next/link";
@@ -178,7 +179,10 @@ export function Nav({
       if (!response.ok) return;
 
       const next = parseAttention(await response.json());
-      if (next) applyAttention(next);
+      if (next) {
+        applyAttention(next);
+        window.dispatchEvent(new CustomEvent(GET_TAGGED_COUNT_EVENT, { detail: next.getTagged }));
+      }
     } catch {
       // Keep the latest known counters if the lightweight refresh fails.
     }

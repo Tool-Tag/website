@@ -531,3 +531,5 @@ fieldset.role-chips { border: 1px solid var(--line); border-radius: 8px; padding
   background: var(--gold-bright) !important;
   border-color: var(--gold-bright) !important;
 }
+
+.request-reject-trigger { align-self: start; justify-self: start; width: auto; }

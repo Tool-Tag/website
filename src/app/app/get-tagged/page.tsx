@@ -1,3 +1,4 @@
+import {getTaggedHistory,type GetTaggedListRow} from "@/lib/domain/get-tagged-history";
 import {WorkspacePagination} from "@/components/workspace-pagination";
 import {RecordList} from "@/components/record-list";
 import {paginateList} from "@/lib/domain/list-pagination";
@@ -8,31 +9,20 @@ import { Heading, Panel, Empty } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-type GetTaggedAttentionRow = {
-  id: string;
-  reference: string;
-  name: string;
-  service_method?: string | null;
-  created_at: string;
-  request_status: string;
-  matching: string;
-};
-
 export default async function GetTaggedRequestsPage({searchParams}:{searchParams:Promise<{tab?:string;page?:string}>}) {
   const search=await searchParams,history=search.tab==="history";
-  const { db } = await requirePermission("quotes.view");
-  const { data, error } = await db.rpc(history?"get_tagged_history":"get_tagged_attention");
-
-  if (error) {
-    return (
-      <>
-        <Heading title="Get Tagged Requests" />
-        <p className="notice error">{error.message}</p>
-      </>
-    );
+  const { db, unit } = await requirePermission("quotes.view");
+  let requests: GetTaggedListRow[];
+  try {
+    if (history) requests = await getTaggedHistory(db, unit);
+    else {
+      const { data, error } = await db.rpc("get_tagged_attention");
+      if (error) throw new Error("Could not load pending requests.");
+      requests = (data ?? []) as GetTaggedListRow[];
+    }
+  } catch {
+    return <><Heading title="Get Tagged Requests" /><p role="alert" className="notice error">Could not load {history ? "request history" : "pending requests"}.</p></>;
   }
-
-  const requests = (Array.isArray(data) ? data : []) as GetTaggedAttentionRow[];
 
   const paging=paginateList(requests,search.page);
   const pageUrl=(page:number)=>`/app/get-tagged?tab=${history?"history":"pending"}&page=${page}`;
@@ -40,14 +30,17 @@ export default async function GetTaggedRequestsPage({searchParams}:{searchParams
     <>
       <Heading
         title="Get Tagged Requests"
-        subtitle="Public requests waiting for review and pricing."
+        subtitle={history ? "Approved, converted, and rejected public requests." : "Public requests waiting for review and pricing."}
       />
 
       <nav className="main-tab-list" aria-label="Request status"><Link href="/app/get-tagged" className={`main-tab ${history?"":"active"}`}>Pending</Link><Link href="/app/get-tagged?tab=history" className={`main-tab ${history?"active":""}`}>History</Link></nav>
       {requests.length ? (
-        <Panel><RecordList label="Get Tagged Request" empty="No requests in this view." rows={paging.items.map(request=>({id:request.id,title:request.name,reference:request.reference,description:`${request.service_method||'Service to be confirmed'} · ${denverDateTime(request.created_at)}`,status:request.request_status,icon:'request',details:[{label:'Reference',value:request.reference},{label:'Received',value:denverDateTime(request.created_at)},{label:'Service',value:request.service_method||'To be confirmed'},{label:'Customer matching',value:request.matching},{label:'Status',value:request.request_status}],actions:[{label:'Review Request',href:`/app/get-tagged/${request.id}`}]}))}/></Panel>
+        <Panel><RecordList label="Get Tagged Request" empty="No requests in this view." rows={paging.items.map(request=>({id:request.id,title:request.name,reference:request.reference,description:`${request.service_method||'Service to be confirmed'} · ${denverDateTime(request.created_at)}`,status:request.request_status,icon:'request',details:[{label:'Reference',value:request.reference},{label:request.quote_only?'Quote created':'Received',value:denverDateTime(request.created_at)},{label:'Service',value:request.service_method||'To be confirmed'},...(request.matching?[{label:'Customer matching',value:request.matching}]:[]),{label:'Status',value:request.request_status}],actions:request.quote_only ? [{label:"Open Quote",href:`/app/quotes/${request.quote_id}`}] : [
+          {label:history?"View Request":"Review Request",href:`/app/get-tagged/${request.id}`},
+          ...(history&&request.quote_id?[{label:"Open Quote",href:`/app/quotes/${request.quote_id}`}]:[]),
+        ]}))}/></Panel>
       ) : (
-        <Empty>No Get Tagged requests need attention.</Empty>
+        <Empty>{history ? "No reviewed Get Tagged requests yet." : "No Get Tagged requests need attention."}</Empty>
       )}
       <WorkspacePagination label="Request pages" previous={paging.page>1 ? pageUrl(paging.page-1) : undefined} next={paging.page<paging.pages ? pageUrl(paging.page+1) : undefined} />
     </>
