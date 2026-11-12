@@ -22,7 +22,7 @@ h2{font-size:22px;text-transform:uppercase}h3{font-size:20px}
 button,.button,.outline-button{font-family:var(--font-display);font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;padding:11px 20px;border-radius:0;min-height:42px;clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px)}
 button.secondary,.button.secondary{background:transparent;color:var(--ink);border-color:var(--line)}
 button:hover,.button:hover{filter:none}
-button:not(.secondary,.main-tab,.folder-tab,.job-tab,.modal-close,.floating-modal-close,.menu-link-gold,.gold,.shop-floor-card,.driver-stop-open,.lost-case-row,.mobile-row-action,.timeline-completed-toggle,.timeline-upcoming-pill):not(:disabled),a.button:not(.secondary,.main-tab,.folder-tab,.job-tab,.menu-link-gold,.gold){background:var(--button-blue)!important;border-color:transparent!important}
+
 .menu-link-gold,.gold{border:1px solid #3d4247!important;background:transparent!important;color:var(--gold)!important}
 .menu-link-gold:hover,.gold:hover{background:#000!important;border-color:var(--gold)!important}
 .menu-link-blue-electric{border-color:#465262!important;background:var(--button-blue)!important}

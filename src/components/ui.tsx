@@ -62,7 +62,7 @@ export function Empty({
 }: {
   children?: React.ReactNode;
 }) {
-  return <p className="empty">{children}</p>;
+  return <p className="empty"><HexIcon />{children}</p>;
 }
 export function Badge({ children }: { children: React.ReactNode }) {
   const value=typeof children==="string"?children:"";const tone=/Accepted|Completed|Approved|Ready|Delivered|Verified/.test(value)?"gold":/Process|Review|Scheduled|Pending|Draft/.test(value)?"blue":"neutral";

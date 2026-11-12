@@ -762,13 +762,8 @@ table .big-open-case{
 .hex-modal-frame .modal-close{
   z-index:2147483647!important}
 
-button:not(.secondary,.main-tab,.folder-tab,.job-tab,.modal-close,.floating-modal-close,.menu-link-gold,.gold,.shop-floor-card,.driver-stop-open,.lost-case-row,.mobile-row-action,.timeline-completed-toggle,.timeline-upcoming-pill):not(:disabled),a.button:not(.secondary,.main-tab,.folder-tab,.job-tab,.menu-link-gold,.gold){
-  background:var(--button-blue)!important;
-  border-color:#55729c!important;
-  color:#fff!important}
-.hex-modal-footer button:not(.secondary,.menu-link-gold,.gold):not(:disabled){
-  background:var(--button-blue)!important;
-  color:#fff!important}
+
+
 .danger:not(.workspace-nav-count-red){
   background:#2b2318!important;
   color:var(--gold)!important;
