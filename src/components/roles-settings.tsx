@@ -1,7 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Fragment, useActionState, useEffect, useRef, useState, type ReactNode } from "react";
-import { saveRole, saveStaffUser, inviteStaffUser, resetStaffCredentials, type RbacResult } from "@/app/rbac-actions";
+import { saveRole, saveStaffUser, createStaffUser, inviteStaffUser, resetStaffCredentials, type RbacResult } from "@/app/rbac-actions";
 import { HexModalFrame, ModalActions } from "./hex-modal-frame";
 import { ModalClose } from "./modal-close";
 
@@ -10,6 +11,12 @@ type Role = { id: string; name: string; system_key: string | null; blocks: strin
 type Staff = { id: string; email: string; name: string; active: boolean; roles: string[] };
 export type RoleDirectory = { blocks: Block[]; roles: Role[]; users: Staff[] };
 type RoleDraft = { name: string; blocks: string[] };
+type SavedRole = { before: RoleDraft; after: RoleDraft };
+
+function sameRole(left: RoleDraft, right: RoleDraft) {
+  return left.name === right.name && left.blocks.length === right.blocks.length
+    && left.blocks.every(block => right.blocks.includes(block));
+}
 
 function Result({ state, success = "Saved." }: { state: RbacResult; success?: string }) {
   return state.error ? <p role="alert" className="notice error">{state.error}</p>
@@ -53,25 +60,36 @@ function CreateRole({ roles, blocks }: { roles: Role[]; blocks: Block[] }) {
 }
 
 function AddStaff({ roles }: { roles: Role[] }) {
+  const [created, createAction, creating] = useActionState(createStaffUser, {});
   const [invite, inviteAction, inviting] = useActionState(inviteStaffUser, {});
-  const [existing, existingAction, saving] = useActionState(saveStaffUser, {});
-  const [mode, setMode] = useState("invite");
-  const isInvite = mode === "invite";
-  const state = isInvite ? invite : existing;
+  const [existing, existingAction, linking] = useActionState(saveStaffUser, {});
+  const [mode, setMode] = useState<"password" | "invite" | "existing">("password");
+  const joining = creating || inviting || linking;
+  const isExisting = mode === "existing";
+  const hasPassword = mode === "password";
+  const state = hasPassword ? created : isExisting ? existing : invite;
+  const action = hasPassword ? createAction : isExisting ? existingAction : inviteAction;
+  const submit = hasPassword ? "Create user" : isExisting ? "Add ToolTag access" : "Send invitation";
+  const success = hasPassword ? "User created." : isExisting ? "ToolTag access added." : "Invitation sent.";
   return <>
-    <label>How should this user join?<select value={mode} onChange={event => setMode(event.target.value)}>
-      <option value="invite">Send email invitation</option><option value="existing">Link existing account</option>
+    <label>How should this user join?<select value={mode} disabled={joining} onChange={event => setMode(event.target.value as typeof mode)}>
+      <option value="password">Create with initial password</option>
+      <option value="invite">Send email invitation</option>
+      <option value="existing">Link existing account</option>
     </select></label>
-    <form key={mode} action={isInvite ? inviteAction : existingAction} className="stack">
-      {isInvite ? <label>Email<input name="email" type="email" required /></label>
-        : <><label>Existing account reference<input name="id" type="password" autoComplete="off" required /></label>
-          <input type="hidden" name="active" value="on" /></>}
-      <label>Display name<input name="name" maxLength={100} /></label>
+    <form key={mode} action={action} className="stack">
+      <label>Display name<input name="name" maxLength={100} required={hasPassword} /></label>
+      {isExisting ? <>
+        <label>Existing account reference<input name="id" type="password" autoComplete="off" required /></label>
+        <input type="hidden" name="active" value="on" />
+      </> : <label>Email<input name="email" type="email" required /></label>}
+      {hasPassword && <label>Initial password<input name="password" type="password" autoComplete="new-password"
+        required minLength={12} maxLength={72} aria-describedby="staff-initial-password-help" />
+        <small id="staff-initial-password-help">Use at least 12 characters. Verify the email belongs to this user before creating the account.</small>
+      </label>}
       <RoleChoices roles={roles.filter(role => role.system_key !== "Owner")} />
-      <Result state={state} success={isInvite ? "Invitation sent." : "ToolTag access added."} />
-      {!state.ok && <ModalActions><button className="gold" disabled={inviting || saving}>
-        {isInvite ? "Send invitation" : "Add ToolTag access"}
-      </button></ModalActions>}
+      <Result state={state} success={success} />
+      {!state.ok && <ModalActions><button className="gold" disabled={joining}>{submit}</button></ModalActions>}
     </form>
   </>;
 }
@@ -108,11 +126,13 @@ function StaffRow({ user, roles }: { user: Staff; roles: Role[] }) {
 }
 
 export function RolesSettings({ directory }: { directory: RoleDirectory }) {
+  const router = useRouter();
   const { blocks, roles, users } = directory;
   const areas = [...new Set(blocks.map(block => block.area))];
   const [view, setView] = useState<"matrix" | "role" | null>(null);
   const [activeId, setActiveId] = useState(roles.find(role => role.system_key !== "Owner")?.id);
   const [drafts, setDrafts] = useState<Record<string, RoleDraft>>({});
+  const [confirmed, setConfirmed] = useState<Record<string, SavedRole>>({});
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<RbacResult>({});
   const [dialog, setDialog] = useState<"role" | "user" | null>(null);
@@ -123,20 +143,28 @@ export function RolesSettings({ directory }: { directory: RoleDirectory }) {
   }, [dialog]);
   const active = roles.find(role => role.id === activeId) ?? roles[0];
   const owner = (role: Role) => role.system_key === "Owner";
-  const value = (role: Role) => drafts[role.id] ?? role;
+  // The server action may return before the directory props catch up.
+  // Drop acknowledged snapshots once a newer directory value arrives.
+  const awaitingRefresh = Object.entries(confirmed).filter(([id, saved]) =>
+    roles.some(role => role.id === id && sameRole(role, saved.before)));
+  if (awaitingRefresh.length !== Object.keys(confirmed).length) {
+    setConfirmed(Object.fromEntries(awaitingRefresh));
+  }
+  const baseline = (role: Role) => confirmed[role.id] && sameRole(role, confirmed[role.id].before)
+    ? confirmed[role.id].after : role;
+  const value = (role: Role) => drafts[role.id] ?? baseline(role);
   const checked = (role: Role, block: Block) => owner(role) || value(role).blocks.includes(block.key);
   const count = (role: Role) => blocks.filter(block => checked(role, block)).length;
   const changed = roles.filter(role => !owner(role) && drafts[role.id]);
-  const changeCount = changed.reduce((total, role) => total + Number(value(role).name !== role.name)
-    + blocks.filter(block => checked(role, block) !== role.blocks.includes(block.key)).length, 0);
+  const changeCount = changed.reduce((total, role) => total + Number(value(role).name !== baseline(role).name)
+    + blocks.filter(block => checked(role, block) !== baseline(role).blocks.includes(block.key)).length, 0);
 
   function update(role: Role, next: RoleDraft) {
     if (owner(role)) return;
     setResult({});
     setDrafts(current => {
       const updated = { ...current, [role.id]: next };
-      if (next.name === role.name && next.blocks.length === role.blocks.length &&
-        next.blocks.every(block => role.blocks.includes(block))) delete updated[role.id];
+      if (sameRole(next, baseline(role))) delete updated[role.id];
       return updated;
     });
   }
@@ -150,7 +178,7 @@ export function RolesSettings({ directory }: { directory: RoleDirectory }) {
   async function saveChanges() {
     setSaving(true);
     setResult({});
-    const saved: string[] = [];
+    const saved: Record<string, SavedRole> = {};
     let failure = "";
     try {
       for (const role of changed) {
@@ -164,13 +192,16 @@ export function RolesSettings({ directory }: { directory: RoleDirectory }) {
           failure = `${role.name}: ${response.error ?? "Could not save role."}`;
           break;
         }
-        saved.push(role.id);
+        saved[role.id] = { before: role, after: draft };
       }
     } catch {
       failure = "Could not finish saving roles. Check the connection and try again.";
     } finally {
-      setDrafts(current => Object.fromEntries(Object.entries(current).filter(([id]) => !saved.includes(id))));
-      setResult(failure ? { error: `${saved.length ? `${saved.length} role(s) saved. ` : ""}${failure}` } : { ok: true });
+      setConfirmed(current => ({ ...current, ...saved }));
+      setDrafts(current => Object.fromEntries(Object.entries(current).filter(([id]) => !saved[id])));
+      const savedCount = Object.keys(saved).length;
+      if (savedCount) router.refresh();
+      setResult(failure ? { error: `${savedCount ? `${savedCount} role(s) saved. ` : ""}${failure}` } : { ok: true });
       setSaving(false);
     }
   }
