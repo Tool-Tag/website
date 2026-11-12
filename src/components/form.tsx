@@ -51,12 +51,14 @@ export function Form({
     {},
   );
   const handled = useRef<ActionState|null>(null);
-  const approvalError = useRef<HTMLDivElement>(null);
+  const actionError = useRef<HTMLDivElement>(null);
+  const errorTitle = operation === "shop-handover" ? "Could not confirm handover."
+    : operation === "get-tagged-approve" ? "Could not create quote draft." : null;
   useEffect(() => {
-    if (state.error && operation === "get-tagged-approve") {
-      approvalError.current?.focus();
+    if (state.error && errorTitle) {
+      actionError.current?.focus();
     }
-  }, [operation, state]);
+  }, [errorTitle, state]);
   useEffect(()=>{if(state.ok && handled.current!==state){handled.current=state;onSaved?.(state.data);closeModal?.();}},[state,onSaved,closeModal]);
   if (!allowed) return null;
   return (
@@ -119,9 +121,9 @@ export function Form({
       {children}
       {state.error && (
         <div role="alert" className="notice error wide"
-          ref={operation === "get-tagged-approve" ? approvalError : undefined}
-          tabIndex={operation === "get-tagged-approve" ? -1 : undefined}>
-          {operation === "get-tagged-approve" && <strong>Could not create quote draft. </strong>}
+          ref={errorTitle ? actionError : undefined}
+          tabIndex={errorTitle ? -1 : undefined}>
+          {errorTitle && <strong>{errorTitle} </strong>}
           {state.error}
         </div>
       )}

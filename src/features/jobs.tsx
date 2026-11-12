@@ -142,6 +142,7 @@ export async function Jobs({ id }: { id?: string }) {
     pickupRows,
     cancellationRows,
     logisticsRows,
+    commercialTotals,
   ] = await Promise.all([
     rows("documents", { field: "job_id", value: id }),
     rows("sale_balances", { field: "job_id", value: id }),
@@ -150,6 +151,7 @@ export async function Jobs({ id }: { id?: string }) {
     rows("pick_return_orders", { field: "job_id", value: id }),
     rows("cancellation_requests", { field: "job_id", value: id, order: "requested_at" }),
     rows("quote_logistics", { field: "quote_id", value: j.quote_id }),
+    rows("job_commercial_totals", { id }),
   ]);
 
   const jobItems = [...rawJobItems].sort((a, b) => Number(a.sequence) - Number(b.sequence));
@@ -209,6 +211,12 @@ export async function Jobs({ id }: { id?: string }) {
   const currentScope = currentItem?.scope_snapshot
     ? [{ ...currentItem.scope_snapshot, quantity: 1 }]
     : [];
+  const totals = commercialTotals[0];
+  const balanceDue = totals ? Number(totals.balance_due) : null;
+  const canConfirmHandover = can(access, "pr.returns") && !j.delivered_at &&
+    ((j.status === "Ready for Delivery" && !deliveryRequired) ||
+      pickupReturn?.delivery_payment_status === "Shop Pickup");
+  const openSales = sales.filter(sale => Number(sale.balance_due) > 0);
   const allItemsFinished = jobItems.length > 0 && finishedItems === jobItems.length;
 
   const receivingEvidence = (
@@ -513,7 +521,22 @@ export async function Jobs({ id }: { id?: string }) {
         </Panel>
       )}
 
-      {(j.status === "Ready for Delivery" && !deliveryRequired || pickupReturn?.delivery_payment_status === "Shop Pickup") && <Form operation="shop-handover" hidden={{id}} fields={[]} back={`/app/jobs/${id}`} button="Confirm paid handover at shop" />}
+      {canConfirmHandover && (
+        <Panel title="Shop handover">
+          {balanceDue !== null && balanceDue > 0 ? (
+            <>
+              <p className="notice">Balance due: <strong>{money(balanceDue)}</strong>. Collect and confirm payment before handover.</p>
+              {can(access, "payments.view") && openSales.map(sale => (
+                <p key={sale.transaction_id}>
+                  <Link href={`/app/finance/sales/${sale.transaction_id}`}>Open sale {sale.code}</Link>
+                </p>
+              ))}
+            </>
+          ) : (
+            <Form operation="shop-handover" hidden={{id}} fields={[]} back={`/app/jobs/${id}`} button="Confirm handover at shop" inlineActions />
+          )}
+        </Panel>
+      )}
       {stage === "Awaiting Delivery Acceptance" && (
         <Panel title="Waiting for delivery acceptance">
           <p>
@@ -682,6 +705,11 @@ export async function Jobs({ id }: { id?: string }) {
           </span>
         }
       >
+        {totals && (
+          <span className="muted">
+            Collected {money(totals.collected)} · Balance due {money(totals.balance_due)}
+          </span>
+        )}
         <Link className="button secondary" href={`/app/quotes/${j.quote_id}`}>
           Approved Quote
         </Link>
