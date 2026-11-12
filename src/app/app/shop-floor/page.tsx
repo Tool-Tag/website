@@ -26,5 +26,5 @@ export default async function ShopFloor(){
   const arrival=received[0]??routeArrivals[0]??null;const flow=flows.find(f=>f.id===job.flow_id);
   return {id:job.id,code:job.code,customer:customers.find(c=>c.id===flow?.customer_id)?.name??'Customer',stage:shopFloorStage(job)!,arrival,arrivalSort:arrival??job.created_at,items:pieces.map(i=>({article:i.article,sequence:i.sequence,stage:i.stage})),notes:quotes.find(q=>q.id===job.quote_id)?.notes??''};
  });
- return <><StatusRefresh/><Heading title="Shop Floor" subtitle="From reception to ready — every piece, in order."/><ShopFloorBoard jobs={rows}/></>;
+ return <><StatusRefresh/><Heading title="Shop Floor" subtitle="Production board · Jobs in the five shop stages, from reception to ready."/><ShopFloorBoard jobs={rows}/></>;
 }

@@ -2,7 +2,7 @@ export type LostStatus = "New" | "In Process" | "History";
 export type LostChoice = "Replace Item" | "Refund money";
 export type LostCase = {
  id:string;job:string;customer:string;phone:string;driver:string;driver_id:string|null;driver_email:string|null;
- route_date:string;explanation:string;reported_at:string;items:{id:string;article:string;sequence:number}[];
+ route_date:string;route_window_start?:string|null;explanation:string;reported_at:string;items:{id:string;article:string;sequence:number}[];
  driver_eligible?:boolean;driver_agreements?:{id:string;document_version:number;cost_final:boolean;accepted_at:string|null;document_text:string}[];
  missing_receipt?:boolean;
  replacement_at_shop_at?:string|null;replacement_expense_id?:string|null;

@@ -304,7 +304,7 @@ export function Nav({
           path: "jobs",
           label: "Jobs",
           count: liveAttention.jobs,
-          title: "Open Jobs",
+          title: "Jobs in the Active tab",
           attentionKey: "jobs",
         },
         {path:"shop-floor",label:"Shop Floor"},

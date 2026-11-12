@@ -1,3 +1,4 @@
+import {denverCalendarDate,denverDateTime} from "@/lib/domain/time";
 import Link from "next/link";
 import { rows } from "@/lib/domain/context";
 import { Heading, Panel, Metric, Table, Empty } from "@/components/ui";
@@ -60,11 +61,12 @@ export async function FinanceHub() {
       </Panel>
       <Panel title="Recent Transactions">
         {tx.length ? (
-          <Table headers={["Unit", "Date", "Description", "Amount"]}>
+          <Table headers={["Unit", "Transaction date", "Recorded", "Description", "Amount"]}>
             {tx.map((t) => (
               <tr key={t.id}>
                 <td>{summaries.find((s) => s.unit_id === t.unit_id)?.code}</td>
-                <td>{t.transaction_date}</td>
+                <td>{denverCalendarDate(t.transaction_date)}</td>
+                <td>{denverDateTime(t.created_at)}</td>
                 <td>{t.description}</td>
                 <td>{money(t.amount)}</td>
               </tr>

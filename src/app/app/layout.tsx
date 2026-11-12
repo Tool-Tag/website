@@ -1,3 +1,5 @@
+import {Suspense} from "react";
+import {WorkspaceNavigationProgress} from "@/components/workspace-navigation-progress";
 import {WorkspaceHeader} from "@/components/workspace-header";
 import { StaffLoginAttention } from "@/components/staff-login-attention";
 import { SessionTimeout } from "@/components/session-timeout";
@@ -37,6 +39,7 @@ export default async function AppLayout({
       <div className="workspace">
         <WorkspaceHeader name={ctx?userName:"Initial setup"} role={ctx?.access.owner?"Owner":ctx?"Team member":"Initial setup"} canSearch={!!ctx&&canAny(ctx.access,["customers.view"])} navigation={<Nav attention={attention} access={ctx?.access} grouped utilities={userLinks}/>} accountLinks={userLinks.filter(link=>["/app/settings","/"].includes(link.href))} attention={attention} allowedQueues={["get-tagged","quotes","jobs","support","refunds","lost"].filter(section=>ctx&&canAny(ctx.access,sectionPermissions(section))).map(section=>`/app/${section}`)} signOut={ctx?<form action={logout}><button>Sign Out</button></form>:null}/>
         <main className="content">
+          <Suspense><WorkspaceNavigationProgress /></Suspense>
           {!ctx && (
             <div className="notice">
               Supabase is not connected. This view shows the structure only and

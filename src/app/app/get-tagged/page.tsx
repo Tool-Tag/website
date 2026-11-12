@@ -1,3 +1,4 @@
+import {WorkspacePagination} from "@/components/workspace-pagination";
 import {RecordList} from "@/components/record-list";
 import {paginateList} from "@/lib/domain/list-pagination";
 import {denverDateTime} from "@/lib/domain/time";
@@ -48,7 +49,7 @@ export default async function GetTaggedRequestsPage({searchParams}:{searchParams
       ) : (
         <Empty>No Get Tagged requests need attention.</Empty>
       )}
-      <nav className="actions pagination" aria-label="Request pages">{paging.page>1?<Link className="button menu-link-gold" href={pageUrl(paging.page-1)}>Previous</Link>:<button disabled>Previous</button>}<span>Page {paging.page} of {paging.pages}</span>{paging.page<paging.pages?<Link className="button menu-link-gold" href={pageUrl(paging.page+1)}>Next</Link>:<button disabled>Next</button>}</nav>
+      <WorkspacePagination label="Request pages" previous={paging.page>1 ? pageUrl(paging.page-1) : undefined} next={paging.page<paging.pages ? pageUrl(paging.page+1) : undefined} />
     </>
   );
 }

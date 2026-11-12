@@ -19,7 +19,7 @@ export function DashboardAttention({ items }: { items: AttentionItem[] }) {
   function rows(list: AttentionItem[], inModal = false) {
     return <ul className="dashboard-attention-list">{list.map((item, index) => (
       <li key={`${item.path}-${item.kind}-${index}`}>
-        <Link className="blue-electric menu-link-blue-electric dashboard-attention-link" href={item.path} onClick={inModal ? () => dialog.current?.close() : undefined}>↗ {item.kind}</Link>
+        <Link className="dashboard-attention-link" href={item.path} onClick={inModal ? () => dialog.current?.close() : undefined}>↗ {item.kind}</Link>
       </li>
     ))}</ul>;
   }
@@ -35,7 +35,7 @@ export function DashboardAttention({ items }: { items: AttentionItem[] }) {
       {rows(items.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE), true)}
       <ModalActions className="actions pagination dashboard-attention-pagination">
         <button type="button" className="menu-link-gold" disabled={current === 0} onClick={() => setPage(current - 1)}>Previous</button>
-        <span role="status" aria-live="polite">Page {current + 1} of {pages}</span>
+
         <button type="button" className="menu-link-gold" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>Next</button>
       </ModalActions>
     </HexModalFrame></dialog>

@@ -1,3 +1,4 @@
+import {workspaceJobQueues} from "./job-queues";
 import {classifyAttention,categoryBadge,type AttentionRecord,type Urgency} from "./urgent-attention";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -36,11 +37,7 @@ export async function workspaceAttention(
         .select("id,status,source,intake_reviewed_at")
         .eq("unit_id", unit)
         .in("status", ["Draft", "Sent", "Viewed", "Agreement Pending", "Accepted"]),
-      db
-        .from("jobs")
-        .select("id,quote_id,status,work_stage")
-        .eq("is_lost",false)
-        .eq("unit_id", unit),
+      workspaceJobQueues(db, unit).catch(() => null),
       db
         .from("refund_requests")
         .select("id,amount,processed_amount")
@@ -59,7 +56,7 @@ export async function workspaceAttention(
         .filter((quoteId): quoteId is string => Boolean(quoteId)),
     );
 
-    const jobRows = jobs.data ?? [];
+    const jobRows = jobs?.jobs ?? [];
     const jobQuoteIds = new Set(
       jobRows
         .map((job) => job.quote_id)
@@ -78,10 +75,6 @@ export async function workspaceAttention(
       return !stillInRequestReview;
     });
 
-    const openJobs = jobRows.filter(
-      (job) => job.status !== "Cancelled" && job.work_stage !== "Closed",
-    );
-
     const pendingRefunds = refunds.data ?? [];
 
     const urgentRows=classifyAttention((urgent.data?.items??[]) as AttentionRecord[]);
@@ -92,7 +85,7 @@ export async function workspaceAttention(
       notifications: urgent.error?Number(support.data||0):supportBadge.count,
       getTagged: requestRows.length,
       quotes: openQuotes.length,
-      jobs: openJobs.length,
+      jobs: jobs?.active.length ?? 0,
       refunds: urgent.error?pendingRefunds.length:refundBadge.count,
     };
   } catch {

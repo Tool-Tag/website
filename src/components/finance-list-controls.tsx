@@ -1,3 +1,4 @@
+import {WorkspacePagination} from "@/components/workspace-pagination";
 import Link from "next/link";
 import {financePageUrl,type FinanceSelect} from "@/lib/domain/finance-list";
 export function FinanceListControls({path,title,placeholder,values,selects}:{path:string;title:string;placeholder:string;values:Record<string,string>;selects:FinanceSelect[]}){
@@ -13,5 +14,5 @@ export function FinanceListControls({path,title,placeholder,values,selects}:{pat
 }
 export function FinancePagination({path,values,page,pages}:{path:string;values:Record<string,string>;total:number;page:number;pages:number}){
  return <>
- <nav className="actions pagination" aria-label="Finance pages">{page>1?<Link className="button menu-link-gold" href={financePageUrl(path,values,page-1)}>Previous</Link>:<button type="button" disabled>Previous</button>}<span>Page {page} of {pages}</span>{page<pages?<Link className="button menu-link-gold" href={financePageUrl(path,values,page+1)}>Next</Link>:<button type="button" disabled>Next</button>}</nav></>;
+ <WorkspacePagination label="Finance pages" previous={page>1 ? financePageUrl(path,values,page-1) : undefined} next={page<pages ? financePageUrl(path,values,page+1) : undefined} /></>;
 }

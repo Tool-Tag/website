@@ -22,8 +22,8 @@
   --gold-ink: #171307;
   --gold-tint: rgb(217 179 102 / 12%);
   --blue: #3177ff;
-  --blue-hover: #4a89ff;
-  --button-blue: var(--blue);
+  --button-blue: #234b8c;
+  --button-blue-hover: #2d5a9e;
   --ink: #f2f0ea;
   --muted: #9aa3ae;
   --muted2: #6b7480;
@@ -53,6 +53,21 @@ body::before { content: none; }
 .eyebrow::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 10px; background: var(--gold); transform: rotate(45deg); vertical-align: 1px; }
 .workspace-back { color: var(--gold); font: 600 13.5px var(--font-body); letter-spacing: .04em; text-transform: uppercase; }
 .workspace-back:hover { color: var(--gold-bright); }
+.workspace-back > button.secondary.gold {
+  color: var(--gold-bright) !important;
+  background: var(--inset) !important;
+  border: 1px solid rgb(217 179 102 / 45%) !important;
+  box-shadow: none;
+}
+.workspace-back > button.secondary.gold:hover { color: var(--gold-ink) !important; background: var(--gold) !important; }
+.dashboard-attention-list .dashboard-attention-link {
+  background: var(--panel2) !important;
+  color: var(--ink) !important;
+}
+.dashboard-attention-list .dashboard-attention-link:hover {
+  background: var(--inset) !important;
+  color: var(--gold-bright) !important;
+}
 .workspace > .footer { border-top: 0; background: linear-gradient(90deg, transparent, rgb(217 179 102 / 50%), transparent) top / 100% 1px no-repeat; }
 
 /* Cards, metrics, and the inset hex icon. */
@@ -120,14 +135,14 @@ body::before { content: none; }
 }
 :is(.button, .outline-button, button):focus-visible { outline: 2px solid var(--gold); outline-offset: -4px; }
 :is(.button, button):is(.gold, .menu-link-gold, .driver-return .driver-open),
-.pagination :is(a, button) {
+.pagination.actions :is(a.button, button) {
   background: var(--gold) !important;
   color: var(--gold-ink) !important;
   border-color: transparent !important;
   box-shadow: inset 0 0 0 2px var(--gold), inset 0 0 0 3px rgb(23 19 7 / 35%);
 }
 :is(.button, button):is(.gold, .menu-link-gold, .driver-return .driver-open):hover:not(:disabled),
-.pagination :is(a, button):hover:not(:disabled) {
+.pagination.actions :is(a.button, button):is(:hover, :focus-visible):not(:disabled) {
   background: var(--gold-bright) !important;
   color: var(--gold-ink) !important;
   box-shadow: inset 0 0 0 2px var(--gold-bright), inset 0 0 0 3px rgb(23 19 7 / 35%);
@@ -142,13 +157,13 @@ body::before { content: none; }
   box-shadow: inset 0 0 0 1px var(--gold);
 }
 :is(button[type=submit], .menu-link-blue-electric, .driver-pickup .driver-open):not(.secondary, .danger, .menu-link-gold) {
-  background: var(--blue) !important;
+  background: var(--button-blue) !important;
   color: #fff !important;
-  box-shadow: inset 0 0 0 2px var(--blue), inset 0 0 0 3px rgb(255 255 255 / 22%);
+  box-shadow: inset 0 0 0 2px var(--button-blue), inset 0 0 0 3px rgb(255 255 255 / 22%);
 }
 :is(button[type=submit], .menu-link-blue-electric, .driver-pickup .driver-open):not(.secondary, .danger, .menu-link-gold):hover:not(:disabled) {
-  background: var(--blue-hover) !important;
-  box-shadow: inset 0 0 0 2px var(--blue-hover), inset 0 0 0 3px rgb(255 255 255 / 22%);
+  background: var(--button-blue-hover) !important;
+  box-shadow: inset 0 0 0 2px var(--button-blue-hover), inset 0 0 0 3px rgb(255 255 255 / 22%);
 }
 button.danger {
   background: transparent !important;
@@ -392,10 +407,10 @@ dialog::backdrop {
   .equipment-name-button, .timeline-completed-toggle, .timeline-upcoming-pill, .copy-button,
   .hex-movement-segments button, .hex-header-dropdown button, .driver-return .driver-open
 )) {
-  background: var(--blue) !important;
+  background: var(--button-blue) !important;
   color: white !important;
   border-color: transparent !important;
-  box-shadow: inset 0 0 0 2px var(--blue), inset 0 0 0 3px rgb(255 255 255 / 22%);
+  box-shadow: inset 0 0 0 2px var(--button-blue), inset 0 0 0 3px rgb(255 255 255 / 22%);
 }
 :is(button, a.button, .outline-button):not(:where(
   .secondary, .danger, .gold, .menu-link-gold, .menu-link-blue-electric,
@@ -405,8 +420,8 @@ dialog::backdrop {
   .equipment-name-button, .timeline-completed-toggle, .timeline-upcoming-pill, .copy-button,
   .hex-movement-segments button, .hex-header-dropdown button, .driver-return .driver-open
 )):hover:not(:disabled) {
-  background: var(--blue-hover) !important;
-  box-shadow: inset 0 0 0 2px var(--blue-hover), inset 0 0 0 3px rgb(255 255 255 / 22%);
+  background: var(--button-blue-hover) !important;
+  box-shadow: inset 0 0 0 2px var(--button-blue-hover), inset 0 0 0 3px rgb(255 255 255 / 22%);
 }
 .intake-page h1,
 .intake-page .intake-section legend,
@@ -491,4 +506,19 @@ fieldset.role-chips { border: 1px solid var(--line); border-radius: 8px; padding
   .roles-matrix td::before { content: attr(data-label); color: var(--muted); font-size: 12px; }
   .roles-users table td > * { min-width: 0; }
   .roles-users .role-chips { justify-content: flex-end; }
+}
+
+
+.workspace-navigation-progress {
+  position: fixed;
+  z-index: 200;
+  top: calc(var(--header-h, 60px) + 8px);
+  right: 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--gold-bright);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
+  pointer-events: none;
 }

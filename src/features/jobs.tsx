@@ -19,38 +19,24 @@ import { WorkPreparation } from "@/components/work-preparation";
 import { money } from "@/lib/domain/money";
 import { jobStatusLabel, paymentStatusLabel, workStageLabel } from "@/lib/domain/status-labels";
 import type { QuoteItem } from "@/lib/domain/quote-items";
+import { workspaceJobQueues } from "@/lib/domain/job-queues";
 import { logisticsOption } from "@/lib/domain/logistics";
 
 export async function Jobs({ id }: { id?: string }) {
   if (!id) {
-    const [list, logisticsRows] = await Promise.all([
-      rows("jobs", { order: "created_at" }),
-      rows("quote_logistics", { limit: 500 }),
-    ]);
-    const logisticsPaymentJobs = new Set(
-      logisticsRows
-        .filter((entry) =>
-          ["pending", "pending_verification"].includes(entry.payment_status),
-        )
-        .map((entry) => entry.job_id)
-        .filter(Boolean),
-    );
-
-    const activeJobs = list.filter(
-      (j) =>
-        !["Payment", "Payment Verification", "Closed", "Issue Review"].includes(
-          j.work_stage ?? "Not Started",
-        ) &&
-        !["Cancelled"].includes(j.status) &&
-        !logisticsPaymentJobs.has(j.id),
-    );
+    const { db, unit } = await context();
+    const { jobs, active, pendingLogisticsJobs } = await workspaceJobQueues(db, unit);
+    const newestFirst = (a: {created_at: string}, b: {created_at: string}) =>
+      Date.parse(b.created_at) - Date.parse(a.created_at);
+    const list = [...jobs].sort(newestFirst);
+    const activeJobs = [...active].sort(newestFirst);
     const reviewJobs = list.filter(
       (j) => j.work_stage === "Issue Review" || j.status === "Issue / Review",
     );
     const paymentJobs = list.filter(
       (j) =>
         ["Payment", "Payment Verification"].includes(j.work_stage) ||
-        logisticsPaymentJobs.has(j.id),
+        pendingLogisticsJobs.has(j.id),
     );
     const completedJobs = list.filter((j) => j.work_stage === "Closed");
     const cancelledJobs = list.filter((j) => j.status === "Cancelled");
@@ -70,7 +56,7 @@ export async function Jobs({ id }: { id?: string }) {
                 <td>
                   <Badge>{jobStatusLabel(j.status)}</Badge>
                 </td>
-                <td>{new Date(j.created_at).toLocaleDateString("en-US", {timeZone:"America/Denver"})}</td>
+                <td>{denverDateTime(j.created_at)}</td>
               </tr>
             ))}
           </Table>
@@ -396,7 +382,7 @@ export async function Jobs({ id }: { id?: string }) {
             </strong>{" "}
             · Fee{" "}
             {money(logistics.fee_amount)} · Payment{" "}
-            <strong>{logistics.payment_status}</strong>
+            <strong>{paymentStatusLabel(logistics.payment_status)}</strong>
           </p>
           {logistics.pickup_address && <p>Pickup: {logistics.pickup_address}</p>}
           {logistics.saturday_date && (

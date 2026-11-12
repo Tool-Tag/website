@@ -183,10 +183,7 @@ tbody tr[data-row-action]:focus-visible{
   justify-content:center;
   gap:12px;
   margin:22px 0}
-.pagination .button,.pagination button{
-  background:#211d15!important;
-  border:1px solid #806d46!important;
-  color:var(--gold)!important}
+
 
 /* Only urgency classes retain traffic-light colors. Other state/counter colors are neutral. */
 .metric-positive,.metric-negative{
