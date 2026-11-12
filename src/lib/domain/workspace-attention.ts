@@ -1,5 +1,6 @@
+import {supportQueue} from "./support-queue";
 import {workspaceJobQueues} from "./job-queues";
-import {classifyAttention,categoryBadge,type AttentionRecord,type Urgency} from "./urgent-attention";
+import {classifyAttention,categoryBadge,queueDays,urgency,type AttentionRecord,type Urgency} from "./urgent-attention";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type WorkspaceAttention = {
@@ -43,7 +44,7 @@ export async function workspaceAttention(
         .select("id,amount,processed_amount")
         .eq("unit_id", unit)
         .in("status", ["Pending","In Review","Approved","Issued"]),
-      db.rpc("support_attention"),
+      supportQueue(db),
       db.rpc("urgent_login_attention"),
     ]);
 
@@ -78,11 +79,14 @@ export async function workspaceAttention(
     const pendingRefunds = refunds.data ?? [];
 
     const urgentRows=classifyAttention((urgent.data?.items??[]) as AttentionRecord[]);
-    const supportBadge=categoryBadge(urgentRows,"problem"),refundBadge=categoryBadge(urgentRows,"refund"),lostBadge=categoryBadge(urgentRows,"lost");
+    const now = new Date();
+    const supportColors = support.open.map(row => urgency("problem", row.waiting_since ? queueDays(row.waiting_since, now, true) : 0));
+    const supportColor = supportColors.includes("red") ? "red" : supportColors.includes("orange") ? "orange" : "green";
+    const refundBadge=categoryBadge(urgentRows,"refund"),lostBadge=categoryBadge(urgentRows,"lost");
     return {
       lost:lostBadge.count,
-      urgency:{notifications:supportBadge.color,refunds:refundBadge.color,lost:lostBadge.color},
-      notifications: urgent.error?Number(support.data||0):supportBadge.count,
+      urgency:{notifications:supportColor,refunds:refundBadge.color,lost:lostBadge.color},
+      notifications: support.open.length,
       getTagged: requestRows.length,
       quotes: openQuotes.length,
       jobs: jobs?.active.length ?? 0,

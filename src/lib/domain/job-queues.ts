@@ -23,10 +23,15 @@ export const workspaceJobQueues = cache(async (db: SupabaseClient, unit: string)
 
   const [jobs, pendingLogistics] = await Promise.all([read<QueueJob>("jobs"), read<PendingLogistics>("quote_logistics")]);
   const pendingLogisticsJobs = new Set(pendingLogistics.map(entry => entry.job_id));
-  const active = jobs.filter(job =>
-    !["Cancelled", "Completed", "Issue / Review"].includes(job.status) &&
-    !["Payment", "Payment Verification", "Closed", "Issue Review"].includes(job.work_stage) &&
-    !pendingLogisticsJobs.has(job.id),
-  );
-  return { jobs, active, pendingLogisticsJobs };
+  const queues: Record<"active" | "review" | "payments" | "completed" | "cancelled", QueueJob[]> = {
+    active: [], review: [], payments: [], completed: [], cancelled: [],
+  };
+  for (const job of jobs) {
+    if (job.status === "Cancelled") queues.cancelled.push(job);
+    else if (job.status === "Completed" || job.work_stage === "Closed") queues.completed.push(job);
+    else if (job.status === "Issue / Review" || job.work_stage === "Issue Review") queues.review.push(job);
+    else if (["Payment", "Payment Verification"].includes(job.work_stage) || pendingLogisticsJobs.has(job.id)) queues.payments.push(job);
+    else queues.active.push(job);
+  }
+  return { jobs, ...queues };
 });

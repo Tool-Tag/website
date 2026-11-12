@@ -1,6 +1,6 @@
 import {WorkspacePagination} from "@/components/workspace-pagination";
 import {supportMailboxMatches,supportContextLines} from "@/lib/domain/support-view";
-import {isPresentationTest} from "@/lib/domain/presentation";
+import {supportQueue} from "@/lib/domain/support-queue";
 import {SupportCaseModal} from "@/components/support-case-modal";
 import Link from "next/link";
 import {requirePermission} from "@/lib/domain/context";
@@ -18,11 +18,11 @@ export default async function Support({searchParams}:{searchParams:Promise<{sect
  const {db,unit,access}=await requirePermission("support.inbox"),q=await searchParams;
  const questions=q.section==="questions",section=questions?"questions":"support";
  const resolved=q.tab==="resolved",origin=q.origin==="Inbox"||q.origin==="Job"?q.origin:"";
- const [result,directory]=await Promise.all([db.rpc("support_cases"),db.rpc("support_directory")]);if(result.error||directory.error)throw new Error("Could not load Support cases.");
+ const [queue,directory]=await Promise.all([supportQueue(db),db.rpc("support_directory")]);
+ if(queue.error||directory.error)throw new Error("Could not load Support cases.");
  const choices=directory.data as SupportDirectory;
- type Case={id:string;status:string;origin:string;channel:string;mailbox:string;subject:string;case_code:string|null;sender_name:string;sender_email:string;job_id:string|null;updated_at:string;last_message:string|null;last_message_at:string|null;waiting_since:string|null};
  const now=new Date();
- const rows=((result.data??[]) as Case[]).filter(c=>supportMailboxMatches(c.mailbox,questions)&&(resolved?c.status==="Closed":c.status!=="Closed")&&(!origin||resolved||c.origin===origin)&&!isPresentationTest(JSON.stringify(c))).map(c=>{const days=c.waiting_since?queueDays(c.waiting_since,now,true):0;return {c,days,color:urgency("problem",days)};}).sort((a,b)=>({red:0,orange:1,green:2}[a.color]-{red:0,orange:1,green:2}[b.color])||b.days-a.days||Date.parse(b.c.updated_at)-Date.parse(a.c.updated_at)||a.c.id.localeCompare(b.c.id));
+ const rows=queue.cases.filter(c=>supportMailboxMatches(c.mailbox,questions)&&(resolved?c.status==="Closed":c.status!=="Closed")&&(!origin||resolved||c.origin===origin)).map(c=>{const days=c.waiting_since?queueDays(c.waiting_since,now,true):0;return {c,days,color:urgency("problem",days)};}).sort((a,b)=>({red:0,orange:1,green:2}[a.color]-{red:0,orange:1,green:2}[b.color])||b.days-a.days||Date.parse(b.c.updated_at)-Date.parse(a.c.updated_at)||a.c.id.localeCompare(b.c.id));
  const pagination=paginateList(rows,q.page);
  const pageUrl=(page:number,id?:string)=>{const params=new URLSearchParams({section,tab:resolved?"resolved":"open",page:String(page)});if(origin)params.set("origin",origin);if(id)params.set("id",id);return `/app/support?${params}`;};
  const selected=q.id&&z.string().uuid().safeParse(q.id).success?await db.from("support_conversations").select("*").eq("unit_id",unit).eq("id",q.id).maybeSingle():null;
@@ -33,8 +33,8 @@ export default async function Support({searchParams}:{searchParams:Promise<{sect
  const active=rows.find(row=>row.c.id===c?.id);const job=choices.jobs.find(j=>j.id===c?.job_id);
  return <><Heading title="Support" subtitle="Customer cases · Inbox, Job issues and phone calls">{access.owner&&<Link className="button menu-link-gold" href="/app/support/monitoring">Monitoring</Link>}</Heading><StatusRefresh/>
  <nav className="main-tab-list" aria-label="Support sections">
-  <Link className={`main-tab ${questions?"":"active"}`} aria-current={!questions?"page":undefined} href="/app/support?section=support">Support</Link>
-  <Link className={`main-tab ${questions?"active":""}`} aria-current={questions?"page":undefined} href="/app/support?section=questions">Questions</Link>
+  <Link className={`main-tab ${questions?"":"active"}`} aria-current={!questions?"page":undefined} href="/app/support?section=support">Support <span className="tab-count" aria-label={`${queue.support} open cases`}>{queue.support}</span></Link>
+  <Link className={`main-tab ${questions?"active":""}`} aria-current={questions?"page":undefined} href="/app/support?section=questions">Questions <span className="tab-count" aria-label={`${queue.questions} open questions`}>{queue.questions}</span></Link>
  </nav>
  <div className="support-status-toolbar">
   <nav className="folder-tab-list shop-folder-tabs" aria-label="Case status">

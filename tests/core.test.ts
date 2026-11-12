@@ -902,8 +902,14 @@ test("Workspace job queues page quote logistics by quote_id", async () => {
         return Response.json({ code: "42703", message: "column quote_logistics.id does not exist" }, { status: 400 });
       }
       return Response.json(url.pathname.endsWith("/jobs")
-        ? [{ id: "ready", status: "Authorized", work_stage: "Not Started" }, { id: "unpaid", status: "Authorized", work_stage: "Not Started" }]
-        : [{ job_id: "unpaid" }]);
+        ? [
+          { id: "ready", status: "Authorized", work_stage: "Not Started" },
+          { id: "unpaid", status: "Authorized", work_stage: "Not Started" },
+          { id: "complete", status: "Completed", work_stage: "Awaiting Delivery Acceptance" },
+          { id: "closed", status: "In Process", work_stage: "Closed" },
+          { id: "review", status: "Issue / Review", work_stage: "Payment" },
+          { id: "cancelled", status: "Cancelled", work_stage: "Closed" },
+        ] : [{ job_id: "unpaid" }, { job_id: "complete" }]);
     } },
   });
 
@@ -911,4 +917,8 @@ test("Workspace job queues page quote logistics by quote_id", async () => {
   assert.equal(requests.get("/rest/v1/jobs"), "id.asc");
   assert.equal(requests.get("/rest/v1/quote_logistics"), "quote_id.asc");
   assert.deepEqual(result.active.map(job => job.id), ["ready"]);
+  assert.deepEqual(result.completed.map(job => job.id), ["complete", "closed"]);
+  assert.deepEqual(result.review.map(job => job.id), ["review"]);
+  assert.deepEqual(result.payments.map(job => job.id), ["unpaid"]);
+  assert.deepEqual(result.cancelled.map(job => job.id), ["cancelled"]);
 });

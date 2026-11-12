@@ -1,3 +1,4 @@
+import { StatusRefresh } from "@/components/status-refresh";
 import {IssueResponse} from "@/components/issue-response";
 import {SmsCosts} from "@/features/sms-costs";
 import {RefundsPanel} from "@/features/refunds";
@@ -25,27 +26,17 @@ import { logisticsOption } from "@/lib/domain/logistics";
 export async function Jobs({ id }: { id?: string }) {
   if (!id) {
     const { db, unit } = await context();
-    const { jobs, active, pendingLogisticsJobs } = await workspaceJobQueues(db, unit);
-    const newestFirst = (a: (typeof jobs)[number], b: (typeof jobs)[number]) =>
+    const queues = await workspaceJobQueues(db, unit);
+    const newestFirst = (a: (typeof queues.jobs)[number], b: (typeof queues.jobs)[number]) =>
       Date.parse(b.created_at) - Date.parse(a.created_at);
-    const list = [...jobs].sort(newestFirst);
-    const activeJobs = [...active].sort(newestFirst);
-    const reviewJobs = list.filter(
-      (j) => j.work_stage === "Issue Review" || j.status === "Issue / Review",
-    );
-    const paymentJobs = list.filter(
-      (j) =>
-        ["Payment", "Payment Verification"].includes(j.work_stage) ||
-        pendingLogisticsJobs.has(j.id),
-    );
-    const completedJobs = list.filter((j) => j.work_stage === "Closed");
-    const cancelledJobs = list.filter((j) => j.status === "Cancelled");
+    const { active: activeJobs, review: reviewJobs, payments: paymentJobs,
+      completed: completedJobs, cancelled: cancelledJobs } = queues;
 
-    const jobTable = (jobs: typeof list, empty: string) => (
+    const jobTable = (jobs: typeof queues.jobs, empty: string) => (
       <Panel>
         {jobs.length ? (
           <Table headers={["Job", "Stage", "Status", "Created"]}>
-            {jobs.map((j) => (
+            {[...jobs].sort(newestFirst).map((j) => (
               <tr key={j.id}>
                 <td>
                   <Link href={`/app/jobs/${j.id}`}>{j.code}</Link>
@@ -68,6 +59,7 @@ export async function Jobs({ id }: { id?: string }) {
 
     return (
       <>
+        <StatusRefresh />
         <Heading
           title="Jobs"
           subtitle="Organized by operational stage."
