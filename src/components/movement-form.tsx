@@ -40,7 +40,7 @@ export function MovementForm({
   const [paidBy, setPaidBy] = useState("Business");
   const today = new Date().toLocaleDateString("en-CA");
   const fields: Field[] = [
-    { name: "amount", label: "Amount (USD)", type: "number", required: true },
+    { name: "amount", label: "Amount (USD)", decimalScale: 2, required: true },
     {
       name: "transaction_date",
       label: "Transaction Date",

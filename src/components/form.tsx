@@ -4,12 +4,14 @@ import {useActionModal} from "./action-modal";
 import { useActionPermission } from "./permission-provider";
 import { PhoneVerification } from "./phone-verification";
 import { useActionState, useState, useEffect, useRef } from "react";
+import { fixedDecimal } from "@/lib/domain/money";
 import { mutate, type ActionState } from "@/app/actions";
 export type Field = {
   name: string;
   label: string;
   type?: string;
   step?: string;
+  decimalScale?: number;
   required?: boolean;
   value?: string;
   options?: { value: string; label: string }[];
@@ -100,9 +102,11 @@ export function Form({
                 list={f.suggestions ? `suggest-${f.name}` : undefined}
                 name={f.name}
                 onChange={e=>{if(operation==="customer"&&f.name==="phone")setCustomerPhone(e.target.value);onFieldChange?.(f.name,e.target.value);}}
-                type={f.type ?? "text"}
+                type={f.decimalScale !== undefined ? "text" : f.type ?? "text"}
+                inputMode={f.decimalScale !== undefined ? "decimal" : undefined}
+                pattern={f.decimalScale !== undefined ? `[0-9]+([.][0-9]{1,${f.decimalScale}})?` : undefined}
                 required={f.required}
-                defaultValue={f.value}
+                defaultValue={f.decimalScale !== undefined && f.value !== undefined && f.value !== "" ? fixedDecimal(f.value, f.decimalScale) : f.value}
                 step={f.step ?? (f.type === "number" ? "0.01" : undefined)}
               />
               {f.suggestions && (

@@ -1,9 +1,10 @@
 "use client";
 import {ModalActions} from "./hex-modal-frame";
+import { fixedDecimal } from "@/lib/domain/money";
 import { useActionState } from "react";
 import { saveSmsSettings, sendTestSms } from "@/app/sms-actions";
 export type SmsSettingsInfo = { enabled?: boolean; region?: string; origination_number?: string; test_phone?: string; credentials_saved?: boolean; last_test_result?: string; logs?: { event: string; status: string; reason?: string; provider_id?: string }[] };
-export function SmsSettings({ info, mode, envConfigured, envRegion, envOrigin, envTestPhone, encryptionReady }: { info: SmsSettingsInfo; mode: string; envConfigured: boolean; envRegion: string; envOrigin: string; envTestPhone: string; encryptionReady: boolean }) {
+export function SmsSettings({ info, mode, envConfigured, envRegion, envOrigin, envTestPhone, encryptionReady, rate, account, accounts }: { info: SmsSettingsInfo; mode: string; envConfigured: boolean; envRegion: string; envOrigin: string; envTestPhone: string; encryptionReady: boolean; rate: string; account: string; accounts: {value:string;label:string}[] }) {
   const [saved, save, pending] = useActionState(saveSmsSettings, {}), [test, send, sending] = useActionState(sendTestSms, {});
   return <section className="panel"><h2>SMS · AWS SNS</h2><p>SMS mode: {mode}. Customer SMS requires explicit opt-in. Enabling sends only new notifications; old notifications are never replayed.</p>
     <p>Credentials: {envConfigured ? "Configured securely" : info.credentials_saved ? "Saved encrypted · never displayed" : "Not configured"}.</p>
@@ -16,7 +17,15 @@ export function SmsSettings({ info, mode, envConfigured, envRegion, envOrigin, e
       <label>Origination number<input name="origin" type="tel" defaultValue={info.origination_number || envOrigin} placeholder="+1…" /></label>
       <input name="test_phone" type="hidden" value={info.test_phone || envTestPhone}/><p>Test recipient: {info.test_phone || envTestPhone ? "Configured" : "Not configured"}</p>
       <label className="checkbox wide"><input name="enabled" type="checkbox" defaultChecked={info.enabled} />Enable customer SMS</label>
-      <ModalActions><button type="submit" disabled={pending}>Save SMS settings</button></ModalActions>
+      <label>Cost per AWS-accepted SMS (USD)
+        <input type="text" inputMode="decimal" name="sms_unit_cost" pattern="[0-9]+([.][0-9]{1,8})?" required
+          defaultValue={fixedDecimal(rate, 8).replace(/(\.\d{5}\d*?)0+$/, "$1")} />
+      </label>
+      <label>SMS expense account<select name="sms_expense_account_id" defaultValue={account}>
+        <option value="">No account selected</option>
+        {accounts.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select></label>
+      <ModalActions><button type="submit" disabled={pending}>Save</button></ModalActions>
       {saved.error && <p className="notice error wide" role="alert">{saved.error}</p>}{saved.message && <p className="notice success wide" role="status">{saved.message}</p>}
     </form>
     <form action={send} className="stack"><label className="checkbox"><input type="checkbox" name="test_consent" required />The configured test number is mine. I consent to receiving this test SMS.</label><ModalActions><button type="submit" disabled={sending}>Send test SMS</button></ModalActions>

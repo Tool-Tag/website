@@ -19,48 +19,18 @@ export async function Settings({tab}:{tab?:string}){
  const s=(await rows("unit_settings"))[0];
 if(active==="general"){const [policies,categories]=await Promise.all([rows("policies",{order:"version"}),rows("categories")]);return <>{heading}<div className="settings-card-grid"><SettingsSection title="Business / Workspace" summary={`${s?.business_display_name || "ToolTag"} · ${s?.timezone || "America/Denver"}`}>
         <p className="muted">Workspace contact details only. These fields do not replace your Gmail aliases, payment accounts or accepted documents.</p>
-        <Form operation="workspace-profile" fields={[
+        <Form operation="save-business-settings" fields={[
           { name: "business_display_name", label: "Business Display Name", value: s?.business_display_name ?? "" },
           { name: "business_contact_email", label: "Business Contact Email", type: "email", value: s?.business_contact_email ?? "" },
           { name: "business_contact_phone", label: "Business Contact Phone", type: "tel", value: s?.business_contact_phone ?? "" },
-        ]} back="/app/settings?tab=general" button="Save Business Details" />
-
-
-          <Form
-            operation="settings"
-            fields={[
-              {
-                name: "timezone",
-                label: "Time Zone",
-                value: s?.timezone ?? "America/Denver",
-              },
-              {
-                name: "boft_url",
-                label: "BOFT System URL",
-                type: "url",
-                value: s?.boft_url ?? "",
-              },
-              {
-                name: "annual_vehicle_method",
-                label: "Annual Vehicle Report Method",
-                value: s?.annual_vehicle_method ?? "Fuel",
-                options: [
-                  { value: "Fuel", label: "Fuel" },
-                  { value: "Mileage", label: "Travel / Mileage" },
-                ],
-              },
-              {
-                name: "mileage_rate",
-                label: "Mileage Rate for Analysis (Optional)",
-                value: s?.mileage_rate ?? "",
-                type: "number",
-              },
-            ]}
-            back="/app/settings?tab=general"
-          />
-
-      <p className="muted">This address is shown to the driver as a departure reference. Approximate ETA still uses the driver&apos;s live location; saving it does not reschedule stops.</p>
-      <Form operation="workspace-profile" fields={[{ name: "route_departure_address", label: "Shop / Route Departure Address", type: "textarea", wide: true, value: s?.route_departure_address ?? "" }]} back="/app/settings?tab=general" button="Save Departure Point" />
+          { name: "timezone", label: "Time Zone", value: s?.timezone ?? "America/Denver" },
+          { name: "boft_url", label: "BOFT System URL", type: "url", value: s?.boft_url ?? "" },
+          { name: "annual_vehicle_method", label: "Annual Vehicle Report Method", value: s?.annual_vehicle_method ?? "Fuel",
+            options: [{ value: "Fuel", label: "Fuel" }, { value: "Mileage", label: "Travel / Mileage" }] },
+          { name: "mileage_rate", label: "Mileage Rate for Analysis (Optional)", value: s?.mileage_rate ?? "", decimalScale: 2 },
+          { name: "route_departure_address", label: "Shop / Route Departure Address", type: "textarea", wide: true, value: s?.route_departure_address ?? "",
+            help: "Shown to drivers as a departure reference. Saving it does not reschedule stops." },
+        ]} back="/app/settings?tab=general" button="Save" />
     </SettingsSection>
 <SettingsSection title="Agreements / Policies">
         <p className="notice">
@@ -139,10 +109,13 @@ if(active==="pick-return")return <>{heading}<div className="settings-card-grid">
         ...(["pickup", "return"] as const).map(leg => ({ name: `${leg}_route_iso_weekdays`, label: leg === "pickup" ? "Pickup Route Days" : "Delivery Route Days", value: (s?.[`${leg}_route_iso_weekdays`] ?? [leg === "pickup" ? 6 : (s?.delivery_route_iso_weekday ?? 7)]).join(","), multiple: true, options: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((label, index) => ({ value: String(index + 1), label })) })),
         { name: "max_delivery_stops_per_sunday", label: "Maximum Stops per Delivery Route Day", type: "number", value: String(s?.max_delivery_stops_per_sunday ?? 20), help: "13 reservable ETAs; multiple delivery stops may share an ETA." },
         { name: "max_pickup_stops_per_saturday", label: "Maximum Stops per Pickup Route Day", type: "number", required: true, value: String(s?.max_pickup_stops_per_saturday ?? 10), help: "Review & Accept hides Pickup days once this capacity is reached." },
-      ]} back="/app/settings?tab=pick-return" button="Save Route Settings" />
-    <h3>Route windows</h3><p>Pickup · 8:00 AM–12:00 PM</p><p>Delivery · 2:00 PM–6:00 PM</p><p className="muted">Denver time · fixed windows</p><h3>Delivery retry</h3><Form operation="settings" fields={[{name:"second_delivery_attempt_fee",label:"Second Delivery Attempt Fee (USD)",type:"number",value:String(s?.second_delivery_attempt_fee ?? 10)}]} back="/app/settings?tab=pick-return" button="Save Retry Fee" /></SettingsSection>
+        { name: "second_delivery_attempt_fee", label: "Second Delivery Attempt Fee (USD)", decimalScale: 2, value: String(s?.second_delivery_attempt_fee ?? 10) },
+      ]} back="/app/settings?tab=pick-return" button="Save">
+        <div className="wide"><h3>Route windows</h3><p>Pickup · 8:00 AM–12:00 PM</p><p>Delivery · 2:00 PM–6:00 PM</p><p className="muted">Denver time · fixed windows</p></div>
+      </Form></SettingsSection>
 </div></>;
-if(active==="notifications"){const [mailResult,sms,accounts]=await Promise.all([owner.db.rpc("customer_mail_status"),owner.db.rpc("sms_settings_status"),rows("accounts")]);const mail=mailResult.data;return <>{heading}<div className="settings-card-grid"><SettingsSection title="Notifications & Messaging" summary={`Email and SMS · $${Number(s?.sms_unit_cost ?? 0.00645).toFixed(5)} per accepted SMS`}><SmsSettings info={sms.data ?? {}} mode={process.env.TOOLTAG_SMS_MODE || "preview"} envConfigured={Boolean(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY)} envRegion={process.env.AWS_REGION || ""} envOrigin={process.env.TOOLTAG_SMS_ORIGINATION_NUMBER || ""} envTestPhone={process.env.TOOLTAG_SMS_TEST_PHONE || ""} encryptionReady={Boolean(process.env.TOOLTAG_SMS_SETTINGS_ENCRYPTION_KEY)} /><h3>SMS cost accounting</h3><Form operation="sms-cost-settings" fields={[{name:"sms_unit_cost",label:"Cost per AWS-accepted SMS (USD)",type:"number",step:"0.00000001",required:true,value:Number(s?.sms_unit_cost??0.00645).toFixed(5),help:"Each AWS-accepted send keeps its rate, including later delivery failures. Rejected/unsent requests have no accepted-send cost."},{name:"sms_expense_account_id",label:"SMS expense account",required:true,value:s?.sms_expense_account_id??"",options:accounts.filter(a=>a.active && (!isPresentationTest(a.name)||a.id===s?.sms_expense_account_id)).map(a=>({value:a.id,label:isPresentationTest(a.name)?"Current account":a.name}))}]} back="/app/settings?tab=notifications" button="Save SMS Cost"/><Link href="/app/finance/sms">View SMS costs</Link><h3>Customer email</h3>
+if(active==="notifications"){const [mailResult,sms,accounts]=await Promise.all([owner.db.rpc("customer_mail_status"),owner.db.rpc("sms_settings_status"),rows("accounts")]);const mail=mailResult.data;return <>{heading}<div className="settings-card-grid"><SettingsSection title="Notifications & Messaging" summary={`Email and SMS · $${Number(s?.sms_unit_cost ?? 0.00645).toFixed(5)} per accepted SMS`}><SmsSettings info={sms.data ?? {}} mode={process.env.TOOLTAG_SMS_MODE || "preview"} envConfigured={Boolean(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY)} envRegion={process.env.AWS_REGION || ""} envOrigin={process.env.TOOLTAG_SMS_ORIGINATION_NUMBER || ""} envTestPhone={process.env.TOOLTAG_SMS_TEST_PHONE || ""} encryptionReady={Boolean(process.env.TOOLTAG_SMS_SETTINGS_ENCRYPTION_KEY)} rate={String(s?.sms_unit_cost ?? "0.00645")} account={s?.sms_expense_account_id ?? ""}
+ accounts={accounts.filter(a=>a.active && (!isPresentationTest(a.name)||a.id===s?.sms_expense_account_id)).map(a=>({value:a.id,label:isPresentationTest(a.name)?"Current account":a.name}))} /><Link href="/app/finance/sms">View SMS costs</Link><h3>Customer email</h3>
         <p>Email mode: {process.env.TOOLTAG_MAIL_MODE || "preview"}</p>
         <p>Eligible notifications start: {denverDateTime(mail?.activated_at)}</p>
         <p>Activation does not resend tests or historical notifications. Failures require an individual retry.</p>
@@ -150,7 +123,7 @@ if(active==="notifications"){const [mailResult,sms,accounts]=await Promise.all([
 
       <Link className="button menu-link-gold" href="/app/support/monitoring">Delivery monitoring</Link></SettingsSection>
 </div></>; }
-return <>{heading}<div className="settings-card-grid"><SettingsSection title="Taxes & Fees" summary={`Utah sales tax · ${Number(s?.sales_tax_rate ?? 7.45).toFixed(2)}%`}><Form operation="sales-tax-settings" fields={[{name:"sales_tax_rate",label:"Sales Tax Rate (%)",type:"number",step:"0.001",required:true,value:Number(s?.sales_tax_rate ?? 7.45).toFixed(2),help:"Applied to the service subtotal, including logistics fees. Existing sent and accepted quotes retain their stored rate."}]} back="/app/settings?tab=prices" button="Save Tax Rate" /><h3>Reporting year</h3><QuarterSettings starts={s?.sales_tax_quarter_starts ?? DEFAULT_TAX_QUARTERS}/><p><Link href="/app/reference#logistics">View current logistics fees</Link></p></SettingsSection>
+return <>{heading}<div className="settings-card-grid"><SettingsSection title="Taxes & Fees" summary={`Utah sales tax · ${Number(s?.sales_tax_rate ?? 7.45).toFixed(2)}%`}><Form operation="save-tax-settings" fields={[{name:"sales_tax_rate",label:"Sales Tax Rate (%)",decimalScale:2,required:true,value:Number(s?.sales_tax_rate ?? 7.45).toFixed(2),help:"Applied to the service subtotal, including logistics fees. Existing sent and accepted quotes retain their stored rate."}]} back="/app/settings?tab=prices" button="Save"><QuarterSettings starts={s?.sales_tax_quarter_starts ?? DEFAULT_TAX_QUARTERS}/></Form><p><Link href="/app/reference#logistics">View current logistics fees</Link></p></SettingsSection>
 <SettingsSection title="Payments">
 
       <p>Card provider: <strong>{process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET ? "Stripe configured" : "Stripe not configured"}</strong></p>

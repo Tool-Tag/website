@@ -533,3 +533,13 @@ fieldset.role-chips { border: 1px solid var(--line); border-radius: 8px; padding
 }
 
 .request-reject-trigger { align-self: start; justify-self: start; width: auto; }
+
+/* Keep filters and their actions inside the sticky Finance toolbar. */
+.transaction-filter-panel .transaction-filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  overflow: visible;
+}
+.transaction-filter-panel .transaction-filter-form > label { flex: 1 1 140px; min-width: 0; }
+.transaction-filter-panel .transaction-filter-form > .actions { flex: 0 1 auto; flex-wrap: wrap; }
+.delivery-ack-panel .route-block-edit { width: auto; min-height: 40px; margin: 0; flex: 0 0 auto; }

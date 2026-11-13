@@ -14,7 +14,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { context, TOOLTAG } from "@/lib/domain/context";
 import { supabase } from "@/lib/supabase/server";
-import { cents } from "@/lib/domain/money";
+import { cents, decimal, fixedDecimal } from "@/lib/domain/money";
 import { z } from "zod";
 import { createHash, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
@@ -205,7 +205,7 @@ export async function mutate(
         break;
       case "movement":
         if(p.type==="EXPENSE"&&cents(String(p.amount))>=7500n&&!p.proof_id)return {error:"Upload a receipt image before saving an expense of $75 or more."};
-        cents(String(p.amount));
+        p.amount = decimal(cents(String(p.amount)));
         name = p.lost_id ? "record_lost_replacement_expense" : "record_movement";
         break;
       case "asset":
@@ -282,6 +282,29 @@ export async function mutate(
         name = "close_month";
         args = { p_unit: unit, p_month: p.month };
         break;
+      case "save-business-settings": {
+        for (const key of ["business_display_name", "business_contact_email", "business_contact_phone", "route_departure_address", "boft_url", "mileage_rate"]) {
+          if (form.has(key)) p[key] = String(form.get(key));
+        }
+        if (p.mileage_rate) p.mileage_rate = fixedDecimal(p.mileage_rate);
+        const profile = await db.rpc("save_workspace_profile", { p });
+        if (profile.error) return { error: profile.error.message };
+        const settings = await db.rpc("save_settings", { p });
+        if (settings.error) return { error: `Business profile saved. Workspace preferences failed: ${settings.error.message}` };
+        revalidatePath("/app/settings");
+        return { ok: true };
+      }
+      case "save-tax-settings": {
+        const starts = [1,2,3,4].map(n => `${p[`q${n}_month`]}-${p[`q${n}_day`]}`);
+        validateTaxQuarters(starts);
+        const rate = fixedDecimal(p.sales_tax_rate);
+        const saved = await db.rpc("save_sales_tax_rate", { p_rate: rate });
+        if (saved.error) return { error: saved.error.message };
+        const quarters = await db.rpc("save_tax_quarters", { p_starts: starts });
+        if (quarters.error) return { error: `Tax rate saved. Reporting year failed: ${quarters.error.message}` };
+        revalidatePath("/app/settings");
+        return { ok: true };
+      }
       case "sms-cost-settings":
         name="save_sms_cost_settings"; args={p_rate:p.sms_unit_cost,p_account:p.sms_expense_account_id}; break;
       case "sales-tax-quarter-settings": {
@@ -295,6 +318,7 @@ export async function mutate(
         name = "save_workspace_profile";
         break;
       case "settings":
+        if (p.second_delivery_attempt_fee !== undefined) p.second_delivery_attempt_fee = fixedDecimal(p.second_delivery_attempt_fee);
         for(const key of ["pickup_route_iso_weekdays","return_route_iso_weekdays"]) {
           if(form.has(`${key}_present`)) p[key]=form.getAll(key).map(v=>Number(String(v)));
         }

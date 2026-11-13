@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cents, decimal, quoteTotal } from "../src/lib/domain/money";
+import { cents, decimal, fixedDecimal, money, quoteTotal } from "../src/lib/domain/money";
 import { email, evidenceName } from "../src/lib/integrations/contracts";
 test("Money calculations use integer cents, including fractional unit prices", () => {
   assert.equal(
@@ -921,4 +921,12 @@ test("Workspace job queues page quote logistics by quote_id", async () => {
   assert.deepEqual(result.review.map(job => job.id), ["review"]);
   assert.deepEqual(result.payments.map(job => job.id), ["unpaid"]);
   assert.deepEqual(result.cancelled.map(job => job.id), ["cancelled"]);
+});
+
+
+test("Finance decimal formatting preserves signed money and fractional SMS rates", () => {
+  assert.equal(money("-0.01"), "-$0.01");
+  assert.equal(fixedDecimal(0.009999999776482582), "0.01");
+  assert.equal(fixedDecimal(7.449999809265137), "7.45");
+  assert.equal(fixedDecimal(0.0064500002190470695, 8), "0.00645000");
 });
