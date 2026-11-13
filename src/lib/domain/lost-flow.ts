@@ -6,7 +6,7 @@ export type LostCase = {
  driver_eligible?:boolean;driver_agreements?:{id:string;document_version:number;cost_final:boolean;accepted_at:string|null;document_text:string}[];
  missing_receipt?:boolean;
  replacement_at_shop_at?:string|null;replacement_expense_id?:string|null;
- status?:LostStatus;market_value?:number|null;customer_choice?:LostChoice|null;responded_at?:string|null;
+ status?:LostStatus;market_value?:string|null;customer_choice?:LostChoice|null;responded_at?:string|null;
  notified_at?:string|null;approved_at?:string|null;refund_id?:string|null;refund_status?:string|null;finalized_at?:string|null;resolution_notes?:string|null;
 };
 export function lostCanFinalize(row:Pick<LostCase,"approved_at"|"customer_choice"|"refund_status"|"status"|"replacement_at_shop_at"|"replacement_expense_id">) {

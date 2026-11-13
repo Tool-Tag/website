@@ -13,7 +13,11 @@ export default async function LostPage(){
    .eq("unit_id",unit).returns<{id:string;pick_return_stops:{window_start:string|null}|null}[]>(),
  ]);
  const routeStarts = new Map(routeStops?.map(row=>[row.id,row.pick_return_stops?.window_start]));
- const cases = ((data??[]) as LostCase[]).map(row=>({...row,route_window_start:routeStarts.get(row.id)}));
+ const cases = ((data??[]) as (Omit<LostCase, "market_value"> & {market_value?: number | string | null})[]).map(row=>({
+  ...row,
+  market_value: row.market_value == null ? null : Number(row.market_value).toFixed(2),
+  route_window_start: routeStarts.get(row.id),
+ }));
  const expenseOptions=access.owner?await (async()=>{
   const [accounts,categories,vendors]=await Promise.all([db.from("accounts").select("id,name").eq("unit_id",unit).eq("active",true),db.from("categories").select("id,name").eq("unit_id",unit).eq("kind","expense").eq("active",true),db.from("vendors").select("name").eq("unit_id",unit)]);
   if(accounts.error||categories.error||vendors.error)return null;

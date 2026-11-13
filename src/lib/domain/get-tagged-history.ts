@@ -1,6 +1,5 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { storageAdmin } from "@/lib/storage/admin";
 
 export type GetTaggedListRow = {
   id: string;
@@ -29,10 +28,9 @@ export async function getTaggedHistory(db: SupabaseClient, unit: string) {
 
   // The inbox notifications provide IDs only. Read each receipt through the
   // existing request RPC using the current staff session and its permissions.
-  const index = storageAdmin();
   const ids = new Set<string>();
   for (let offset = 0; ; offset += PAGE_SIZE) {
-    const { data, error } = await index.from("notifications").select("entity_id")
+    const { data, error } = await db.from("notifications").select("entity_id")
       .eq("unit_id", unit).eq("event", "GET_TAGGED_REQUEST")
       .order("id").range(offset, offset + PAGE_SIZE - 1);
     if (error) throw new Error("Could not load approved requests.");

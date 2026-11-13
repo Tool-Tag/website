@@ -22,11 +22,15 @@ export function WorkspaceNavigationProgress() {
       if (!link || (link.target && link.target !== "_self") || link.hasAttribute("download")) return;
       const url = new URL(link.href);
       if (url.origin !== location.origin || !/^\/app(?:\/|$)/.test(url.pathname)) return;
-      if (url.pathname + url.search === location.pathname + location.search) return;
+      const destination = new URLSearchParams(url.search);
+      const current = new URLSearchParams(location.search);
+      destination.sort();
+      current.sort();
+      if (url.pathname === location.pathname && destination.toString() === current.toString()) return;
 
       setPendingFrom(route);
       window.clearTimeout(timeout);
-      timeout = window.setTimeout(() => setPendingFrom(null), 15000);
+      timeout = window.setTimeout(() => setPendingFrom(null), 8000);
     }
     document.addEventListener("click", start, true);
     return () => {

@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
 export default async function GetTaggedRequestsPage({searchParams}:{searchParams:Promise<{tab?:string;page?:string}>}) {
   const search=await searchParams,history=search.tab==="history";
   const { db, unit } = await requirePermission("quotes.view");
-  let requests: GetTaggedListRow[];
+  let requests: GetTaggedListRow[] = [];
+  let loadFailed = false;
   try {
     if (history) requests = await getTaggedHistory(db, unit);
     else {
@@ -21,7 +22,7 @@ export default async function GetTaggedRequestsPage({searchParams}:{searchParams
       requests = (data ?? []) as GetTaggedListRow[];
     }
   } catch {
-    return <><Heading title="Get Tagged Requests" /><p role="alert" className="notice error">Could not load {history ? "request history" : "pending requests"}.</p></>;
+    loadFailed = true;
   }
 
   const paging=paginateList(requests,search.page);
@@ -34,7 +35,7 @@ export default async function GetTaggedRequestsPage({searchParams}:{searchParams
       />
 
       <nav className="main-tab-list" aria-label="Request status"><Link href="/app/get-tagged" className={`main-tab ${history?"":"active"}`}>Pending</Link><Link href="/app/get-tagged?tab=history" className={`main-tab ${history?"active":""}`}>History</Link></nav>
-      {requests.length ? (
+      {loadFailed ? <p role="alert" className="notice error">Could not load {history ? "request history" : "pending requests"}.</p> : requests.length ? (
         <Panel><RecordList label="Get Tagged Request" empty="No requests in this view." rows={paging.items.map(request=>({id:request.id,title:request.name,reference:request.reference,description:`${request.service_method||'Service to be confirmed'} · ${denverDateTime(request.created_at)}`,status:request.request_status,icon:'request',details:[{label:'Reference',value:request.reference},{label:request.quote_only?'Quote created':'Received',value:denverDateTime(request.created_at)},{label:'Service',value:request.service_method||'To be confirmed'},...(request.matching?[{label:'Customer matching',value:request.matching}]:[]),{label:'Status',value:request.request_status}],actions:request.quote_only ? [{label:"Open Quote",href:`/app/quotes/${request.quote_id}`}] : [
           {label:history?"View Request":"Review Request",href:`/app/get-tagged/${request.id}`},
           ...(history&&request.quote_id?[{label:"Open Quote",href:`/app/quotes/${request.quote_id}`}]:[]),
