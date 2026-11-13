@@ -3,8 +3,6 @@
   :root{
     --gold:#d9b366;
     --gold-dim:#a9873f;
-    --blue:#3177ff;
-    --blue-deep:#1f5fe0;
     --bg:#060809;
     --bg-2:#0a0e10;
     --panel:#0d1215;
@@ -37,7 +35,7 @@
   /* ---------- background texture ---------- */
   .bg-fx{position:fixed;inset:0;z-index:-1;pointer-events:none;
     background:
-      radial-gradient(720px 420px at 50% -60px, rgba(49,119,255,.10), transparent 65%),
+      radial-gradient(720px 420px at 50% -60px, rgba(217,179,102,.10), transparent 65%),
       radial-gradient(600px 380px at 88% 38%, rgba(217,179,102,.05), transparent 60%),
       var(--bg);
   }
@@ -68,7 +66,7 @@
   .brand{display:flex;align-items:center;gap:11px;text-decoration:none;flex-shrink:0}
   .brand-mark{width:44px;height:48px;position:relative;flex-shrink:0}
   .brand-word{font-family:"Oswald",sans-serif;font-weight:700;font-size:30px;letter-spacing:.01em;line-height:1;color:#fff}
-  .brand-word em{font-style:normal;color:var(--blue)}
+  .brand-word em{font-style:normal;color:var(--gold)}
   nav.main{display:flex;align-items:center;gap:6px}
   nav.main a.navlink{
     text-decoration:none;color:#c6d0d5;font-weight:600;font-size:15.5px;
@@ -87,8 +85,8 @@
     clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);
     transition:background .18s ease,color .18s ease,border-color .18s ease;
   }
-  .btn-blue{background:var(--blue);color:#fff}
-  .btn-blue:hover{background:var(--blue-deep)}
+  .btn-gold{background:var(--gold);color:#171307}
+  .btn-gold:hover{background:#eccd8a}
   .btn-ghost{background:rgba(255,255,255,.02);color:#e8edef;border-color:#3a464d}
   .btn-ghost:hover{border-color:var(--gold);color:var(--gold)}
   .btn-sm{padding:10px 20px;font-size:15px}
@@ -114,8 +112,8 @@
   .kicker::before{content:"";width:26px;height:1px;background:var(--gold)}
   .kicker.center{justify-content:center}
   .kicker.center::after{content:"";width:26px;height:1px;background:var(--gold)}
-  .kicker.blue{color:var(--blue)}
-  .kicker.blue::before,.kicker.blue::after{background:var(--blue)}
+  .kicker.blue{color:var(--gold)}
+  .kicker.blue::before,.kicker.blue::after{background:var(--gold)}
 
   .hexnode{
     width:58px;height:64px;flex-shrink:0;position:relative;
@@ -130,7 +128,7 @@
     background:#0b0f12;display:flex;align-items:center;justify-content:center;
     font-family:"Oswald",sans-serif;font-weight:600;font-size:19px;color:var(--gold);
   }
-  .hexnode.blue .hexnode-in{color:var(--blue)}
+  .hexnode.blue .hexnode-in{color:var(--gold)}
 
   .brackets{position:relative}
   .brackets .c{position:absolute;width:22px;height:22px;pointer-events:none}
@@ -168,7 +166,7 @@
     font-size:clamp(46px,8.2vw,84px);line-height:1.04;letter-spacing:.005em;
     margin:20px 0 0;color:#fff;text-transform:none;position:relative;
   }
-  .hero h1 .b{color:var(--blue)}
+  .hero h1 .b{color:var(--gold)}
   .hero .sub{color:#c3ced3;font-size:clamp(17px,2.4vw,20px);margin:22px auto 0;max-width:560px;position:relative}
   .hero-cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:32px;position:relative}
   .hero-meta{margin-top:26px;color:var(--muted);font-size:15px;font-weight:500;position:relative;
@@ -184,7 +182,7 @@
   .gear-card{padding:30px 28px 34px;position:relative;background:linear-gradient(180deg,var(--panel-2),var(--panel))}
   .gear-card + .gear-card{border-left:1px solid var(--line)}
   .gear-card::before{content:"";position:absolute;top:0;left:0;width:34px;height:3px;background:var(--gold)}
-  .gear-card:nth-child(2)::before{background:var(--blue)}
+  .gear-card:nth-child(2)::before{background:var(--gold)}
   .gear-icon{width:46px;height:50px;margin-bottom:18px;clip-path:polygon(50% 0,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);
     background:#131b20;display:flex;align-items:center;justify-content:center}
   .gear-card h3{font-family:"Oswald",sans-serif;font-weight:600;font-size:22px;color:var(--gold);margin:0 0 8px;letter-spacing:.01em}
@@ -197,7 +195,7 @@
   .chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:#0b1013;
     padding:7px 14px;font-weight:600;font-size:14.5px;color:#d7dfe3;
     clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)}
-  .chip::before{content:"";width:6px;height:7px;background:var(--blue);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);flex-shrink:0}
+  .chip::before{content:"";width:6px;height:7px;background:var(--gold);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);flex-shrink:0}
 
   /* ---------- process ---------- */
   .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;position:relative}
@@ -212,7 +210,7 @@
   .service-card .tag{position:absolute;top:0;right:0;background:#131c21;color:var(--gold);
     font-family:"Barlow Condensed",sans-serif;font-weight:600;letter-spacing:.2em;font-size:11.5px;
     padding:6px 12px 6px 16px;clip-path:polygon(10px 0,100% 0,100% 100%,0 100%)}
-  .service-card.blue .tag{color:var(--blue)}
+  .service-card.blue .tag{color:var(--gold)}
   .service-card h3{font-family:"Oswald",sans-serif;font-weight:600;font-size:21px;color:#fff;margin:4px 0 10px}
   .service-card p{margin:0;color:var(--muted);font-size:16.5px}
   .notes-row{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-top:26px}
@@ -224,7 +222,7 @@
   /* ---------- CTA ---------- */
   .cta-band{margin:76px 0 0;background:linear-gradient(120deg,#0c1216,#0a0e11);border:1px solid var(--line);
     padding:44px 40px;display:flex;align-items:center;justify-content:space-between;gap:28px;flex-wrap:wrap;position:relative}
-  .cta-band::before{content:"";position:absolute;top:0;left:0;width:52px;height:3px;background:var(--blue)}
+  .cta-band::before{content:"";position:absolute;top:0;left:0;width:52px;height:3px;background:var(--gold)}
   .cta-band h2{font-family:"Oswald",sans-serif;font-weight:600;font-size:clamp(26px,3.6vw,34px);color:#fff;margin:0 0 6px}
   .cta-band p{margin:0;color:var(--muted);font-size:17px}
 
@@ -269,9 +267,10 @@
   }
 /* Bind the reference design to ToolTag's real links, gallery and iframe request flow. */
 body.hextech-site{background:#060809;font-family:"Barlow",sans-serif;font-size:17px}
-body.hextech-site .hero h1 span.b{color:#3177ff}
+body.hextech-site .hero h1 span.b{color:var(--gold)}
 body.hextech-site .hero{background:none}
-body.hextech-site .btn-blue{background:#2453a6!important;border-color:transparent!important;color:#fff!important}
+body.hextech-site .btn-gold{background:var(--gold)!important;border-color:transparent!important;color:#171307!important}
+body.hextech-site .btn-gold:hover{background:#eccd8a!important}
 body.hextech-site .btn-ghost{background:rgba(255,255,255,.02)!important;border:1px solid #3a464d!important;color:#e8edef!important}
 body.hextech-site .gear-card,body.hextech-site .service-card{border-radius:0;box-shadow:none}
 body.hextech-site .hero h1{letter-spacing:.005em}
@@ -310,6 +309,8 @@ body.hextech-site .bg-fx{z-index:0}
 body.hextech-site>main,body.hextech-site>footer{position:relative;z-index:1}
 body.hextech-site>.header{position:sticky;z-index:50}
 body.hextech-site .brand-word{color:#fff!important}
-body.hextech-site .brand-word em{color:#3177ff}
+body.hextech-site .brand-word em{color:var(--gold)}
 body.hextech-site footer.hex-modal-footer{margin:0;padding:15px 22px;background:#11181c}
 body.hextech-site footer.hex-modal-footer::before{display:none}
+
+body.hextech-site { --blue: #d9b366; --button-blue: #d9b366; }

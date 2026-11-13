@@ -734,7 +734,7 @@ export function GetTaggedForm({
         </div>
       )}
 
-      {step===3&&<section className="intake-summary"><h3>Request summary</h3>{preferredDay&&<p>Preferred day: {preferredDay} · not confirmed</p>}<p>{request.contact.name} · {request.contact.email}</p><p>{request.items.reduce((count,item)=>count+item.quantity,0)} pieces · {request.items.length} item types · {request.service.method==='Pickup'?'Pickup & Delivery':request.service.method}</p><p>{request.items.map(item=>`${item.quantity} × ${item.article}`).join(' · ')}</p></section>}
+      {step===3&&<section className="intake-summary"><h3>Request summary</h3>{preferredDay&&<p>Preferred day: {preferredDay} · not confirmed</p>}<p>{request.contact.name} · {request.contact.email}</p><p>{`${request.items.reduce((count,item)=>count+item.quantity,0)} pieces · ${request.items.length} ${request.items.length === 1 ? 'item' : 'items'} · ${request.service.method==='Pickup'?'Pickup & Delivery':request.service.method}`}</p><p>{request.items.map(item=>`${item.quantity} × ${item.article}`).join(' · ')}</p></section>}
       </div>
       <footer className="intake-wizard-actions"><button type="button" className="menu-link-gold" disabled={pending||step===1} onClick={()=>{setError('');setStep(value=>value-1);stepBody.current?.scrollTo({top:0});}}>Back</button><span>Step {step} of 3</span>{step<3?<button key="next" type="button" disabled={pending} onClick={e=>{e.preventDefault();nextStep();}}>Next</button>:<button key="submit" type="submit" disabled={pending||!token}>{pending?'Submitting…':'Submit Request'}</button>}</footer>
     </form>

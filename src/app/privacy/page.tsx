@@ -9,5 +9,5 @@ export default function Page() { return <main className="public legal-page" lang
 <section><h2>{"6. Data retention"}</h2><p>{"Retained as needed for services and legal/tax obligations."}</p></section>
 <section><h2>{"7. Security"}</h2><p>{"Reasonable safeguards; no internet transmission is 100% secure."}</p></section>
 <section><h2>{"8. Changes"}</h2><p>{"We may update this policy; continued use after changes constitutes acceptance."}</p></section>
-<section><h2>{"9. Contact"}</h2><p>{"Through the Site or support email on our contact page."}</p></section>
+<section><h2>{"9. Contact"}</h2><p>Through the site or by email using our <Link href="/contact">contact page</Link>.</p></section>
 </article><footer className="footer"><nav aria-label="Legal"><Link href="/privacy">Privacy Policy</Link>{" · "}<Link href="/terms">Terms of Service</Link></nav><p>ToolTag is a registered DBA of Bandits of the Framing LLC.</p></footer></main>; }

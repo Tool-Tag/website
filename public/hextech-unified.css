@@ -543,3 +543,13 @@ fieldset.role-chips { border: 1px solid var(--line); border-radius: 8px; padding
 .transaction-filter-panel .transaction-filter-form > label { flex: 1 1 140px; min-width: 0; }
 .transaction-filter-panel .transaction-filter-form > .actions { flex: 0 1 auto; flex-wrap: wrap; }
 .delivery-ack-panel .route-block-edit { width: auto; min-height: 40px; margin: 0; flex: 0 0 auto; }
+
+.intake-brand > span { color: var(--gold); }
+
+.tracking-piece-list, .tracking-dated-list { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; }
+.tracking-piece-list li, .tracking-dated-list li, .tracking-balance {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px;
+  padding: 11px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--inset);
+}
+.tracking-dated-list time { color: var(--gold); font-variant-numeric: tabular-nums; }
+#tracking-payment { scroll-margin-top: 24px; }
