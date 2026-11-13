@@ -14,7 +14,7 @@ export function CustomerTrackingDetails({ total, finished, cancelled, currentPie
   return <>
     <Panel title="Your pieces">
       {total > 0 ? <>
-        <p className="muted">{`${finished}/${total} pieces finished`}</p>
+        <p className="muted">{`${finished}/${total} ${total === 1 ? "piece" : "pieces"} finished`}</p>
         <ul className="tracking-piece-list">
           {Array.from({ length: total }, (_, index) => {
             const piece = index + 1;

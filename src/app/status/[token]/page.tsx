@@ -198,11 +198,11 @@ export default async function JobStatusPage({
         {itemsTotal > 0 && (
           <div className="status-progress-summary">
             <strong>
-              {`${itemsCompleted}/${itemsTotal} pieces finished`}
+              {`${itemsCompleted}/${itemsTotal} ${itemsTotal === 1 ? "piece" : "pieces"} finished`}
             </strong>
             {itemsStarted > itemsCompleted && (
               <span className="muted">
-                {`${itemsStarted}/${itemsTotal} pieces started or finished`}
+                {`${itemsStarted}/${itemsTotal} ${itemsTotal === 1 ? "piece" : "pieces"} started or finished`}
               </span>
             )}
           </div>

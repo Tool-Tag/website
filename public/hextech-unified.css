@@ -553,3 +553,5 @@ fieldset.role-chips { border: 1px solid var(--line); border-radius: 8px; padding
 }
 .tracking-dated-list time { color: var(--gold); font-variant-numeric: tabular-nums; }
 #tracking-payment { scroll-margin-top: 24px; }
+
+.timeline-completed-toggle { width: fit-content; max-width: 100%; height: auto; white-space: normal; overflow: visible; text-overflow: clip; }
