@@ -2979,3 +2979,24 @@ test('Status Help creates a private job-linked Support case and one acknowledgme
  await db.exec('savepoint help_limit');await assert.rejects(value('select public.submit_status_support($1,gen_random_uuid(),$2)',[token,'Too many']),/Too many inquiries/);await db.exec('rollback to help_limit');
  }finally{await db.exec('rollback');}
 });
+
+test("Tracking history is scoped to its status token and sent customer messages", async () => {
+ const customer = await createCustomer("Tracking History Test", "tracking-history");
+ const quote = await createQuote(customer.id);
+ const reviewToken = await value<string>("select public.send_quote($1)", [quote]);
+ const {job_id: job} = await acceptWithLogistics(reviewToken, {option_code:"dropoff_pickup"});
+ const statusToken = await value<string>("select token from private.job_status_links where job_id=$1", [job]);
+ const recipient = await value<string>("select private.job_customer_recipient($1)", [job]);
+ await db.query("insert into public.audit_log(unit_id,entity,entity_id,field,new_value) values($1,'jobs',$2,'work_stage',to_jsonb('Engraving'::text))", [unit,job]);
+ await db.query("insert into public.notifications(unit_id,event,entity_id,recipient,status,sent_at,dedupe_key) values($1,'Tracking test sent',$2,$3,'Sent',now(),'tracking-test:sent'),($1,'Tracking test internal',$2,'internal@example.test','Sent',now(),'tracking-test:internal'),($1,'Tracking test pending',$2,$3,'Queued',null,'tracking-test:pending')", [unit,job,recipient]);
+ await db.exec("set role anon");
+ try {
+  const result = await value<{pieces:{name:string}[];steps:{label:string;at:string}[];updates:{event:string;at:string}[]}>(
+   "select public.customer_tracking_history($1)", [statusToken]);
+  assert.ok(result.pieces.length && result.pieces.every(piece=>piece.name));
+  assert.ok(result.steps.some(step=>step.label==="Engraving"&&step.at));
+  assert.ok(result.updates.some(update=>update.event==="Tracking test sent"&&update.at));
+  assert.ok(result.updates.every(update=>!["Tracking test internal","Tracking test pending"].includes(update.event)));
+  await assert.rejects(value("select public.customer_tracking_history($1)", [reviewToken]), /Status link unavailable/);
+ } finally { await db.exec("reset role"); }
+});
