@@ -11,5 +11,5 @@ export default function Page() { return <main className="public legal-page" lang
 <section><h2>{"8. Limitation of liability"}</h2><p>{"Liability limited to amount paid for the order giving rise to the claim, to the maximum extent permitted by law."}</p></section>
 <section><h2>{"9. Changes"}</h2><p>{"We may update these Terms; apply to orders placed after the update."}</p></section>
 <section><h2>{"10. Governing law"}</h2><p>{"Law of the State of Utah, USA."}</p></section>
-<section><h2>{"11. Contact"}</h2><p>{"Through the Site or support email on our contact page."}</p></section>
+<section><h2>{"11. Contact"}</h2><p>Through the site or by email using our <Link href="/contact">contact page</Link>.</p></section>
 </article><footer className="footer"><nav aria-label="Legal"><Link href="/privacy">Privacy Policy</Link>{" · "}<Link href="/terms">Terms of Service</Link></nav><p>ToolTag is a registered DBA of Bandits of the Framing LLC.</p></footer></main>; }

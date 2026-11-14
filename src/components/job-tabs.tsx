@@ -26,7 +26,7 @@ export function JobTabs({
 
   return (
     <div className="job-tabs">
-      <nav className="job-tab-list no-print" role="tablist" aria-label="Secciones">
+      <nav className="job-tab-list no-print" role="tablist" aria-label="Job sections">
         {tabs.map((tab) => {
           const selected = tab.id === current.id;
           return (

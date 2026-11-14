@@ -1,4 +1,5 @@
 "use client";
+
 import {ModalClose} from "./modal-close";
 
 import { useEffect, useRef } from "react";
@@ -45,7 +46,7 @@ export function GetTaggedModalLink({
       </a>
       <dialog
         ref={dialogRef}
-        className="get-tagged-react-dialog"
+        className="hex-dialog get-tagged-react-dialog"
         aria-labelledby="get-tagged-react-dialog-title"
         onClick={(event) => {
           if (event.target === event.currentTarget) event.currentTarget.close();
@@ -56,6 +57,7 @@ export function GetTaggedModalLink({
             <div>
               <p className="eyebrow">GET TAGGED</p>
               <h2 id="get-tagged-react-dialog-title">Start your request.</h2>
+              <p className="muted">Tell us what you have and how you want to make it yours.</p>
             </div>
             <ModalClose
               type="button"

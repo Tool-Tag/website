@@ -15,6 +15,7 @@ import {
   Metric,
   Badge,
   FinanceTabs,
+  Table,
 } from "@/components/ui";
 import { Form } from "@/components/form";
 import {MovementDialog} from "@/components/movement-dialog";
@@ -94,6 +95,14 @@ export async function Finance({
       <FinanceTabs />
     </>
   );
+  if (section === "vendors") {
+    const vendors = (await rows("vendors")).sort((a, b) => a.name.localeCompare(b.name));
+    return <>{heading}<Panel title="Vendors">
+      {vendors.length ? <Table headers={["Vendor"]}>{vendors.map(vendor =>
+        <tr key={vendor.id}><td>{vendor.name}</td></tr>
+      )}</Table> : <Empty>No vendors recorded.</Empty>}
+    </Panel></>;
+  }
   if (section === "about")
     return (
       <>

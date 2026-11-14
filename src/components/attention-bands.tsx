@@ -1,0 +1,3 @@
+import Link from 'next/link';
+import type {aggregateBands} from '@/lib/domain/urgent-attention';
+export function AttentionBands({bands}:{bands:ReturnType<typeof aggregateBands>}){return <div className="hex-attention-bands">{bands.map(band=><section className={`hex-attention-band urgency-${band.color}`} key={band.color}><span className={`support-urgency-dot dot-${band.color}`} aria-hidden="true"/><div><span className="hex-band-label">{band.color==='red'?'Act today':band.color==='orange'?'Needs review':'New and current'}</span><strong>{band.count}</strong><div className="hex-band-categories">{band.categories.map(c=><Link key={c.kind} href={c.href}>{c.count} {c.label}</Link>)}{!band.count&&<small>No pending items.</small>}</div></div></section>)}</div>;}

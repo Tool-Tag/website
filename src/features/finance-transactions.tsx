@@ -1,3 +1,5 @@
+import {denverCalendarDate,denverDateTime} from "@/lib/domain/time";
+import {WorkspacePagination} from "@/components/workspace-pagination";
 import {FinanceListFrame} from "@/components/finance-list-frame";
 import type {ReactNode} from "react";
 import Link from "next/link";
@@ -15,7 +17,7 @@ export async function FinanceTransactions({search={},header}:{search?:Transactio
   }
   const invalidRange=Boolean(filters.from&&filters.to&&filters.from>filters.to);
   function query(page:number,head=false){
-    let q=db.from("transactions").select("id,transaction_date,description,type,amount,status",{count:head?"exact":undefined,head}).eq("unit_id",unit);
+    let q=db.from("transactions").select("id,transaction_date,created_at,description,type,amount,status",{count:head?"exact":undefined,head}).eq("unit_id",unit);
     if(filters.q)q=q.or(["description","vendor","reference"].map(field=>`${field}.ilike.*${filters.q}*`).join(","));
     if(filters.type)q=q.eq("type",filters.type);
     if(filters.status)q=q.eq("status",filters.status);
@@ -44,12 +46,8 @@ export async function FinanceTransactions({search={},header}:{search?:Transactio
     </section>}>
     <Panel>
     {invalidRange&&<p role="alert">The start date must be on or before the end date.</p>}
-    <p role="status">{total} transaction{total===1?"":"s"} · {total?`${(page-1)*TRANSACTION_PAGE_SIZE+1}–${Math.min(page*TRANSACTION_PAGE_SIZE,total)}`:"0"} shown</p>
-    {result.data?.length?<Table headers={["Date","Transaction","Type","Amount","Status"]}>{result.data.map(t=><tr key={t.id}><td>{t.transaction_date}</td><td><Link href={`/app/finance/transactions/${t.id}`}>{t.description}</Link></td><td>{t.type}</td><td>{money(t.amount)}</td><td><Badge>{t.status}</Badge></td></tr>)}</Table>:<Empty>No transactions match these filters.</Empty>}
-    </Panel><nav className="actions pagination" aria-label="Transaction pages">
-      {page>1?<Link className="button secondary" href={transactionPageUrl(filters,page-1)}>Previous</Link>:<button type="button" disabled>Previous</button>}
-      <span>Page {page} of {pages}</span>
-      {page<pages?<Link className="button secondary" href={transactionPageUrl(filters,page+1)}>Next</Link>:<button type="button" disabled>Next</button>}
-    </nav>
+
+    {result.data?.length?<Table headers={["Recorded","Transaction","Type","Amount","Status"]}>{result.data.map(t=><tr key={t.id}><td>{denverDateTime(t.created_at)}<br/><small>Transaction date: {denverCalendarDate(t.transaction_date)}</small></td><td><Link href={`/app/finance/transactions/${t.id}`}>{t.description}</Link></td><td>{t.type}</td><td>{money(t.amount)}</td><td><Badge>{t.status}</Badge></td></tr>)}</Table>:<Empty>No transactions match these filters.</Empty>}
+    </Panel><WorkspacePagination label="Transaction pages" previous={page>1 ? transactionPageUrl(filters,page-1) : undefined} next={page<pages ? transactionPageUrl(filters,page+1) : undefined} />
   </FinanceListFrame>;
 }

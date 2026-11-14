@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cents, decimal, quoteTotal } from "../src/lib/domain/money";
+import { cents, decimal, fixedDecimal, money, quoteTotal } from "../src/lib/domain/money";
 import { email, evidenceName } from "../src/lib/integrations/contracts";
 test("Money calculations use integer cents, including fractional unit prices", () => {
   assert.equal(
@@ -813,4 +813,120 @@ test('Modal close stays outside phone panels and uses the top gutter for wide pa
  const {modalClosePosition}=await import('../src/lib/domain/modal-close-position');
  const normal=modalClosePosition({top:80,right:340},390,844);assert.ok(normal.left>340);assert.ok(normal.left+36<=390);
  const wide=modalClosePosition({top:80,right:390},390,844);assert.ok(wide.top+36<80);assert.ok(wide.left+36<=390);
+});
+
+test('Shop Floor groups existing states without inventing persistent workflow states',async()=>{
+ const {shopFloorStage}=await import('../src/lib/domain/shop-floor');
+ assert.equal(shopFloorStage({status:'In Process',work_stage:'Receiving Evidence'}),'Reception');
+ assert.equal(shopFloorStage({status:'In Process',work_stage:'Received at Shop'}),'Verification');
+ assert.equal(shopFloorStage({status:'In Process',work_stage:'Preparing'}),'Falcon Queue');
+ assert.equal(shopFloorStage({status:'In Process',work_stage:'Final Details'}),'In Process');
+ assert.equal(shopFloorStage({status:'Ready for Delivery',work_stage:'Final Details'}),'Ready for pickup/delivery');
+ assert.equal(shopFloorStage({status:'Completed',work_stage:'Closed'}),null);
+});
+test('Shop Floor sorts every view by the full timestamp, then stable code and ID',async()=>{
+ const {sortShopFloor}=await import('../src/lib/domain/shop-floor');
+ const rows=[{id:'b',code:'B',arrivalSort:'2026-10-31T09:00:00-06:00'},{id:'a',code:'A',arrivalSort:'2026-10-30T11:00:00-06:00'},{id:'c',code:'C',arrivalSort:'2026-10-31T08:00:00-06:00'}];
+ assert.deepEqual(sortShopFloor(rows).map(r=>r.id),['a','c','b']);assert.equal(rows[0].id,'b');
+});
+
+
+test('Reference-sized modal X keeps its full 42px rectangle inside phone viewports',async()=>{
+ const {modalClosePosition}=await import('../src/lib/domain/modal-close-position');
+ for(const width of [320,390,768]){for(const right of [width-24,width-42,width-60]){const position=modalClosePosition({top:50,right},width,844,42);assert.ok(position.left>=6);assert.ok(position.left+42<=width-6);assert.ok(position.top>=6);assert.ok(position.top+42<50||position.left>right);}}
+});
+
+test('Header attention links never expose queues outside the caller-permitted navigation',async()=>{
+ const {workspaceQueueLinks}=await import('../src/lib/domain/workspace-queues');
+ const counts={getTagged:3,quotes:2,jobs:4,notifications:5,refunds:6,lost:7};
+ assert.deepEqual(workspaceQueueLinks(counts,['/app/support']).map(row=>[row.href,row.count]),[['/app/support',5]]);
+ assert.deepEqual(workspaceQueueLinks(counts,[]),[]);
+ assert.deepEqual(workspaceQueueLinks({...counts,notifications:-1},['/app/support']),[]);
+ assert.deepEqual(workspaceQueueLinks({...counts,lost:0},['/app/lost']),[]);
+});
+test('Dashboard week boundaries use Denver calendar dates across DST and UTC midnight',async()=>{
+ const {dashboardWeekRange}=await import('../src/lib/domain/dashboard-layout');
+ assert.deepEqual(dashboardWeekRange(new Date('2026-11-02T01:00:00Z')),{today:'2026-11-01',monday:'2026-10-26'});
+ assert.deepEqual(dashboardWeekRange(new Date('2026-11-02T08:00:00Z')),{today:'2026-11-02',monday:'2026-11-02'});
+ assert.deepEqual(dashboardWeekRange(new Date('2026-03-09T01:00:00Z')),{today:'2026-03-08',monday:'2026-03-02'});
+});
+
+test('Shop Floor keeps five ordered sections and the same chronological order in a filtered grid',async()=>{
+ const {SHOP_FLOOR_STAGES,shopFloorGroups}=await import('../src/lib/domain/shop-floor');
+ const jobs=[{id:'today',code:'A',stage:'Reception' as const,arrivalSort:'2026-11-02T09:00:00-07:00'},{id:'yesterday',code:'Z',stage:'Reception' as const,arrivalSort:'2026-11-01T11:00:00-07:00'},{id:'queue',code:'B',stage:'Falcon Queue' as const,arrivalSort:'2026-11-01T08:00:00-07:00'}];
+ const all=shopFloorGroups(jobs);
+ assert.deepEqual(all.map(group=>group.stage),[...SHOP_FLOOR_STAGES]);
+ assert.deepEqual(all[0].jobs.map(job=>job.id),['yesterday','today']);
+ const filtered=shopFloorGroups(jobs,'Reception');assert.equal(filtered.length,1);assert.deepEqual(filtered[0].jobs,all[0].jobs);assert.equal(jobs[0].id,'today');
+ assert.equal(shopFloorGroups(jobs,'Verification')[0].jobs.length,0);
+});
+
+
+// Unified Settings reporting selectors preserve the existing four-date storage contract.
+test("Calendar/fiscal selectors preserve custom dates and wrap fiscal years",async()=>{
+ const {fiscalQuarterStarts,fiscalStartMonth}=await import("../src/lib/domain/presentation");
+ assert.deepEqual(fiscalQuarterStarts(1),["01-01","04-01","07-01","10-01"]);
+ assert.deepEqual(fiscalQuarterStarts(10),["10-01","01-01","04-01","07-01"]);
+ assert.equal(fiscalStartMonth(["10-01","01-01","04-01","07-01"]),10);
+ assert.equal(fiscalStartMonth(["01-15","04-15","07-15","10-15"]),null);
+ assert.equal(fiscalStartMonth(["01-01","04-01","08-01","10-01"]),null);
+});
+test("Support and Questions partition by mailbox without exposing internal context IDs",async()=>{
+ const {supportMailboxMatches,supportContextLines}=await import("../src/lib/domain/support-view");
+ assert.equal(supportMailboxMatches("hello",true),true);assert.equal(supportMailboxMatches("support",true),false);
+ assert.equal(supportMailboxMatches("support",false),true);assert.equal(supportMailboxMatches("hello",false),false);
+ assert.equal(supportMailboxMatches("unknown",false),false);
+ assert.deepEqual(supportContextLines({job_code:"TT-J-2026-00001",job_id:"internal",gmail_message_id:"provider",items:[{article:"Drill",quantity:2}]}),[{label:"job code",value:"TT-J-2026-00001"},{label:"items 1 · article",value:"Drill"},{label:"items 1 · quantity",value:"2"}]);
+});
+
+test("Modal submit targets ignore a named id control and retain existing form IDs",async()=>{
+ const {modalFormTarget}=await import("../src/lib/domain/modal-form-target");
+ const attributes=new Map<string,string>();
+ const form={id:{name:"id",value:"record-id"},getAttribute:(name:string)=>attributes.get(name)??null,setAttribute:(name:string,value:string)=>{attributes.set(name,value);}};
+ assert.equal(modalFormTarget(form,"modal-form-1"),"modal-form-1");
+ assert.equal(modalFormTarget(form,"another-fallback"),"modal-form-1");
+ assert.deepEqual(form.id,{name:"id",value:"record-id"});
+ assert.equal(attributes.get("id"),"modal-form-1");
+});
+
+test("Workspace job queues page quote logistics by quote_id", async () => {
+  const { createClient } = await import("@supabase/supabase-js");
+  const { workspaceJobQueues } = await import("../src/lib/domain/job-queues");
+  const requests = new Map<string, string | null>();
+  const db = createClient("https://tooltag.example.test", "fixture", {
+    auth: { persistSession: false },
+    global: { fetch: async (input) => {
+      const url = new URL(String(input));
+      requests.set(url.pathname, url.searchParams.get("order"));
+      if (url.pathname.endsWith("/quote_logistics") && url.searchParams.get("order") !== "quote_id.asc") {
+        return Response.json({ code: "42703", message: "column quote_logistics.id does not exist" }, { status: 400 });
+      }
+      return Response.json(url.pathname.endsWith("/jobs")
+        ? [
+          { id: "ready", status: "Authorized", work_stage: "Not Started" },
+          { id: "unpaid", status: "Authorized", work_stage: "Not Started" },
+          { id: "complete", status: "Completed", work_stage: "Awaiting Delivery Acceptance" },
+          { id: "closed", status: "In Process", work_stage: "Closed" },
+          { id: "review", status: "Issue / Review", work_stage: "Payment" },
+          { id: "cancelled", status: "Cancelled", work_stage: "Closed" },
+        ] : [{ job_id: "unpaid" }, { job_id: "complete" }]);
+    } },
+  });
+
+  const result = await workspaceJobQueues(db, "tooltag");
+  assert.equal(requests.get("/rest/v1/jobs"), "id.asc");
+  assert.equal(requests.get("/rest/v1/quote_logistics"), "quote_id.asc");
+  assert.deepEqual(result.active.map(job => job.id), ["ready"]);
+  assert.deepEqual(result.completed.map(job => job.id), ["complete", "closed"]);
+  assert.deepEqual(result.review.map(job => job.id), ["review"]);
+  assert.deepEqual(result.payments.map(job => job.id), ["unpaid"]);
+  assert.deepEqual(result.cancelled.map(job => job.id), ["cancelled"]);
+});
+
+
+test("Finance decimal formatting preserves signed money and fractional SMS rates", () => {
+  assert.equal(money("-0.01"), "-$0.01");
+  assert.equal(fixedDecimal(0.009999999776482582), "0.01");
+  assert.equal(fixedDecimal(7.449999809265137), "7.45");
+  assert.equal(fixedDecimal(0.0064500002190470695, 8), "0.00645000");
 });

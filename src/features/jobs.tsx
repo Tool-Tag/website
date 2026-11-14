@@ -1,3 +1,4 @@
+import { StatusRefresh } from "@/components/status-refresh";
 import {IssueResponse} from "@/components/issue-response";
 import {SmsCosts} from "@/features/sms-costs";
 import {RefundsPanel} from "@/features/refunds";
@@ -19,47 +20,23 @@ import { WorkPreparation } from "@/components/work-preparation";
 import { money } from "@/lib/domain/money";
 import { jobStatusLabel, paymentStatusLabel, workStageLabel } from "@/lib/domain/status-labels";
 import type { QuoteItem } from "@/lib/domain/quote-items";
+import { workspaceJobQueues } from "@/lib/domain/job-queues";
 import { logisticsOption } from "@/lib/domain/logistics";
 
 export async function Jobs({ id }: { id?: string }) {
   if (!id) {
-    const [list, logisticsRows] = await Promise.all([
-      rows("jobs", { order: "created_at" }),
-      rows("quote_logistics", { limit: 500 }),
-    ]);
-    const logisticsPaymentJobs = new Set(
-      logisticsRows
-        .filter((entry) =>
-          ["pending", "pending_verification"].includes(entry.payment_status),
-        )
-        .map((entry) => entry.job_id)
-        .filter(Boolean),
-    );
+    const { db, unit } = await context();
+    const queues = await workspaceJobQueues(db, unit);
+    const newestFirst = (a: (typeof queues.jobs)[number], b: (typeof queues.jobs)[number]) =>
+      Date.parse(b.created_at) - Date.parse(a.created_at);
+    const { active: activeJobs, review: reviewJobs, payments: paymentJobs,
+      completed: completedJobs, cancelled: cancelledJobs } = queues;
 
-    const activeJobs = list.filter(
-      (j) =>
-        !["Payment", "Payment Verification", "Closed", "Issue Review"].includes(
-          j.work_stage ?? "Not Started",
-        ) &&
-        !["Cancelled"].includes(j.status) &&
-        !logisticsPaymentJobs.has(j.id),
-    );
-    const reviewJobs = list.filter(
-      (j) => j.work_stage === "Issue Review" || j.status === "Issue / Review",
-    );
-    const paymentJobs = list.filter(
-      (j) =>
-        ["Payment", "Payment Verification"].includes(j.work_stage) ||
-        logisticsPaymentJobs.has(j.id),
-    );
-    const completedJobs = list.filter((j) => j.work_stage === "Closed");
-    const cancelledJobs = list.filter((j) => j.status === "Cancelled");
-
-    const jobTable = (jobs: typeof list, empty: string) => (
+    const jobTable = (jobs: typeof queues.jobs, empty: string) => (
       <Panel>
         {jobs.length ? (
           <Table headers={["Job", "Stage", "Status", "Created"]}>
-            {jobs.map((j) => (
+            {[...jobs].sort(newestFirst).map((j) => (
               <tr key={j.id}>
                 <td>
                   <Link href={`/app/jobs/${j.id}`}>{j.code}</Link>
@@ -70,7 +47,7 @@ export async function Jobs({ id }: { id?: string }) {
                 <td>
                   <Badge>{jobStatusLabel(j.status)}</Badge>
                 </td>
-                <td>{new Date(j.created_at).toLocaleDateString("en-US", {timeZone:"America/Denver"})}</td>
+                <td>{denverDateTime(j.created_at)}</td>
               </tr>
             ))}
           </Table>
@@ -82,6 +59,7 @@ export async function Jobs({ id }: { id?: string }) {
 
     return (
       <>
+        <StatusRefresh />
         <Heading
           title="Jobs"
           subtitle="Organized by operational stage."
@@ -142,6 +120,7 @@ export async function Jobs({ id }: { id?: string }) {
     pickupRows,
     cancellationRows,
     logisticsRows,
+    commercialTotals,
   ] = await Promise.all([
     rows("documents", { field: "job_id", value: id }),
     rows("sale_balances", { field: "job_id", value: id }),
@@ -150,6 +129,7 @@ export async function Jobs({ id }: { id?: string }) {
     rows("pick_return_orders", { field: "job_id", value: id }),
     rows("cancellation_requests", { field: "job_id", value: id, order: "requested_at" }),
     rows("quote_logistics", { field: "quote_id", value: j.quote_id }),
+    rows("job_commercial_totals", { id }),
   ]);
 
   const jobItems = [...rawJobItems].sort((a, b) => Number(a.sequence) - Number(b.sequence));
@@ -209,6 +189,12 @@ export async function Jobs({ id }: { id?: string }) {
   const currentScope = currentItem?.scope_snapshot
     ? [{ ...currentItem.scope_snapshot, quantity: 1 }]
     : [];
+  const totals = commercialTotals[0];
+  const balanceDue = totals ? Number(totals.balance_due) : null;
+  const canConfirmHandover = can(access, "pr.returns") && !j.delivered_at &&
+    ((j.status === "Ready for Delivery" && !deliveryRequired) ||
+      pickupReturn?.delivery_payment_status === "Shop Pickup");
+  const openSales = sales.filter(sale => Number(sale.balance_due) > 0);
   const allItemsFinished = jobItems.length > 0 && finishedItems === jobItems.length;
 
   const receivingEvidence = (
@@ -388,7 +374,7 @@ export async function Jobs({ id }: { id?: string }) {
             </strong>{" "}
             · Fee{" "}
             {money(logistics.fee_amount)} · Payment{" "}
-            <strong>{logistics.payment_status}</strong>
+            <strong>{paymentStatusLabel(logistics.payment_status)}</strong>
           </p>
           {logistics.pickup_address && <p>Pickup: {logistics.pickup_address}</p>}
           {logistics.saturday_date && (
@@ -513,7 +499,22 @@ export async function Jobs({ id }: { id?: string }) {
         </Panel>
       )}
 
-      {(j.status === "Ready for Delivery" && !deliveryRequired || pickupReturn?.delivery_payment_status === "Shop Pickup") && <Form operation="shop-handover" hidden={{id}} fields={[]} back={`/app/jobs/${id}`} button="Confirm paid handover at shop" />}
+      {canConfirmHandover && (
+        <Panel title="Shop handover">
+          {balanceDue !== null && balanceDue > 0 ? (
+            <>
+              <p className="notice">Balance due: <strong>{money(balanceDue)}</strong>. Collect and confirm payment before handover.</p>
+              {can(access, "payments.view") && openSales.map(sale => (
+                <p key={sale.transaction_id}>
+                  <Link href={`/app/finance/sales/${sale.transaction_id}`}>Open sale {sale.code}</Link>
+                </p>
+              ))}
+            </>
+          ) : (
+            <Form operation="shop-handover" hidden={{id}} fields={[]} back={`/app/jobs/${id}`} button="Confirm handover at shop" inlineActions />
+          )}
+        </Panel>
+      )}
       {stage === "Awaiting Delivery Acceptance" && (
         <Panel title="Waiting for delivery acceptance">
           <p>
@@ -682,6 +683,11 @@ export async function Jobs({ id }: { id?: string }) {
           </span>
         }
       >
+        {totals && (
+          <span className="muted">
+            Collected {money(totals.collected)} · Balance due {money(totals.balance_due)}
+          </span>
+        )}
         <Link className="button secondary" href={`/app/quotes/${j.quote_id}`}>
           Approved Quote
         </Link>

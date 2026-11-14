@@ -1,5 +1,4 @@
 "use client";
-import {ModalClose} from "./modal-close";
 
 import { useEffect, useState } from "react";
 import { GetTaggedForm } from "@/components/get-tagged-form";
@@ -46,16 +45,13 @@ export function GetTaggedModalContent() {
             Agreement are accepted.
           </p>
         </section>
-        <ModalClose type="button" onClick={requestGetTaggedClose} aria-label="Close dialog" className="modal-close">×</ModalClose>
+        {/* The parent dialog owns the single exterior close control, including on success. */}
       </main>
     );
   }
 
   return (
-    <main className="intake-modal-page">
-      <p className="muted intake-modal-intro">
-        Tell us what you have and how you want to make it yours.
-      </p>
+    <main className="intake-modal-page customer-wizard-page">
       <GetTaggedForm modal onSuccess={setReference} />
     </main>
   );

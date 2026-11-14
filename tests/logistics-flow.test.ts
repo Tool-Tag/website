@@ -1964,12 +1964,14 @@ test("Extension proposals and second Return fees preserve their taxable totals",
 test('Refunds reserve paid amounts, enforce 14 calendar days, business-day windows and reject proof from another request',async()=>{
  const c=await createCustomer('Refund policy test','refund-policy');const q=await createQuote(c.id,'40.00');const token=await value<string>('select public.send_quote($1)',[q]);const accepted=await acceptWithLogistics(token,{option_code:'dropoff_pickup'});const job=accepted.job_id;
  const payment=await value<string>("insert into public.payment_requests(request_key,unit_id,job_id,method,amount,purpose) values(gen_random_uuid(),$1,$2,'Zelle',40,'Final Balance') returning id",[unit,job]);await value('select public.confirm_payment_request($1)',[payment]);
- const date=await value<string>("select (now()-interval '14 days')::text");const now=await value<string>('select now()::text');
+ const now=await value<string>('select now()::text');
+ const issueDate=(days:number)=>value<string>("select ((($1::timestamptz at time zone 'America/Denver')::date - $2::int)::timestamp at time zone 'America/Denver')::text",[now,days]);
+ const date=await issueDate(14);
  const key=await value<string>('select gen_random_uuid()');const payload={job_id:job,amount:'10.00',reason:'Damage',issue_event:'Pickup',issue_event_at:date,reported_at:now,request_key:key};
  const id=await rpc('create_refund_request',payload);assert.equal(await rpc('create_refund_request',payload),id);
  assert.equal(Number(await value('select count(*) from public.refund_requests where request_key=$1',[key])),1);
  await assert.rejects(rpc('create_refund_request',{...payload,amount:'11.00'}),/different refund information/);
- await assert.rejects(rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),issue_event_at:await value("select (now()-interval '15 days')::text")}),/14 days/);
+ await assert.rejects(rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),issue_event_at:await issueDate(15)}),/14 days/);
  await assert.rejects(rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),amount:'31.00'}),/actually paid/);
  await assert.rejects(rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),method:'Cash'}),/check constraint/);
  assert.equal(await value("select private.refund_business_date('2026-10-09',5)::text"),'2026-10-16');assert.equal(await value("select private.refund_business_date('2026-10-09',7)::text"),'2026-10-20');
@@ -1980,7 +1982,7 @@ test('Refunds reserve paid amounts, enforce 14 calendar days, business-day windo
  const proof=await manualRefundProof(job,id,'Check');await rpc('refund_request_action',{id,action:'complete',method:'Check',account_id:account,reference:'CHECK-101',proof_id:proof});
  assert.equal(await value('select processed_by from public.refund_requests where id=$1',[id]),admin);
  const choice=(await value<{id:string;available:number}[]>('select public.refund_job_choices()')).find(x=>x.id===job)!;assert.equal(Number(choice.available),30);
- await db.query("update public.jobs set completion_email_sent_at=now()-interval '15 days' where id=$1",[job]);
+ await db.query("update public.jobs set completion_email_sent_at=$2 where id=$1",[job,await issueDate(15)]);
  await assert.rejects(rpc('create_refund_request',{...payload,request_key:await value('select gen_random_uuid()'),issue_event:'Completion notice',issue_event_at:now}),/14 days/);
 });
 
@@ -2976,4 +2978,25 @@ test('Status Help creates a private job-linked Support case and one acknowledgme
  for(let n=0;n<4;n++)await value('select public.submit_status_support($1,gen_random_uuid(),$2)',[token,'Another inquiry '+n]);
  await db.exec('savepoint help_limit');await assert.rejects(value('select public.submit_status_support($1,gen_random_uuid(),$2)',[token,'Too many']),/Too many inquiries/);await db.exec('rollback to help_limit');
  }finally{await db.exec('rollback');}
+});
+
+test("Tracking history is scoped to its status token and sent customer messages", async () => {
+ const customer = await createCustomer("Tracking History Test", "tracking-history");
+ const quote = await createQuote(customer.id);
+ const reviewToken = await value<string>("select public.send_quote($1)", [quote]);
+ const {job_id: job} = await acceptWithLogistics(reviewToken, {option_code:"dropoff_pickup"});
+ const statusToken = await value<string>("select token from private.job_status_links where job_id=$1", [job]);
+ const recipient = await value<string>("select private.job_customer_recipient($1)", [job]);
+ await db.query("insert into public.audit_log(unit_id,entity,entity_id,field,new_value) values($1,'jobs',$2,'work_stage',to_jsonb('Engraving'::text))", [unit,job]);
+ await db.query("insert into public.notifications(unit_id,event,entity_id,recipient,status,sent_at,dedupe_key) values($1,'Tracking test sent',$2,$3,'Sent',now(),'tracking-test:sent'),($1,'Tracking test internal',$2,'internal@example.test','Sent',now(),'tracking-test:internal'),($1,'Tracking test pending',$2,$3,'Queued',null,'tracking-test:pending')", [unit,job,recipient]);
+ await db.exec("set role anon");
+ try {
+  const result = await value<{pieces:{name:string}[];steps:{label:string;at:string}[];updates:{event:string;at:string}[]}>(
+   "select public.customer_tracking_history($1)", [statusToken]);
+  assert.ok(result.pieces.length && result.pieces.every(piece=>piece.name));
+  assert.ok(result.steps.some(step=>step.label==="Engraving"&&step.at));
+  assert.ok(result.updates.some(update=>update.event==="Tracking test sent"&&update.at));
+  assert.ok(result.updates.every(update=>!["Tracking test internal","Tracking test pending"].includes(update.event)));
+  await assert.rejects(value("select public.customer_tracking_history($1)", [reviewToken]), /Status link unavailable/);
+ } finally { await db.exec("reset role"); }
 });

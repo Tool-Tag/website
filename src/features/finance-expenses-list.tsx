@@ -1,3 +1,4 @@
+import {denverCalendarDate,denverDateTime} from "@/lib/domain/time";
 import type {ReactNode} from "react";
 import Link from "next/link";
 import {context,rows} from "@/lib/domain/context";
@@ -23,9 +24,14 @@ export async function FinanceExpensesList({header,search={},created}:{header:Rea
  const validCreated=typeof created==="string"&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(created);
  const saved=validCreated?(await rows("expense_details",{field:"transaction_id",value:created}))[0]:undefined;
  const categories=saved?.is_equipment&&!saved.linked_asset_id&&access.owner?(await rows("categories")).filter(c=>c.kind==="asset"&&c.active).map(c=>({value:c.id,label:c.name})):[];
+ const transactionIds = result.rows.map(row => row.transaction_id);
+ const timestamps = transactionIds.length ? await db.from("transactions").select("id,created_at")
+  .eq("unit_id",unit).in("id",transactionIds) : {data: [], error: null};
+ if(timestamps.error)throw new Error("Could not load transaction timestamps.");
+ const recorded = new Map(timestamps.data.map(row=>[row.id,row.created_at]));
  return <FinanceListFrame header={listHeader} controls={<FinanceListControls path={path} title="Expenses" placeholder="Description or vendor" values={values} selects={selects}/>}>
  {saved?.is_equipment&&!saved.linked_asset_id&&access.owner&&<EquipmentRegistrationModal key={saved.transaction_id} categories={categories} expense={{id:saved.transaction_id,description:saved.description,amount:String(saved.amount),vendor:saved.vendor??"",date:saved.transaction_date}}/>}
- <Panel>{result.rows.length?<Table headers={["Expense","Amount","Paid By","Reimbursement Due","Receipt"]}>{result.rows.map(e=><tr key={e.transaction_id}><td><Link href={`/app/finance/transactions/${e.transaction_id}`}>{e.description}</Link><br/><small>{e.vendor}</small></td><td>{money(e.amount)}</td><td>{e.paid_by}</td><td>{e.paid_by==="Owner"?money(e.reimbursement_due):"—"}</td><td>{e.receipt_status}</td></tr>)}</Table>:<Empty>No expenses match these filters.</Empty>}</Panel><FinancePagination path={path} values={values} {...result}/>
+ <Panel>{result.rows.length?<Table headers={["Expense","Recorded","Amount","Paid By","Reimbursement Due","Receipt"]}>{result.rows.map(e=><tr key={e.transaction_id}><td><Link href={`/app/finance/transactions/${e.transaction_id}`}>{e.description}</Link><br/><small>{e.vendor}</small></td><td>{denverDateTime(recorded.get(e.transaction_id))}<br/><small>{denverCalendarDate(e.transaction_date)}</small></td><td>{money(e.amount)}</td><td>{e.paid_by}</td><td>{e.paid_by==="Owner"?money(e.reimbursement_due):"—"}</td><td>{e.receipt_status}</td></tr>)}</Table>:<Empty>No expenses match these filters.</Empty>}</Panel><FinancePagination path={path} values={values} {...result}/>
 
  </FinanceListFrame>;
 }

@@ -40,7 +40,7 @@ export function MovementForm({
   const [paidBy, setPaidBy] = useState("Business");
   const today = new Date().toLocaleDateString("en-CA");
   const fields: Field[] = [
-    { name: "amount", label: "Amount (USD)", type: "number", required: true },
+    { name: "amount", label: "Amount (USD)", decimalScale: 2, required: true },
     {
       name: "transaction_date",
       label: "Transaction Date",
@@ -113,6 +113,7 @@ export function MovementForm({
   );
   return (
     <>
+      {!saleId&&!lostCaseId&&<div className="hex-movement-segments" aria-label="Common transaction types">{[["EXPENSE","Expense"],["COLLECTION","Collection"]].map(([value,label])=><button type="button" key={value} aria-pressed={type===value} className={type===value?"active":""} onClick={()=>{setType(value);setAmount("");setReceiptAttempted(false);}}>{label}</button>)}</div>}
       <div className="formgrid" style={{ marginBottom: 20 }}>
         <label>Type<select
             value={type}

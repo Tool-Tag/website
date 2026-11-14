@@ -20,8 +20,23 @@ export function quoteTotal(
     }, 0n),
   );
 }
+/** Normalize database and form decimals at their required scale. */
+export function fixedDecimal(value: unknown, scale = 2): string {
+  const source = typeof value === "number" && /e/i.test(String(value)) ? value.toFixed(scale) : String(value ?? "0");
+  const match = /^([+-]?)(\d+)(?:\.(\d*))?$/.exec(source.trim() || "0");
+  if (!match) throw new Error("Enter a valid decimal amount.");
+  const [, sign, whole, fraction = ""] = match;
+  const factor = 10n ** BigInt(scale);
+  const digits = fraction.padEnd(scale, "0");
+  const units = BigInt(whole) * factor + BigInt(digits.slice(0, scale) || "0")
+    + (Number(digits[scale] ?? "0") >= 5 ? 1n : 0n);
+  const prefix = sign === "-" && units !== 0n ? "-" : "";
+  return prefix + (units / factor) + (scale ? "." + (units % factor).toString().padStart(scale, "0") : "");
+}
+
 export function money(value: unknown) {
-  const s = String(value ?? "0");
-  const [whole, fraction = ""] = s.split(".");
-  return `$${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${fraction.padEnd(2, "0").slice(0, 2)}`;
+  const fixed = fixedDecimal(value);
+  const negative = fixed.startsWith("-");
+  const [whole, fraction] = (negative ? fixed.slice(1) : fixed).split(".");
+  return `${negative ? "-" : ""}$${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${fraction}`;
 }

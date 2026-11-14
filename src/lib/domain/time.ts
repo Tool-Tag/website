@@ -5,3 +5,10 @@ export function denverDateTime(value?: string | null) {
 export function denverTime(value: string) {
   return new Date(value).toLocaleTimeString("en-US", {timeZone: TOOLTAG_TIMEZONE, hour: "numeric", minute: "2-digit"});
 }
+
+export function denverCalendarDate(value?: string | null) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC", month: "short", day: "numeric", year: "numeric",
+  }).format(new Date(`${value}T00:00:00Z`));
+}

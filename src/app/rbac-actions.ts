@@ -21,6 +21,52 @@ export async function saveStaffUser(_: RbacResult, form: FormData): Promise<Rbac
     revalidatePath("/app", "layout"); return {ok:true};
   } catch {return {error:"Could not save user access. Owner access is required."};}
 }
+export async function createStaffUser(_: RbacResult, form: FormData): Promise<RbacResult> {
+  try {
+    const { db } = await requireOwner();
+    const fields = z.object({
+      email: z.email(),
+      name: z.string().trim().min(1).max(100),
+      password: z.string().min(12).max(72),
+      roles: z.array(z.uuid()).min(1),
+    }).safeParse({
+      email: String(form.get("email") || "").trim(),
+      name: form.get("name"),
+      password: form.get("password"),
+      roles: form.getAll("roles"),
+    });
+    if (!fields.success) return { error: "Enter a display name, valid email, password of 12–72 characters, and at least one role." };
+    const { email, name, password, roles } = fields.data;
+    if (new TextEncoder().encode(password).length > 72) return { error: "Use an initial password no longer than 72 UTF-8 bytes." };
+
+    const directory = await db.rpc("rbac_directory");
+    const assignable = new Set(
+      (directory.data?.roles ?? [])
+        .filter((role: { system_key: string | null }) => role.system_key !== "Owner")
+        .map((role: { id: string }) => role.id),
+    );
+    if (directory.error || roles.some(id => !assignable.has(id))) return { error: "Choose valid assignable ToolTag roles." };
+
+    const { data, error } = await storageAdmin().auth.admin.createUser({ email, password, email_confirm: true });
+    if (error || !data.user) {
+      return { error: error?.code === "email_exists" || error?.code === "user_already_exists"
+        ? "This email already has an account. Use Link existing account."
+        : "Could not create the account. Check the email and password and try again." };
+    }
+
+    const assigned = await db.rpc("rbac_save_user", {
+      p_user: data.user.id,
+      p_name: name,
+      p_active: true,
+      p_roles: roles,
+    });
+    if (assigned.error) return { error: "Account created, but ToolTag access was not assigned. Use Link existing account to finish setup." };
+    revalidatePath("/app/settings");
+    return { ok: true };
+  } catch {
+    return { error: "Could not finish creating the user. Check Owner access and Auth configuration." };
+  }
+}
 export async function inviteStaffUser(_: RbacResult, form: FormData): Promise<RbacResult> {
   try {
     const {db} = await requireOwner();

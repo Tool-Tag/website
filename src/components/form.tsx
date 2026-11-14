@@ -1,14 +1,17 @@
 "use client";
+import {ModalActions} from "./hex-modal-frame";
 import {useActionModal} from "./action-modal";
 import { useActionPermission } from "./permission-provider";
 import { PhoneVerification } from "./phone-verification";
 import { useActionState, useState, useEffect, useRef } from "react";
+import { fixedDecimal } from "@/lib/domain/money";
 import { mutate, type ActionState } from "@/app/actions";
 export type Field = {
   name: string;
   label: string;
   type?: string;
   step?: string;
+  decimalScale?: number;
   required?: boolean;
   value?: string;
   options?: { value: string; label: string }[];
@@ -19,6 +22,7 @@ export type Field = {
 };
 export function Form({
   operation,
+  inlineActions = false,
   fields,
   hidden = {},
   button = "Save",
@@ -30,6 +34,7 @@ export function Form({
   validateSubmit,
 }: {
   operation: string;
+  inlineActions?: boolean;
   fields: Field[];
   hidden?: Record<string, string>;
   button?: string;
@@ -48,6 +53,14 @@ export function Form({
     {},
   );
   const handled = useRef<ActionState|null>(null);
+  const actionError = useRef<HTMLDivElement>(null);
+  const errorTitle = operation === "shop-handover" ? "Could not confirm handover."
+    : operation === "get-tagged-approve" ? "Could not create quote draft." : null;
+  useEffect(() => {
+    if (state.error && errorTitle) {
+      actionError.current?.focus();
+    }
+  }, [errorTitle, state]);
   useEffect(()=>{if(state.ok && handled.current!==state){handled.current=state;onSaved?.(state.data);closeModal?.();}},[state,onSaved,closeModal]);
   if (!allowed) return null;
   return (
@@ -89,9 +102,11 @@ export function Form({
                 list={f.suggestions ? `suggest-${f.name}` : undefined}
                 name={f.name}
                 onChange={e=>{if(operation==="customer"&&f.name==="phone")setCustomerPhone(e.target.value);onFieldChange?.(f.name,e.target.value);}}
-                type={f.type ?? "text"}
+                type={f.decimalScale !== undefined ? "text" : f.type ?? "text"}
+                inputMode={f.decimalScale !== undefined ? "decimal" : undefined}
+                pattern={f.decimalScale !== undefined ? `[0-9]+([.][0-9]{1,${f.decimalScale}})?` : undefined}
                 required={f.required}
-                defaultValue={f.value}
+                defaultValue={f.decimalScale !== undefined && f.value !== undefined && f.value !== "" ? fixedDecimal(f.value, f.decimalScale) : f.value}
                 step={f.step ?? (f.type === "number" ? "0.01" : undefined)}
               />
               {f.suggestions && (
@@ -109,7 +124,10 @@ export function Form({
       {operation==="customer" && <PhoneVerification phone={customerPhone} />}
       {children}
       {state.error && (
-        <div role="alert" className="notice error wide">
+        <div role="alert" className="notice error wide"
+          ref={errorTitle ? actionError : undefined}
+          tabIndex={errorTitle ? -1 : undefined}>
+          {errorTitle && <strong>{errorTitle} </strong>}
           {state.error}
         </div>
       )}
@@ -134,7 +152,7 @@ export function Form({
       )}
       {state.mailStatus && <p className="notice wide">{state.mailStatus}</p>}
       {state.ok && <div className="notice success wide">Saved.</div>}
-      <button onClick={e=>{if(validateSubmit&&!validateSubmit())e.preventDefault();}} disabled={pending||submitDisabled}>{pending ? "Saving…" : button}</button>
+      <ModalActions inline={inlineActions}><button type="submit" onClick={e=>{if(validateSubmit&&!validateSubmit())e.preventDefault();}} disabled={pending||submitDisabled}>{pending ? "Saving…" : button}</button></ModalActions>
     </form>
   );
 }

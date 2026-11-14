@@ -1,4 +1,6 @@
-import {classifyAttention,categoryBadge,type AttentionRecord,type Urgency} from "./urgent-attention";
+import {supportQueue} from "./support-queue";
+import {workspaceJobQueues} from "./job-queues";
+import {classifyAttention,categoryBadge,queueDays,urgency,type AttentionRecord,type Urgency} from "./urgent-attention";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type WorkspaceAttention = {
@@ -36,17 +38,13 @@ export async function workspaceAttention(
         .select("id,status,source,intake_reviewed_at")
         .eq("unit_id", unit)
         .in("status", ["Draft", "Sent", "Viewed", "Agreement Pending", "Accepted"]),
-      db
-        .from("jobs")
-        .select("id,quote_id,status,work_stage")
-        .eq("is_lost",false)
-        .eq("unit_id", unit),
+      workspaceJobQueues(db, unit).catch(() => null),
       db
         .from("refund_requests")
         .select("id,amount,processed_amount")
         .eq("unit_id", unit)
         .in("status", ["Pending","In Review","Approved","Issued"]),
-      db.rpc("support_attention"),
+      supportQueue(db),
       db.rpc("urgent_login_attention"),
     ]);
 
@@ -59,7 +57,7 @@ export async function workspaceAttention(
         .filter((quoteId): quoteId is string => Boolean(quoteId)),
     );
 
-    const jobRows = jobs.data ?? [];
+    const jobRows = jobs?.jobs ?? [];
     const jobQuoteIds = new Set(
       jobRows
         .map((job) => job.quote_id)
@@ -78,21 +76,20 @@ export async function workspaceAttention(
       return !stillInRequestReview;
     });
 
-    const openJobs = jobRows.filter(
-      (job) => job.status !== "Cancelled" && job.work_stage !== "Closed",
-    );
-
     const pendingRefunds = refunds.data ?? [];
 
     const urgentRows=classifyAttention((urgent.data?.items??[]) as AttentionRecord[]);
-    const supportBadge=categoryBadge(urgentRows,"problem"),refundBadge=categoryBadge(urgentRows,"refund"),lostBadge=categoryBadge(urgentRows,"lost");
+    const now = new Date();
+    const supportColors = support.open.map(row => urgency("problem", row.waiting_since ? queueDays(row.waiting_since, now, true) : 0));
+    const supportColor = supportColors.includes("red") ? "red" : supportColors.includes("orange") ? "orange" : "green";
+    const refundBadge=categoryBadge(urgentRows,"refund"),lostBadge=categoryBadge(urgentRows,"lost");
     return {
       lost:lostBadge.count,
-      urgency:{notifications:supportBadge.color,refunds:refundBadge.color,lost:lostBadge.color},
-      notifications: urgent.error?Number(support.data||0):supportBadge.count,
+      urgency:{notifications:supportColor,refunds:refundBadge.color,lost:lostBadge.color},
+      notifications: support.open.length,
       getTagged: requestRows.length,
       quotes: openQuotes.length,
-      jobs: openJobs.length,
+      jobs: jobs?.active.length ?? 0,
       refunds: urgent.error?pendingRefunds.length:refundBadge.count,
     };
   } catch {

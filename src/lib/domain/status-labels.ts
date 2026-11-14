@@ -42,6 +42,10 @@ export const workStageLabel = (stage: string) =>
 
 export const paymentStatusLabel = (status: string) =>
   ({
+    not_applicable: "Not required",
+    paid_confirmed: "Confirmed",
+    pending: "Pending payment",
+    pending_verification: "Pending verification",
     "Pending Verification": "Pending Verification",
     Confirmed: "Confirmed",
     Rejected: "Rejected",

@@ -1,3 +1,4 @@
+import {CustomerTrackingDetails, type TrackingHistory} from "@/components/customer-tracking-details";
 import {StatusHelp} from "@/components/status-help";
 import {TaxBreakdown} from "@/components/tax-breakdown";
 import { StatusSmsOptIn } from "@/components/sms-consent";
@@ -22,6 +23,8 @@ export const dynamic = "force-dynamic";
 
 const labels: Record<string, { title: string; description: string }> = {
   "Pending Delivery": {title:"Pending Delivery",description:"Confirm your payment or choose a delivery option. Select Cash before the final cutoff."},
+  "Ready for Shop Pickup": {title:"Ready for Shop Pickup",description:"Work is finished. Pick up your items at the shop."},
+  "Awaiting Receipt Confirmation": {title:"Awaiting Receipt Confirmation",description:"Please confirm that you received your items."},
   "Shop Pickup": {title:"Shop Pickup",description:"Your items remain at the shop. Wait for ToolTag pickup instructions."},
   "Pickup Fee": {
     title: "Pickup Fee",
@@ -124,13 +127,22 @@ export default async function JobStatusPage({
     ? customerDocuments
     : [];
 
-  const steps = Array.isArray(data.steps)
+  const reportedSteps = Array.isArray(data.steps)
     ? data.steps
     : ["In Process", "Engraving", "Final Details", "Completed"];
   const {data:onHold}=await db.rpc("status_job_on_hold",{p_token:token});
   if(onHold) return <main className="public"><StatusRefresh/><p className="eyebrow">ToolTag · Tracking</p><h1>{data.code}</h1><p>We are reviewing an issue with your job. ToolTag will contact you with an update. Please contact support if you have questions.</p></main>;
   const {data:pickupRetry}=await db.rpc("pickup_retry_context",{p_job:data.id,p_token:token});
-  const activeStage = data.tracking_stage ?? data.stage ?? "In Process";
+  const reportedStage = data.tracking_stage ?? data.stage ?? "In Process";
+  const awaitingReceipt = data.job_status === "Delivered – Pending Customer Acceptance";
+  const readyForShopPickup = reportedStage === "Completed" && data.job_status === "Ready for Delivery";
+  const activeStage = awaitingReceipt ? "Awaiting Receipt Confirmation"
+    : readyForShopPickup ? "Ready for Shop Pickup" : reportedStage;
+  const steps = awaitingReceipt || readyForShopPickup
+    ? [...reportedSteps.filter((step: string) => step !== "Completed"),
+        ...(readyForShopPickup ? ["Ready for Shop Pickup"] : []),
+        "Awaiting Receipt Confirmation", "Completed"]
+    : reportedSteps;
   const current = labels[activeStage] ?? labels["In Process"];
   const pickup = data.pickup_return;
   const deliveryWaiting=pickup?.pickup_status==="Picked Up"&&(!pickup.production_ready_at||!["Pickup & Delivery","Drop-off + Delivery"].includes(pickup.service_method));
@@ -144,6 +156,33 @@ export default async function JobStatusPage({
   const itemsTotal = Number(data.items_total ?? 0);
   const itemsCompleted = Number(data.items_completed ?? 0);
   const itemsStarted = Number(data.items_started ?? 0);
+
+  const { data: historyData } = await db.rpc("customer_tracking_history", { p_token: token });
+  const history = historyData as TrackingHistory | null;
+  const completed = data.job_status === "Completed";
+  const recordedSteps = history?.steps.map(step => step.label) ?? [];
+  const trackingSteps = recordedSteps.length
+    ? [...new Set(completed
+        ? [...recordedSteps, "Completed"]
+        : [...recordedSteps.filter(step => step !== activeStage && step !== "Completed"), activeStage,
+            ...steps.slice(steps.indexOf(activeStage) + 1).filter((step: string) => !recordedSteps.includes(step))])]
+    : steps;
+  const balance = data.payment?.balance_due;
+  const canPay = !completed && !data.cancelled && Number(balance) > 0 &&
+    Boolean(pickup?.production_ready_at && !pickup.returned_at) &&
+    data.payment?.request?.status !== "Pending Verification";
+  const canRescheduleDelivery = !completed && !data.cancelled && pickup?.return_window_start &&
+    !pickup.return_reservation_stop_id && pickup.delivery_payment_status !== "Shop Pickup" &&
+    !["Delivered", "En Route", "Arrived", "Cancelled"].includes(pickup.return_status);
+  const canReschedulePickup = !completed && !data.cancelled &&
+    ["Not Scheduled", "Scheduled"].includes(pickup?.pickup_status);
+  const milestones = [
+    {label: "Picked up", at: pickup?.picked_up_at},
+    {label: "Work ready", at: pickup?.production_ready_at},
+    {label: "Items handed over", at: pickup?.returned_at},
+    {label: `Last updated · ${activeStage}`, at: data.updated_at},
+  ].filter((entry): entry is {label:string;at:string} => typeof entry.at === "string")
+    .sort((a,b)=>Date.parse(a.at)-Date.parse(b.at));
 
   const {data:taxPricing}=await db.rpc("public_payment_tax",{p_token:token,p_scope:"status"});
   const {data: smsConsent} = await db.rpc("sms_consent_state", {p_token:token,p_scope:"status"});
@@ -168,11 +207,11 @@ export default async function JobStatusPage({
         {itemsTotal > 0 && (
           <div className="status-progress-summary">
             <strong>
-              {itemsCompleted}/{itemsTotal} pieces finished
+              {`${itemsCompleted}/${itemsTotal} ${itemsTotal === 1 ? "piece" : "pieces"} finished`}
             </strong>
             {itemsStarted > itemsCompleted && (
               <span className="muted">
-                {itemsStarted}/{itemsTotal} pieces started or finished
+                {`${itemsStarted}/${itemsTotal} ${itemsTotal === 1 ? "piece" : "pieces"} started or finished`}
               </span>
             )}
           </div>
@@ -211,19 +250,41 @@ export default async function JobStatusPage({
           </div>
         )}
 
-        {pickup?.return_window_start && !pickup.return_reservation_stop_id && pickup.delivery_payment_status !== "Shop Pickup" && !["Delivered","En Route","Arrived","Cancelled"].includes(pickup.return_status) && <details><summary>Reschedule delivery</summary><RouteCalendar job={data.id} leg="Return" token={token} locale="en" /></details>}
-        {["Not Scheduled","Scheduled"].includes(pickup?.pickup_status) && <details><summary>Reschedule Pickup</summary><RouteCalendar job={data.id} leg="Pickup" token={token} locale="en" pickupRetry={Boolean(pickup?.pickup_missed_stop_id)} /></details>}
-        <StatusTimeline steps={steps} current={activeStage} updated={data.updated_at} finished={itemsCompleted} total={itemsTotal} />
+        <StatusTimeline steps={trackingSteps} current={activeStage} updated={data.updated_at} finished={itemsCompleted} total={itemsTotal} />
+      </section>
+
+      <CustomerTrackingDetails total={itemsTotal} finished={itemsCompleted}
+        milestones={milestones} history={history} />
+
+      <section className="panel">
+        <h2>Balance</h2>
+        <div className="tracking-balance"><span>Balance due</span><strong>{balance == null ? "Unavailable" : money(balance)}</strong></div>
+        {Number(balance) === 0 && balance != null && <p className="muted">No balance due.</p>}
+        {data.payment?.request?.status === "Pending Verification" && <p>Payment is pending verification.</p>}
+        {canPay && <a href="#tracking-payment" className="button">Pay balance</a>}
+      </section>
+
+      <section className="panel">
+        <h2>What happens next</h2>
+        {completed ? <p>This job is complete. No further pickup or delivery is scheduled.</p>
+          : data.cancelled ? <p>This service was cancelled.</p>
+          : awaitingReceipt ? <p>Please confirm that you received your items.</p>
+          : readyForShopPickup || pickup?.delivery_payment_status === "Shop Pickup" ? <p>Your next step is pickup at the shop.</p>
+          : pickup?.return_window_start ? <p>Delivery window: {formatWindow(pickup.return_window_start, pickup.return_window_end) || denverDateTime(pickup.return_window_start)}</p>
+          : pickup?.pickup_window_start && ["Not Scheduled","Scheduled"].includes(pickup.pickup_status) ? <p>Pickup window: {formatWindow(pickup.pickup_window_start, pickup.pickup_window_end) || denverDateTime(pickup.pickup_window_start)}</p>
+          : <p>No upcoming delivery date has been confirmed.</p>}
+        {canRescheduleDelivery && <details><summary>Reschedule delivery</summary><RouteCalendar job={data.id} leg="Return" token={token} locale="en" /></details>}
+        {canReschedulePickup && <details><summary>Reschedule pickup</summary><RouteCalendar job={data.id} leg="Pickup" token={token} locale="en" pickupRetry={Boolean(pickup?.pickup_missed_stop_id)} /></details>}
       </section>
 
       {Array.isArray(customerRoutes)&&customerRoutes.length>0&&<CustomerRouteTimeline routes={customerRoutes} />}
 
-      {data.job_status==="Delivered – Pending Customer Acceptance"&&<CustomerDeliveryAcknowledgment token={token} />}
+      {awaitingReceipt&&<CustomerDeliveryAcknowledgment token={token} />}
       {pickup?.delivery_payment_method==="Cash"&&!pickup.returned_at&&Number(data.payment?.balance_due)>0&&<section className="panel"><h2>Please make your cash payment of {money(data.payment.balance_due)}</h2><p>Do not pay more than this amount.</p><p className="notice error">Tipping the driver is optional.</p></section>}
       {driverIncident && <DriverIncidentChoice job={data.id} token={token} data={driverIncident} />}
       {pickupMissed && !data.cancelled && <PickupMissChoice job={data.id} token={token} retry={pickupRetry} cardConfigured={cardPaymentsConfigured()} />}
       {pickup?.delivery_attempts === 1 && pickup.delivery_payment_status !== "Shop Pickup" && pickup.return_reservation_expires_at && <ReturnChoice token={token} job={data.id} fee={Number(data.second_return_fee)} chosen={Boolean(data.second_return_chosen)} />}
-      {pickup?.production_ready_at && !pickup.returned_at && Number(data.payment?.balance_due || 0)>0 && <><TaxBreakdown pricing={taxPricing}/><PaymentForm token={token} balanceDue={data.payment.balance_due} zelleEmail={data.payment.methods?.zelle_email} venmoHandle={data.payment.methods?.venmo_handle} cardConfigured={cardPaymentsConfigured()} routePayment /></>}
+      {canPay && <div id="tracking-payment"><TaxBreakdown pricing={taxPricing}/><PaymentForm token={token} balanceDue={data.payment.balance_due} zelleEmail={data.payment.methods?.zelle_email} venmoHandle={data.payment.methods?.venmo_handle} cardConfigured={cardPaymentsConfigured()} routePayment /></div>}
       {Array.isArray(data.payment_proofs) && data.payment_proofs.length>0 && <section className="panel"><h2>Payment proofs</h2>{data.payment_proofs.map((proof:{id:string;submitted_at:string})=><form key={proof.id} method="post" action={`/app/proofpayment/${encodeURIComponent(data.code)}`}><input type="hidden" name="token" value={token}/><input type="hidden" name="payment" value={proof.id}/><button>View payment proof · {denverDateTime(proof.submitted_at)}</button></form>)}</section>}
       <section className="panel status-help-panel">
         <p className="status-kicker">Help With</p>
