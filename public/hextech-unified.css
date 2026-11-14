@@ -555,3 +555,26 @@ fieldset.role-chips { border: 1px solid var(--line); border-radius: 8px; padding
 #tracking-payment { scroll-margin-top: 24px; }
 
 .timeline-completed-toggle { width: fit-content; max-width: 100%; height: auto; white-space: normal; overflow: visible; text-overflow: clip; }
+
+.contact-site { min-height: 100dvh; display: flex; flex-direction: column; }
+.contact-header, .contact-footer {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: 12px 24px; padding: 16px max(20px, calc((100% - 1120px) / 2));
+  background: var(--inset);
+}
+.contact-header { border-bottom: 1px solid var(--line); }
+.contact-header .intake-brand, .contact-footer p { margin: 0; }
+.contact-header nav, .contact-footer nav { display: flex; flex-wrap: wrap; gap: 12px 20px; }
+.contact-header nav a, .contact-footer a { color: var(--ink); }
+.contact-header nav a:hover, .contact-footer a:hover { color: var(--gold); }
+.contact-footer { margin-top: auto; border-top: 1px solid var(--line); color: var(--muted); }
+.contact-skip { position: absolute; z-index: 10; inset: 8px auto auto 8px; transform: translateY(-200%); }
+.contact-skip:focus { transform: none; background: var(--inset); padding: 8px 12px; }
+.contact-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 16px; }
+.contact-cards .panel { display: flex; align-items: flex-start; gap: 14px; margin: 0; }
+.contact-cards .panel::before { content: none; }
+.contact-cards .panel h2 { margin: 0 0 6px; }
+.contact-cards .panel a { overflow-wrap: anywhere; }
+@media (max-width: 580px) {
+  .contact-header nav { order: 1; width: 100%; }
+}

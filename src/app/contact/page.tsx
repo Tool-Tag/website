@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { PublicInfoShell } from "@/components/public-info-shell";
+import { HexIcon } from "@/components/hex-icon";
 
 export const metadata: Metadata = {
   title: "Contact — ToolTag",
@@ -8,17 +9,20 @@ export const metadata: Metadata = {
 };
 
 export default function ContactPage() {
-  return <main className="public legal-page">
-    <Link href="/">← ToolTag home</Link>
-    <h1>Contact ToolTag</h1>
-    <section className="panel">
-      <h2>Questions</h2>
-      <a href="mailto:hello@martinlab.studio">hello@martinlab.studio</a>
-    </section>
-    <section className="panel">
-      <h2>Support</h2>
-      <a href="mailto:support@martinlab.studio">support@martinlab.studio</a>
-    </section>
-    <dl><dt>Phone</dt><dd>Coming soon</dd><dt>Address</dt><dd>Coming soon</dd></dl>
-  </main>;
+  return <PublicInfoShell page="contact" mainClassName="public legal-page">
+      <h1>Contact ToolTag</h1>
+      <div className="contact-cards">
+        <section className="panel">
+          <HexIcon name="mail" />
+          <div><h2>Questions</h2>
+            <a href="mailto:hello@martinlab.studio">hello@martinlab.studio</a></div>
+        </section>
+        <section className="panel">
+          <HexIcon name="support" />
+          <div><h2>Support</h2>
+            <a href="mailto:support@martinlab.studio">support@martinlab.studio</a></div>
+        </section>
+      </div>
+      <dl><dt>Phone</dt><dd>Coming soon</dd><dt>Address</dt><dd>Coming soon</dd></dl>
+  </PublicInfoShell>;
 }
