@@ -1,4 +1,4 @@
-import {CustomerTrackingDetails} from "@/components/customer-tracking-details";
+import {CustomerTrackingDetails, type TrackingHistory} from "@/components/customer-tracking-details";
 import {StatusHelp} from "@/components/status-help";
 import {TaxBreakdown} from "@/components/tax-breakdown";
 import { StatusSmsOptIn } from "@/components/sms-consent";
@@ -157,7 +157,16 @@ export default async function JobStatusPage({
   const itemsCompleted = Number(data.items_completed ?? 0);
   const itemsStarted = Number(data.items_started ?? 0);
 
+  const { data: historyData } = await db.rpc("customer_tracking_history", { p_token: token });
+  const history = historyData as TrackingHistory | null;
   const completed = data.job_status === "Completed";
+  const recordedSteps = history?.steps.map(step => step.label) ?? [];
+  const trackingSteps = recordedSteps.length
+    ? [...new Set(completed
+        ? [...recordedSteps, "Completed"]
+        : [...recordedSteps.filter(step => step !== activeStage && step !== "Completed"), activeStage,
+            ...steps.slice(steps.indexOf(activeStage) + 1).filter((step: string) => !recordedSteps.includes(step))])]
+    : steps;
   const balance = data.payment?.balance_due;
   const canPay = !completed && !data.cancelled && Number(balance) > 0 &&
     Boolean(pickup?.production_ready_at && !pickup.returned_at) &&
@@ -241,13 +250,11 @@ export default async function JobStatusPage({
           </div>
         )}
 
-        <StatusTimeline steps={steps} current={activeStage} updated={data.updated_at} finished={itemsCompleted} total={itemsTotal} />
+        <StatusTimeline steps={trackingSteps} current={activeStage} updated={data.updated_at} finished={itemsCompleted} total={itemsTotal} />
       </section>
 
       <CustomerTrackingDetails total={itemsTotal} finished={itemsCompleted}
-        cancelled={Number(data.item_progress?.cancelled ?? 0)}
-        currentPiece={Number(data.item_progress?.current_sequence) || undefined}
-        milestones={milestones} />
+        milestones={milestones} history={history} />
 
       <section className="panel">
         <h2>Balance</h2>
